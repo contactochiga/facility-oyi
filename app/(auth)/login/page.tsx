@@ -25,6 +25,7 @@ function LoginInner() {
     setLoading(true);
     try {
       const res = await authService.login(email.trim(), password);
+
       if (res.error || !res.token) {
         setErr(res.error || "Login failed");
         return;
@@ -80,11 +81,20 @@ function LoginInner() {
           {loading ? "Signing in..." : "Sign in"}
         </Button>
 
+        {/* ✅ SIGN UP LINK */}
         <div className="mt-6 text-xs text-zinc-500">
+          New here?{" "}
+          <a
+            className="text-zinc-200 underline"
+            href={`/signup?next=${encodeURIComponent(next)}`}
+          >
+            Create an account
+          </a>
+        </div>
+
+        <div className="mt-4 text-xs text-zinc-500">
           Backend:{" "}
-          <span className="text-zinc-300">
-            {process.env.NEXT_PUBLIC_API_URL}
-          </span>
+          <span className="text-zinc-300">{process.env.NEXT_PUBLIC_API_URL}</span>
         </div>
       </div>
     </div>
