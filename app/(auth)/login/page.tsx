@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { authService } from "@/services/authService";
@@ -11,7 +11,13 @@ import { setCookie, decodeToken, isExpired } from "@/lib/auth";
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/overview";
+
+  // ✅ Hydration guard (prevents SSR/CSR mismatch)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const nextRaw = params.get("next") || "/overview";
+  const next = useMemo(() => nextRaw, [nextRaw]);
 
   const { setToken } = useSessionStore();
 
@@ -41,9 +47,23 @@ function LoginInner() {
       setToken(res.token);
 
       router.replace(next);
+    } catch (e: any) {
+      setErr(e?.message || "Login failed");
     } finally {
       setLoading(false);
     }
+  }
+
+  // ✅ Render stable UI after mount only
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
+        <div className="glass w-full max-w-md p-8">
+          <div className="text-xl font-semibold tracking-tight">Oyi Facility</div>
+          <div className="muted mt-1">Loading…</div>
+        </div>
+      </div>
+    );
   }
 
   return (
