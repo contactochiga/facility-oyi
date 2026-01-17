@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { authService } from "@/services/authService";
@@ -11,7 +11,13 @@ import { setCookie, decodeToken, isExpired } from "@/lib/auth";
 function SignupInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/overview";
+
+  // ✅ Hydration guard
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const nextRaw = params.get("next") || "/overview";
+  const next = useMemo(() => nextRaw, [nextRaw]);
 
   const { setToken } = useSessionStore();
 
@@ -26,7 +32,11 @@ function SignupInner() {
     setErr(null);
     setLoading(true);
     try {
-      const res = await authService.signup(email.trim(), password, fullName.trim());
+      const res = await authService.signup(
+        email.trim(),
+        password,
+        fullName.trim()
+      );
 
       if (res.error || !res.token) {
         setErr(res.error || "Signup failed");
@@ -43,9 +53,22 @@ function SignupInner() {
       setToken(res.token);
 
       router.replace(next);
+    } catch (e: any) {
+      setErr(e?.message || "Signup failed");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
+        <div className="glass w-full max-w-md p-8">
+          <div className="text-xl font-semibold tracking-tight">Oyi Facility</div>
+          <div className="muted mt-1">Loading…</div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -91,13 +114,17 @@ function SignupInner() {
 
         <div className="mt-6 text-xs text-zinc-500">
           Already have an account?{" "}
-          <a className="text-zinc-200 underline" href={`/login?next=${encodeURIComponent(next)}`}>
+          <a
+            className="text-zinc-200 underline"
+            href={`/login?next=${encodeURIComponent(next)}`}
+          >
             Sign in
           </a>
         </div>
 
         <div className="mt-4 text-xs text-zinc-500">
-          Backend: <span className="text-zinc-300">{process.env.NEXT_PUBLIC_API_URL}</span>
+          Backend:{" "}
+          <span className="text-zinc-300">{process.env.NEXT_PUBLIC_API_URL}</span>
         </div>
       </div>
     </div>
@@ -106,7 +133,18 @@ function SignupInner() {
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
+          <div className="glass w-full max-w-md p-8">
+            <div className="text-xl font-semibold tracking-tight">
+              Oyi Facility
+            </div>
+            <div className="muted mt-1">Loading…</div>
+          </div>
+        </div>
+      }
+    >
       <SignupInner />
     </Suspense>
   );
