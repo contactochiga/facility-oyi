@@ -23,6 +23,30 @@ export type RoomsResponse<T = any> = {
   rooms: T[];
 };
 
+// ---------------------------
+// DEVICES (DISCOVERY)
+// ---------------------------
+export type DiscoveredDevice = {
+  // Tuya / adapters can vary — keep flexible
+  id?: string;
+  name?: string;
+  local_name?: string;
+  device_id?: string;
+  devId?: string;
+  product_id?: string;
+  category?: string;
+  online?: boolean;
+  isOnline?: boolean;
+  status?: string;
+  [key: string]: any;
+};
+
+export type DiscoverDevicesResponse = {
+  adapter: string;
+  count: number;
+  devices: DiscoveredDevice[];
+};
+
 export const facilityService = {
   // ---------------------------
   // OVERVIEW
@@ -90,9 +114,16 @@ export const facilityService = {
   // ROOMS
   // ---------------------------
   // ✅ Used by app/(protected)/homes/page.tsx
-  // IMPORTANT: this requires a backend route that returns { rooms: [] }
   async listRooms(homeId: string): Promise<RoomsResponse> {
     const res = await API.get(`/facility/homes/${homeId}/rooms`);
+    return res.data;
+  },
+
+  // ---------------------------
+  // DEVICES (DISCOVERY)
+  // ---------------------------
+  async discoverDevices(adapter: "tuya" = "tuya"): Promise<DiscoverDevicesResponse> {
+    const res = await API.get(`/facility/devices/discover?adapter=${adapter}`);
     return res.data;
   },
 };
