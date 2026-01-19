@@ -15,8 +15,12 @@ export type MyEstatesResponse = {
   }>;
 };
 
-export type HomesResponse = {
-  homes: any[];
+export type HomesResponse<T = any> = {
+  homes: T[];
+};
+
+export type RoomsResponse<T = any> = {
+  rooms: T[];
 };
 
 export const facilityService = {
@@ -55,7 +59,7 @@ export const facilityService = {
     return res.data;
   },
 
-  // ✅ Alias your UI is calling
+  // ✅ Alias used in app/(protected)/homes/page.tsx
   async listHomes(estateId: string): Promise<HomesResponse> {
     const res = await API.get(`/facility/estates/${estateId}/homes`);
     return res.data;
@@ -69,8 +73,26 @@ export const facilityService = {
     description?: string;
     type?: string;
     resident_id?: string | null;
+
+    // optional fields (your table supports them)
+    electricity_meter?: string;
+    water_meter?: string;
+    internet_id?: string;
+    gate_code?: string;
+    lat?: number;
+    lng?: number;
   }): Promise<{ message: string; home: any }> {
     const res = await API.post("/facility/homes", payload);
+    return res.data;
+  },
+
+  // ---------------------------
+  // ROOMS
+  // ---------------------------
+  // ✅ Used by app/(protected)/homes/page.tsx
+  // IMPORTANT: this requires a backend route that returns { rooms: [] }
+  async listRooms(homeId: string): Promise<RoomsResponse> {
+    const res = await API.get(`/facility/homes/${homeId}/rooms`);
     return res.data;
   },
 };
