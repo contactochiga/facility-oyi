@@ -1,3 +1,4 @@
+// app/(protected)/overview/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -40,15 +41,32 @@ function OpsPill({ label, value }: { label: string; value: number }) {
   );
 }
 
+function extractErr(e: any) {
+  const status = e?.response?.status;
+  const msg =
+    e?.response?.data?.error ||
+    e?.message ||
+    "Request failed";
+
+  return { status, msg: String(msg) };
+}
+
 export default function OverviewPage() {
   const [data, setData] = useState<FacilityOverview | null>(null);
+
+  const [estateId, setEstateId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const [err, setErr] = useState<string | null>(null);
-  const [needsEstate, setNeedsEstate] = useState(false);
+
+  // UX states
+  const [needsEstate, setNeedsEstate] = useState(false); // no estate memberships at all
+  const [syncingEstate, setSyncingEstate] = useState(false); // estate exists but overview still says "not linked"
 
   const [showCreate, setShowCreate] = useState(false);
+  const [modalErr, setModalErr] = useState<string | null>(null);
+
   const [estateForm, setEstateForm] = useState({
     name: "",
     address: "",
@@ -63,21 +81,68 @@ export default function OverviewPage() {
 
   const canCreateEstate = estateForm.name.trim().length > 1;
 
+  async function hydrateEstateFromMembership() {
+    try {
+      const res = await facilityService.myEstates(); // { estates: [...] }
+      const first = res?.estates?.[0];
+
+      if (first?.id) {
+        setEstateId(first.id);
+        setNeedsEstate(false);
+        return first.id as string;
+      }
+
+      setEstateId(null);
+      setNeedsEstate(true);
+      return null;
+    } catch (e: any) {
+      const { status, msg } = extractErr(e);
+      setErr(`Failed to check estates${status ? ` (${status})` : ""}: ${msg}`);
+      return null;
+    }
+  }
+
+  async function loadOverview() {
+    const res = await facilityService.overview();
+    setData(res);
+    setEstateId(res?.estate_id || null);
+    setNeedsEstate(false);
+    setSyncingEstate(false);
+  }
+
   async function load() {
     setErr(null);
     setNeedsEstate(false);
+    setSyncingEstate(false);
     setLoading(true);
 
     try {
-      const res = await facilityService.overview();
-      setData(res);
+      await loadOverview();
     } catch (e: any) {
-      const msg = e?.response?.data?.error || "Failed to load overview";
-      setErr(msg);
+      const { status, msg } = extractErr(e);
 
-      // This is the exact backend error you showed
-      if (String(msg).toLowerCase().includes("estate not linked")) {
-        setNeedsEstate(true);
+      // If backend says estate not linked, fallback to membership estates
+      const lower = msg.toLowerCase();
+      const looksLikeNotLinked =
+        lower.includes("estate not linked") ||
+        status === 400;
+
+      if (looksLikeNotLinked) {
+        const eid = await hydrateEstateFromMembership();
+
+        // If user already has an estate membership, we treat this as "syncing"
+        // (common when req.user.estate_id is coming from token/claims and not refreshed yet)
+        if (eid) {
+          setData(null);
+          setSyncingEstate(true);
+          setErr(null);
+        } else {
+          setData(null);
+          setNeedsEstate(true);
+          setErr(null);
+        }
+      } else {
+        setErr(`${msg}${status ? ` (HTTP ${status})` : ""}`);
       }
     } finally {
       setLoading(false);
@@ -88,6 +153,7 @@ export default function OverviewPage() {
     if (!canCreateEstate) return;
 
     setErr(null);
+    setModalErr(null);
     setCreating(true);
 
     try {
@@ -105,10 +171,16 @@ export default function OverviewPage() {
       setShowCreate(false);
       setEstateForm({ name: "", address: "", lat: "", lng: "", type: "estate" });
 
-      // IMPORTANT: reload overview (user now has estate_id synced by backend)
+      // Pull estates again (this is the most reliable way to see the created estate immediately)
+      await hydrateEstateFromMembership();
+
+      // Try overview again
       await load();
     } catch (e: any) {
-      setErr(e?.response?.data?.error || "Failed to create estate");
+      const { status, msg } = extractErr(e);
+      const friendly = `${msg}${status ? ` (HTTP ${status})` : ""}`;
+      setModalErr(friendly);
+      setErr(friendly);
     } finally {
       setCreating(false);
     }
@@ -133,12 +205,10 @@ export default function OverviewPage() {
 
       {/* HEADER STRIP */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="muted">
-          {data?.estate_id ? `Estate: ${data.estate_id}` : "Estate: —"}
-        </div>
+        <div className="muted">{estateId ? `Estate: ${estateId}` : "Estate: —"}</div>
 
-        {/* If no estate -> show Create Estate CTA; else show Refresh */}
-        {needsEstate ? (
+        {/* CTA logic */}
+        {!estateId ? (
           <Button onClick={() => setShowCreate(true)} disabled={creating}>
             {creating ? "Creating..." : "Create Estate"}
           </Button>
@@ -149,7 +219,7 @@ export default function OverviewPage() {
         )}
       </div>
 
-      {/* ESTATE NOT LINKED PANEL (replaces scary error banner) */}
+      {/* NO ESTATE PANEL */}
       {needsEstate && (
         <div className="glass border border-white/10 rounded-2xl p-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -168,11 +238,7 @@ export default function OverviewPage() {
               <Button onClick={() => setShowCreate(true)} disabled={creating}>
                 {creating ? "Creating..." : "Create Estate"}
               </Button>
-              <Button
-                variant="ghost"
-                onClick={load}
-                disabled={loading}
-              >
+              <Button variant="ghost" onClick={load} disabled={loading}>
                 {loading ? "Checking..." : "Retry"}
               </Button>
             </div>
@@ -180,8 +246,35 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* OTHER ERRORS (only show if NOT estate missing) */}
-      {!!err && !needsEstate && (
+      {/* SYNCING PANEL (estate exists, but overview still says not linked) */}
+      {syncingEstate && (
+        <div className="glass border border-white/10 rounded-2xl p-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <div className="text-lg font-semibold">Estate created — syncing access</div>
+              <div className="text-sm text-zinc-400 mt-1 max-w-2xl">
+                Your estate membership is active, but the overview is still reading from a “linked estate” field.
+                Tap retry to refresh. If it keeps happening, we’ll update the backend overview to derive the estate from membership.
+              </div>
+              <div className="text-xs text-zinc-500 mt-3">
+                Estate: <span className="text-zinc-200">{estateId || "—"}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={load} disabled={loading}>
+                {loading ? "Refreshing..." : "Retry"}
+              </Button>
+              <Button onClick={() => setShowCreate(true)} disabled={creating}>
+                {creating ? "Creating..." : "Create Another Estate"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OTHER ERRORS */}
+      {!!err && !needsEstate && !syncingEstate && (
         <div className="glass border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-200">
           {err}
         </div>
@@ -352,19 +445,30 @@ export default function OverviewPage() {
               </button>
             </div>
 
+            {/* modal error */}
+            {modalErr && (
+              <div className="mt-4 glass border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200 rounded-xl">
+                {modalErr}
+              </div>
+            )}
+
             <div className="grid gap-3 mt-5">
               <input
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 placeholder="Estate name (e.g. Ochiga Smart Estate)"
                 value={estateForm.name}
-                onChange={(e) => setEstateForm((p) => ({ ...p, name: e.target.value }))}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, name: e.target.value }))
+                }
               />
 
               <input
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 placeholder="Address (optional)"
                 value={estateForm.address}
-                onChange={(e) => setEstateForm((p) => ({ ...p, address: e.target.value }))}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, address: e.target.value }))
+                }
               />
 
               <div className="grid grid-cols-2 gap-3">
@@ -372,20 +476,26 @@ export default function OverviewPage() {
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Latitude (optional)"
                   value={estateForm.lat}
-                  onChange={(e) => setEstateForm((p) => ({ ...p, lat: e.target.value }))}
+                  onChange={(e) =>
+                    setEstateForm((p) => ({ ...p, lat: e.target.value }))
+                  }
                 />
                 <input
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Longitude (optional)"
                   value={estateForm.lng}
-                  onChange={(e) => setEstateForm((p) => ({ ...p, lng: e.target.value }))}
+                  onChange={(e) =>
+                    setEstateForm((p) => ({ ...p, lng: e.target.value }))
+                  }
                 />
               </div>
 
               <select
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 value={estateForm.type}
-                onChange={(e) => setEstateForm((p) => ({ ...p, type: e.target.value }))}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, type: e.target.value }))
+                }
               >
                 <option value="estate">Estate</option>
                 <option value="facility">Facility</option>
@@ -393,10 +503,17 @@ export default function OverviewPage() {
               </select>
 
               <div className="flex gap-2 mt-2">
-                <Button variant="ghost" onClick={() => setShowCreate(false)} disabled={creating}>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowCreate(false)}
+                  disabled={creating}
+                >
                   Cancel
                 </Button>
-                <Button onClick={createEstate} disabled={!canCreateEstate || creating}>
+                <Button
+                  onClick={createEstate}
+                  disabled={!canCreateEstate || creating}
+                >
                   {creating ? "Creating..." : "Create Estate"}
                 </Button>
               </div>
