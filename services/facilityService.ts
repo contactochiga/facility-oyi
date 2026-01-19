@@ -62,7 +62,7 @@ export const facilityService = {
   // --------------------------------------------------
 
   /**
-   * List homes in an estate
+   * Canonical: List homes in an estate
    * GET /facility/estates/:estateId/homes
    */
   async listEstateHomes(estateId: string): Promise<{
@@ -70,6 +70,16 @@ export const facilityService = {
   }> {
     const res = await API.get(`/facility/estates/${estateId}/homes`);
     return res.data;
+  },
+
+  /**
+   * UI alias (DO NOT REMOVE)
+   * Keeps existing pages working without refactor
+   */
+  async listHomes(estateId: string): Promise<{
+    homes: Array<any>;
+  }> {
+    return this.listEstateHomes(estateId);
   },
 
   /**
