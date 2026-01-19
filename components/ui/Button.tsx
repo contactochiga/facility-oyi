@@ -1,5 +1,7 @@
 "use client";
 
+import React from "react";
+
 export default function Button({
   children,
   onClick,
@@ -9,7 +11,7 @@ export default function Button({
   type = "button",
 }: {
   children: React.ReactNode;
-  onClick?: () => void;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
   variant?: "primary" | "ghost" | "danger";
   disabled?: boolean;
   className?: string;
@@ -21,11 +23,17 @@ export default function Button({
   const styles: Record<string, string> = {
     primary: "bg-[#E11D2E] text-white hover:bg-[#C81E2A]",
     ghost: "bg-white/5 text-zinc-100 hover:bg-white/10 border border-white/10",
-    danger: "bg-red-500/10 text-red-300 hover:bg-red-500/15 border border-red-500/20",
+    danger:
+      "bg-red-500/10 text-red-300 hover:bg-red-500/15 border border-red-500/20",
   };
 
   return (
-    <button type={type} disabled={disabled} onClick={onClick} className={`${base} ${styles[variant]} ${className}`}>
+    <button
+      type={type}
+      disabled={disabled}
+      onClick={onClick}
+      className={`${base} ${styles[variant]} ${className}`}
+    >
       {children}
     </button>
   );
