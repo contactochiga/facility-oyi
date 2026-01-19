@@ -83,12 +83,37 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* MAIN GRID */}
+      {/* MAIN GRID (CLICKABLE) */}
       <div className="grid gap-4 lg:gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Homes" value={formatNumber(data?.homes ?? 0)} hint="Units under management" />
-        <StatCard label="Active Devices" value={formatNumber(data?.active_devices ?? 0)} hint="Online + reporting now" tone="good" />
-        <StatCard label="Open Maintenance" value={formatNumber(data?.open_maintenance ?? 0)} hint="Open + in progress" tone={data?.open_maintenance ? "warn" : "good"} />
-        <StatCard label="Visitors Today" value={formatNumber(data?.visitors_today ?? 0)} hint="Entries today" />
+        <StatCard
+          label="Total Homes"
+          value={formatNumber(data?.homes ?? 0)}
+          hint="Units under management"
+          href="/homes"
+        />
+
+        <StatCard
+          label="Active Devices"
+          value={formatNumber(data?.active_devices ?? 0)}
+          hint="Online + reporting now"
+          tone="good"
+          href="/devices"
+        />
+
+        <StatCard
+          label="Open Maintenance"
+          value={formatNumber(data?.open_maintenance ?? 0)}
+          hint="Open + in progress"
+          tone={data?.open_maintenance ? "warn" : "good"}
+          href="/maintenance"
+        />
+
+        <StatCard
+          label="Visitors Today"
+          value={formatNumber(data?.visitors_today ?? 0)}
+          hint="Entries today"
+          href="/visitors"
+        />
       </div>
 
       {/* SIGNAL PANELS */}
@@ -106,7 +131,11 @@ export default function OverviewPage() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendDevices.slice(-7)}>
                 <Tooltip
-                  contentStyle={{ background: "rgba(24,24,27,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12 }}
+                  contentStyle={{
+                    background: "rgba(24,24,27,0.95)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 12,
+                  }}
                 />
                 <Line type="monotone" dataKey="y" strokeWidth={2} dot={false} />
               </LineChart>
@@ -127,7 +156,11 @@ export default function OverviewPage() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={trendVisitors}>
                 <Tooltip
-                  contentStyle={{ background: "rgba(24,24,27,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12 }}
+                  contentStyle={{
+                    background: "rgba(24,24,27,0.95)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 12,
+                  }}
                 />
                 <Bar dataKey="y" />
               </BarChart>
@@ -152,7 +185,11 @@ export default function OverviewPage() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendWallet}>
                 <Tooltip
-                  contentStyle={{ background: "rgba(24,24,27,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12 }}
+                  contentStyle={{
+                    background: "rgba(24,24,27,0.95)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 12,
+                  }}
                 />
                 <Line type="monotone" dataKey="y" strokeWidth={2} dot={false} />
               </LineChart>
