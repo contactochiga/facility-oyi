@@ -6,7 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
-import facilityService from "@/services/facilityService";
+import { facilityService } from "@/services/facilityService";
 
 type RoomRow = {
   id: string;
