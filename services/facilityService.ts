@@ -24,6 +24,22 @@ export type RoomsResponse<T = any> = {
 };
 
 // ---------------------------
+// ROOMS (CREATE)
+// ---------------------------
+export type CreateRoomPayload = {
+  estate_id: string;
+  home_id: string;
+  name: string;
+  type?: string;
+  floor?: number;
+};
+
+export type CreateRoomResponse = {
+  message: string;
+  room: any;
+};
+
+// ---------------------------
 // DEVICES (DISCOVERY)
 // ---------------------------
 export type DiscoveredDevice = {
@@ -119,11 +135,20 @@ export const facilityService = {
     return res.data;
   },
 
+  // ✅ Used by app/(protected)/homes/[homeId]/rooms/page.tsx (your build error)
+  async createRoom(payload: CreateRoomPayload): Promise<CreateRoomResponse> {
+    const res = await API.post("/facility/rooms", payload);
+    return res.data;
+  },
+
   // ---------------------------
   // DEVICES (DISCOVERY)
   // ---------------------------
   async discoverDevices(adapter: "tuya" = "tuya"): Promise<DiscoverDevicesResponse> {
-    const res = await API.get(`/facility/devices/discover?adapter=${adapter}`);
+    // small improvement: use params instead of string concat (avoids encoding issues)
+    const res = await API.get("/facility/devices/discover", {
+      params: { adapter },
+    });
     return res.data;
   },
 };
