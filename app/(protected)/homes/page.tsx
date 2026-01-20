@@ -1,3 +1,5 @@
+// app/(protected)/homes/page.tsx
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -77,7 +79,6 @@ export default function HomesPage() {
   const canSubmit = useMemo(() => form.name.trim().length > 0, [form.name]);
 
   async function bootstrapEstate() {
-    // membership-driven estates
     const res = await facilityService.myEstates(); // { estates: [...] }
     const first = res?.estates?.[0];
     if (first?.id) return first.id as string;
@@ -139,8 +140,6 @@ export default function HomesPage() {
         block: form.block.trim() || undefined,
         description: form.description.trim() || undefined,
         type: "home",
-        // NOTE: you currently are not sending the meter fields to backend.
-        // If your backend supports them, we can include them next.
       });
 
       setShowAdd(false);
@@ -255,10 +254,7 @@ export default function HomesPage() {
                             <div className="space-y-3">
                               <div className="text-sm font-medium">Home Details</div>
                               <div className="grid grid-cols-2 gap-3">
-                                <Field
-                                  label="Electricity Meter"
-                                  value={h.electricity_meter}
-                                />
+                                <Field label="Electricity Meter" value={h.electricity_meter} />
                                 <Field label="Water Meter" value={h.water_meter} />
                                 <Field label="Internet ID" value={h.internet_id} />
                                 <Field label="Gate Code" value={h.gate_code} />
@@ -271,7 +267,8 @@ export default function HomesPage() {
                                 <div className="text-sm font-medium">
                                   Rooms ({rLoading ? "…" : rooms.length})
                                 </div>
-                                <div className="flex gap-2">
+
+                                <div className="flex gap-2 flex-wrap justify-end">
                                   <Button
                                     variant="ghost"
                                     onClick={(e: any) => {
@@ -283,7 +280,7 @@ export default function HomesPage() {
                                     {rLoading ? "Loading..." : "Reload Rooms"}
                                   </Button>
 
-                                  {/* ✅ FIX: correct route + pass estateId */}
+                                  {/* ✅ Manage Rooms (keeps estateId in query) */}
                                   <a
                                     href={`/homes/${h.id}/rooms?estateId=${encodeURIComponent(
                                       estateId || ""
@@ -293,14 +290,21 @@ export default function HomesPage() {
                                   >
                                     Manage Rooms
                                   </a>
+
+                                  {/* ✅ NEW: Manage Users */}
+                                  <a
+                                    href={`/homes/${h.id}/users`}
+                                    className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm bg-white/5 border border-white/10 hover:bg-white/10 transition"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    Manage Users
+                                  </a>
                                 </div>
                               </div>
 
                               <div className="grid gap-2">
                                 {rLoading ? (
-                                  <div className="text-sm text-zinc-400">
-                                    Loading rooms…
-                                  </div>
+                                  <div className="text-sm text-zinc-400">Loading rooms…</div>
                                 ) : rooms.length ? (
                                   rooms.map((r) => (
                                     <div
@@ -308,9 +312,7 @@ export default function HomesPage() {
                                       className="glass p-3 border border-white/10 rounded-xl flex items-center justify-between"
                                     >
                                       <div>
-                                        <div className="text-sm font-medium">
-                                          {r.name}
-                                        </div>
+                                        <div className="text-sm font-medium">{r.name}</div>
                                         <div className="text-xs text-zinc-500 mt-1">
                                           {r.type || "—"}{" "}
                                           {r.floor !== null && r.floor !== undefined
@@ -324,16 +326,13 @@ export default function HomesPage() {
                                     </div>
                                   ))
                                 ) : (
-                                  <div className="text-sm text-zinc-400">
-                                    No rooms yet.
-                                  </div>
+                                  <div className="text-sm text-zinc-400">No rooms yet.</div>
                                 )}
                               </div>
 
-                              {/* Users placeholder (next) */}
                               <div className="text-xs text-zinc-500 mt-2">
-                                Users per home will show here once we add a backend
-                                endpoint for home memberships/users.
+                                Home users are managed in <span className="text-zinc-300">Manage Users</span>.
+                                Residents will later manage visitors/staff inside the consumer app.
                               </div>
                             </div>
                           </div>
@@ -346,13 +345,9 @@ export default function HomesPage() {
 
               {!homes.length && !loading && (
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="px-5 py-10 text-center text-zinc-400"
-                  >
+                  <td colSpan={5} className="px-5 py-10 text-center text-zinc-400">
                     No homes yet. Click{" "}
-                    <span className="text-zinc-200">Add Home</span> to register
-                    the first unit.
+                    <span className="text-zinc-200">Add Home</span> to register the first unit.
                   </td>
                 </tr>
               )}
@@ -364,10 +359,7 @@ export default function HomesPage() {
       {/* ADD HOME MODAL */}
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-          <div
-            className="absolute inset-0 bg-black/70"
-            onClick={() => setShowAdd(false)}
-          />
+          <div className="absolute inset-0 bg-black/70" onClick={() => setShowAdd(false)} />
           <div className="relative glass border border-white/10 rounded-2xl w-full max-w-xl p-6">
             <div className="flex items-start justify-between">
               <div>
@@ -376,10 +368,7 @@ export default function HomesPage() {
                   Register a home/unit under this estate.
                 </div>
               </div>
-              <button
-                className="text-zinc-400 hover:text-zinc-200"
-                onClick={() => setShowAdd(false)}
-              >
+              <button className="text-zinc-400 hover:text-zinc-200" onClick={() => setShowAdd(false)}>
                 ✕
               </button>
             </div>
@@ -411,9 +400,7 @@ export default function HomesPage() {
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none min-h-[90px]"
                 placeholder="Description (optional)"
                 value={form.description}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, description: e.target.value }))
-                }
+                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               />
 
               <div className="grid grid-cols-2 gap-3">
@@ -421,17 +408,13 @@ export default function HomesPage() {
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Electricity meter (optional)"
                   value={form.electricity_meter}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, electricity_meter: e.target.value }))
-                  }
+                  onChange={(e) => setForm((p) => ({ ...p, electricity_meter: e.target.value }))}
                 />
                 <input
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Water meter (optional)"
                   value={form.water_meter}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, water_meter: e.target.value }))
-                  }
+                  onChange={(e) => setForm((p) => ({ ...p, water_meter: e.target.value }))}
                 />
               </div>
 
@@ -440,17 +423,13 @@ export default function HomesPage() {
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Internet ID (optional)"
                   value={form.internet_id}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, internet_id: e.target.value }))
-                  }
+                  onChange={(e) => setForm((p) => ({ ...p, internet_id: e.target.value }))}
                 />
                 <input
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Gate code (optional)"
                   value={form.gate_code}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, gate_code: e.target.value }))
-                  }
+                  onChange={(e) => setForm((p) => ({ ...p, gate_code: e.target.value }))}
                 />
               </div>
 
