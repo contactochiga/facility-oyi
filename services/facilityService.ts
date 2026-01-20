@@ -32,6 +32,9 @@ export type CreateRoomPayload = {
   name: string;
   type?: string;
   floor?: number;
+
+  // ✅ forward-compatible (AI / automation / digital twin)
+  ai_profile?: Record<string, any>;
 };
 
 export type CreateRoomResponse = {
@@ -129,13 +132,12 @@ export const facilityService = {
   // ---------------------------
   // ROOMS
   // ---------------------------
-  // ✅ Used by app/(protected)/homes/page.tsx
   async listRooms(homeId: string): Promise<RoomsResponse> {
     const res = await API.get(`/facility/homes/${homeId}/rooms`);
     return res.data;
   },
 
-  // ✅ Used by app/(protected)/homes/[homeId]/rooms/page.tsx (your build error)
+  // ✅ Used by app/(protected)/homes/[homeId]/rooms/page.tsx
   async createRoom(payload: CreateRoomPayload): Promise<CreateRoomResponse> {
     const res = await API.post("/facility/rooms", payload);
     return res.data;
@@ -144,8 +146,9 @@ export const facilityService = {
   // ---------------------------
   // DEVICES (DISCOVERY)
   // ---------------------------
-  async discoverDevices(adapter: "tuya" = "tuya"): Promise<DiscoverDevicesResponse> {
-    // small improvement: use params instead of string concat (avoids encoding issues)
+  async discoverDevices(
+    adapter: "tuya" = "tuya"
+  ): Promise<DiscoverDevicesResponse> {
     const res = await API.get("/facility/devices/discover", {
       params: { adapter },
     });
