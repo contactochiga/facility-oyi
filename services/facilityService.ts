@@ -32,8 +32,6 @@ export type CreateRoomPayload = {
   name: string;
   type?: string;
   floor?: number;
-
-  // ✅ forward-compatible (AI / automation / digital twin)
   ai_profile?: Record<string, any>;
 };
 
@@ -46,7 +44,6 @@ export type CreateRoomResponse = {
 // DEVICES (DISCOVERY)
 // ---------------------------
 export type DiscoveredDevice = {
-  // Tuya / adapters can vary — keep flexible
   id?: string;
   name?: string;
   local_name?: string;
@@ -64,6 +61,76 @@ export type DiscoverDevicesResponse = {
   adapter: string;
   count: number;
   devices: DiscoveredDevice[];
+};
+
+// ---------------------------
+// ESTATE USERS
+// ---------------------------
+export type EstateMembershipRow = {
+  id: string;
+  role: string;
+  status: string;
+  users: {
+    id: string;
+    email?: string;
+    full_name?: string;
+    username?: string;
+    role?: string;
+  };
+};
+
+export type ListEstateUsersResponse = {
+  estate_id: string;
+  users: EstateMembershipRow[];
+};
+
+export type UpdateEstateUserPayload = {
+  role?: string;
+  status?: string;
+};
+
+// ---------------------------
+// HOME USERS
+// ---------------------------
+export type HomeMembershipRow = {
+  id: string;
+  home_id: string;
+  role: string;
+  status: string;
+  permissions?: Record<string, any>;
+  created_at?: string;
+  users: {
+    id: string;
+    email?: string;
+    full_name?: string;
+    username?: string;
+    role?: string;
+  };
+};
+
+export type ListHomeUsersResponse = {
+  home_id: string;
+  users: HomeMembershipRow[];
+};
+
+export type InviteHomeUserPayload = {
+  email: string;
+  role?: string; // owner | resident | staff | etc
+  permissions?: Record<string, any>;
+};
+
+export type InviteHomeUserResponse = {
+  message: string;
+  inviteUrl: string;
+  qrDataUrl: string;
+  invited_user_id: string;
+  membership: any;
+};
+
+export type UpdateHomeUserPayload = {
+  role?: string;
+  status?: string;
+  permissions?: Record<string, any>;
 };
 
 export const facilityService = {
@@ -97,12 +164,6 @@ export const facilityService = {
   // ---------------------------
   // HOMES
   // ---------------------------
-  async listEstateHomes(estateId: string): Promise<HomesResponse> {
-    const res = await API.get(`/facility/estates/${estateId}/homes`);
-    return res.data;
-  },
-
-  // ✅ Alias used in app/(protected)/homes/page.tsx
   async listHomes(estateId: string): Promise<HomesResponse> {
     const res = await API.get(`/facility/estates/${estateId}/homes`);
     return res.data;
@@ -117,7 +178,6 @@ export const facilityService = {
     type?: string;
     resident_id?: string | null;
 
-    // optional fields (your table supports them)
     electricity_meter?: string;
     water_meter?: string;
     internet_id?: string;
@@ -137,21 +197,57 @@ export const facilityService = {
     return res.data;
   },
 
-  // ✅ Used by app/(protected)/homes/[homeId]/rooms/page.tsx
   async createRoom(payload: CreateRoomPayload): Promise<CreateRoomResponse> {
     const res = await API.post("/facility/rooms", payload);
     return res.data;
   },
 
   // ---------------------------
-  // DEVICES (DISCOVERY)
+  // DEVICES
   // ---------------------------
-  async discoverDevices(
-    adapter: "tuya" = "tuya"
-  ): Promise<DiscoverDevicesResponse> {
-    const res = await API.get("/facility/devices/discover", {
-      params: { adapter },
-    });
+  async discoverDevices(adapter: "tuya" = "tuya"): Promise<DiscoverDevicesResponse> {
+    const res = await API.get("/facility/devices/discover", { params: { adapter } });
+    return res.data;
+  },
+
+  // ---------------------------
+  // ESTATE USERS
+  // ---------------------------
+  async listEstateUsers(): Promise<ListEstateUsersResponse> {
+    const res = await API.get("/facility/estate-users");
+    return res.data;
+  },
+
+  async updateEstateUser(membershipId: string, payload: UpdateEstateUserPayload) {
+    const res = await API.patch(`/facility/estate-users/${membershipId}`, payload);
+    return res.data;
+  },
+
+  async removeEstateUser(membershipId: string) {
+    const res = await API.delete(`/facility/estate-users/${membershipId}`);
+    return res.data;
+  },
+
+  // ---------------------------
+  // HOME USERS
+  // ---------------------------
+  async listHomeUsers(homeId: string): Promise<ListHomeUsersResponse> {
+    const res = await API.get(`/facility/homes/${homeId}/users`);
+    return res.data;
+  },
+
+  async inviteHomeUser(homeId: string, payload: InviteHomeUserPayload): Promise<InviteHomeUserResponse> {
+    const res = await API.post(`/facility/homes/${homeId}/invite`, payload);
+    return res.data;
+  },
+
+  async updateHomeUser(membershipId: string, payload: UpdateHomeUserPayload) {
+    const res = await API.patch(`/facility/home-users/${membershipId}`, payload);
+    return res.data;
+  },
+
+  async removeHomeUser(membershipId: string) {
+    const res = await API.delete(`/facility/home-users/${membershipId}`);
     return res.data;
   },
 };
