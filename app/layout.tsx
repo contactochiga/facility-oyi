@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Sidebar from "@/components/shell/Sidebar";
-import Header from "@/components/shell/Topbar";
+import Topbar from "@/components/shell/Topbar";
 import "./globals.css";
 
 export default function RootLayout({
@@ -25,14 +25,18 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-zinc-950 text-white">
         <div className="flex min-h-screen">
-          <Sidebar
-            mobileOpen={mobileOpen}
-            onClose={() => setMobileOpen(false)}
-          />
+          <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <Header onOpenMenu={() => setMobileOpen(true)} />
-            <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+            <div className="p-4 lg:p-6">
+              <Topbar
+                title="Facility Control"
+                subtitle="Infrastructure control plane"
+                onOpenMenu={() => setMobileOpen(true)}
+              />
+            </div>
+
+            <main className="flex-1 overflow-y-auto px-4 pb-4 lg:px-6 lg:pb-6">
               {children}
             </main>
           </div>
