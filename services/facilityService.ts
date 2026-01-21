@@ -85,6 +85,76 @@ export type DiscoverOptions = {
 };
 
 // ---------------------------
+// ESTATE USERS (KEEP THESE EXPORTS)
+// ---------------------------
+export type EstateMembershipRow = {
+  id: string;
+  role: string;
+  status: string;
+  users: {
+    id: string;
+    email?: string;
+    full_name?: string;
+    username?: string;
+    role?: string;
+  };
+};
+
+export type ListEstateUsersResponse = {
+  estate_id: string;
+  users: EstateMembershipRow[];
+};
+
+export type UpdateEstateUserPayload = {
+  role?: string;
+  status?: string;
+};
+
+// ---------------------------
+// HOME USERS (KEEP THESE EXPORTS)
+// ---------------------------
+export type HomeMembershipRow = {
+  id: string;
+  home_id: string;
+  role: string;
+  status: string;
+  permissions?: Record<string, any>;
+  created_at?: string;
+  users: {
+    id: string;
+    email?: string;
+    full_name?: string;
+    username?: string;
+    role?: string;
+  };
+};
+
+export type ListHomeUsersResponse = {
+  home_id: string;
+  users: HomeMembershipRow[];
+};
+
+export type InviteHomeUserPayload = {
+  email: string;
+  role?: string; // owner | resident | staff | etc
+  permissions?: Record<string, any>;
+};
+
+export type InviteHomeUserResponse = {
+  message: string;
+  inviteUrl: string;
+  qrDataUrl: string;
+  invited_user_id: string;
+  membership: any;
+};
+
+export type UpdateHomeUserPayload = {
+  role?: string;
+  status?: string;
+  permissions?: Record<string, any>;
+};
+
+// ---------------------------
 // DEVICE REGISTRY (v1.1 hook stubs)
 // ---------------------------
 export type RegisterDevicePayload = {
@@ -190,7 +260,6 @@ export const facilityService = {
   // ---------------------------
   // DEVICES (REGISTRY) - hooks for v1.1
   // NOTE: backend endpoints may not exist yet.
-  // We add these so UI is already aligned.
   // ---------------------------
   async registerDevice(payload: RegisterDevicePayload): Promise<any> {
     // expected backend: POST /facility/devices/register
@@ -200,7 +269,9 @@ export const facilityService = {
 
   async attachDevice(deviceId: string, roomId: string): Promise<any> {
     // expected backend: PATCH /facility/devices/:deviceId/attach
-    const res = await API.patch(`/facility/devices/${deviceId}/attach`, { room_id: roomId });
+    const res = await API.patch(`/facility/devices/${deviceId}/attach`, {
+      room_id: roomId,
+    });
     return res.data;
   },
 
@@ -213,12 +284,12 @@ export const facilityService = {
   // ---------------------------
   // ESTATE USERS
   // ---------------------------
-  async listEstateUsers() {
+  async listEstateUsers(): Promise<ListEstateUsersResponse> {
     const res = await API.get("/facility/estate-users");
     return res.data;
   },
 
-  async updateEstateUser(membershipId: string, payload: { role?: string; status?: string }) {
+  async updateEstateUser(membershipId: string, payload: UpdateEstateUserPayload) {
     const res = await API.patch(`/facility/estate-users/${membershipId}`, payload);
     return res.data;
   },
@@ -231,17 +302,17 @@ export const facilityService = {
   // ---------------------------
   // HOME USERS
   // ---------------------------
-  async listHomeUsers(homeId: string) {
+  async listHomeUsers(homeId: string): Promise<ListHomeUsersResponse> {
     const res = await API.get(`/facility/homes/${homeId}/users`);
     return res.data;
   },
 
-  async inviteHomeUser(homeId: string, payload: { email: string; role?: string; permissions?: Record<string, any> }) {
+  async inviteHomeUser(homeId: string, payload: InviteHomeUserPayload): Promise<InviteHomeUserResponse> {
     const res = await API.post(`/facility/homes/${homeId}/invite`, payload);
     return res.data;
   },
 
-  async updateHomeUser(membershipId: string, payload: { role?: string; status?: string; permissions?: Record<string, any> }) {
+  async updateHomeUser(membershipId: string, payload: UpdateHomeUserPayload) {
     const res = await API.patch(`/facility/home-users/${membershipId}`, payload);
     return res.data;
   },
