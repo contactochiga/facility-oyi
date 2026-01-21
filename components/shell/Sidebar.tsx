@@ -1,49 +1,49 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { XMarkIcon } from "@heroicons/react/24/outline";
+import SidebarContent from "./SidebarContent";
 
-const NAV = [
-  { href: "/overview", label: "Overview" },
-  { href: "/devices", label: "Devices" },
-  { href: "/maintenance", label: "Maintenance" },
-  { href: "/visitors", label: "Visitors" },
-  { href: "/alerts", label: "Alerts" },
-];
-
-export default function Sidebar() {
-  const pathname = usePathname();
-
+export default function Sidebar({
+  mobileOpen,
+  onClose,
+}: {
+  mobileOpen: boolean;
+  onClose: () => void;
+}) {
   return (
-    <aside className="hidden lg:flex h-screen w-[280px] flex-col border-r border-white/10 bg-zinc-950">
-      <div className="p-6">
-        <div className="text-lg font-semibold tracking-tight">facility.oyi.com</div>
-        <div className="mt-1 text-xs text-zinc-500">Infrastructure control plane</div>
-      </div>
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex h-screen w-[280px] flex-col border-r border-white/10 bg-zinc-950">
+        <SidebarContent />
+      </aside>
 
-      <nav className="px-4 pb-6 space-y-1">
-        {NAV.map((n) => {
-          const active = pathname.startsWith(n.href);
-          return (
-            <Link
-              key={n.href}
-              href={n.href}
-              className={`block rounded-xl px-4 py-3 text-sm transition
-                ${active ? "bg-white/10 text-white" : "text-zinc-300 hover:bg-white/5"}
-              `}
-            >
-              {n.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={onClose}
+        />
+      )}
 
-      <div className="mt-auto p-4">
-        <div className="glass p-4 text-xs text-zinc-400">
-          <div className="font-medium text-zinc-200">Ops philosophy</div>
-          <div className="mt-1">Simple UI. Hard control.</div>
+      {/* Mobile drawer */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-zinc-950 border-r border-white/10
+          transform transition-transform duration-200 ease-out lg:hidden
+          ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
+        `}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <div className="text-sm font-medium text-zinc-300">Navigation</div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 hover:bg-white/10"
+          >
+            <XMarkIcon className="h-5 w-5 text-zinc-300" />
+          </button>
         </div>
-      </div>
-    </aside>
+
+        <SidebarContent onNavigate={onClose} />
+      </aside>
+    </>
   );
 }
