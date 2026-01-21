@@ -44,6 +44,7 @@ export type CreateRoomResponse = {
 // DEVICES (DISCOVERY)
 // ---------------------------
 export type DiscoveredDevice = {
+  // legacy tuya-ish shapes:
   id?: string;
   name?: string;
   local_name?: string;
@@ -54,6 +55,14 @@ export type DiscoveredDevice = {
   online?: boolean;
   isOnline?: boolean;
   status?: string;
+
+  // adapter-canonical shapes (ssdp/onvif/etc):
+  externalId?: string;
+  adapter?: string;
+  capabilities?: string[];
+  protocols?: string[];
+  metadata?: any;
+
   [key: string]: any;
 };
 
@@ -63,74 +72,34 @@ export type DiscoverDevicesResponse = {
   devices: DiscoveredDevice[];
 };
 
-// ---------------------------
-// ESTATE USERS
-// ---------------------------
-export type EstateMembershipRow = {
-  id: string;
-  role: string;
-  status: string;
-  users: {
-    id: string;
-    email?: string;
-    full_name?: string;
-    username?: string;
-    role?: string;
-  };
+export type DiscoverAdapter = "tuya" | "ssdp" | "onvif";
+
+export type DiscoverOptions = {
+  // ONVIF / network scan options
+  cidr?: string;
+  username?: string;
+  password?: string;
+
+  // future: targetIp, ports, etc
+  [key: string]: any;
 };
 
-export type ListEstateUsersResponse = {
+// ---------------------------
+// DEVICE REGISTRY (v1.1 hook stubs)
+// ---------------------------
+export type RegisterDevicePayload = {
   estate_id: string;
-  users: EstateMembershipRow[];
-};
+  home_id?: string;
+  room_id?: string;
 
-export type UpdateEstateUserPayload = {
-  role?: string;
-  status?: string;
-};
+  adapter: string;
+  external_id: string;
+  name: string;
 
-// ---------------------------
-// HOME USERS
-// ---------------------------
-export type HomeMembershipRow = {
-  id: string;
-  home_id: string;
-  role: string;
-  status: string;
-  permissions?: Record<string, any>;
-  created_at?: string;
-  users: {
-    id: string;
-    email?: string;
-    full_name?: string;
-    username?: string;
-    role?: string;
-  };
-};
-
-export type ListHomeUsersResponse = {
-  home_id: string;
-  users: HomeMembershipRow[];
-};
-
-export type InviteHomeUserPayload = {
-  email: string;
-  role?: string; // owner | resident | staff | etc
-  permissions?: Record<string, any>;
-};
-
-export type InviteHomeUserResponse = {
-  message: string;
-  inviteUrl: string;
-  qrDataUrl: string;
-  invited_user_id: string;
-  membership: any;
-};
-
-export type UpdateHomeUserPayload = {
-  role?: string;
-  status?: string;
-  permissions?: Record<string, any>;
+  category?: string;
+  capabilities?: string[];
+  protocols?: string[];
+  metadata?: any;
 };
 
 export const facilityService = {
@@ -203,22 +172,53 @@ export const facilityService = {
   },
 
   // ---------------------------
-  // DEVICES
+  // DEVICES (DISCOVERY)
   // ---------------------------
-  async discoverDevices(adapter: "tuya" = "tuya"): Promise<DiscoverDevicesResponse> {
-    const res = await API.get("/facility/devices/discover", { params: { adapter } });
+  async discoverDevices(
+    adapter: DiscoverAdapter = "tuya",
+    opts: DiscoverOptions = {}
+  ): Promise<DiscoverDevicesResponse> {
+    const res = await API.get("/facility/devices/discover", {
+      params: {
+        adapter,
+        ...opts,
+      },
+    });
+    return res.data;
+  },
+
+  // ---------------------------
+  // DEVICES (REGISTRY) - hooks for v1.1
+  // NOTE: backend endpoints may not exist yet.
+  // We add these so UI is already aligned.
+  // ---------------------------
+  async registerDevice(payload: RegisterDevicePayload): Promise<any> {
+    // expected backend: POST /facility/devices/register
+    const res = await API.post("/facility/devices/register", payload);
+    return res.data;
+  },
+
+  async attachDevice(deviceId: string, roomId: string): Promise<any> {
+    // expected backend: PATCH /facility/devices/:deviceId/attach
+    const res = await API.patch(`/facility/devices/${deviceId}/attach`, { room_id: roomId });
+    return res.data;
+  },
+
+  async sendDeviceCommand(deviceId: string, command: Record<string, any>): Promise<any> {
+    // already exists: POST /facility/devices/:deviceId/command
+    const res = await API.post(`/facility/devices/${deviceId}/command`, { command });
     return res.data;
   },
 
   // ---------------------------
   // ESTATE USERS
   // ---------------------------
-  async listEstateUsers(): Promise<ListEstateUsersResponse> {
+  async listEstateUsers() {
     const res = await API.get("/facility/estate-users");
     return res.data;
   },
 
-  async updateEstateUser(membershipId: string, payload: UpdateEstateUserPayload) {
+  async updateEstateUser(membershipId: string, payload: { role?: string; status?: string }) {
     const res = await API.patch(`/facility/estate-users/${membershipId}`, payload);
     return res.data;
   },
@@ -231,17 +231,17 @@ export const facilityService = {
   // ---------------------------
   // HOME USERS
   // ---------------------------
-  async listHomeUsers(homeId: string): Promise<ListHomeUsersResponse> {
+  async listHomeUsers(homeId: string) {
     const res = await API.get(`/facility/homes/${homeId}/users`);
     return res.data;
   },
 
-  async inviteHomeUser(homeId: string, payload: InviteHomeUserPayload): Promise<InviteHomeUserResponse> {
+  async inviteHomeUser(homeId: string, payload: { email: string; role?: string; permissions?: Record<string, any> }) {
     const res = await API.post(`/facility/homes/${homeId}/invite`, payload);
     return res.data;
   },
 
-  async updateHomeUser(membershipId: string, payload: UpdateHomeUserPayload) {
+  async updateHomeUser(membershipId: string, payload: { role?: string; status?: string; permissions?: Record<string, any> }) {
     const res = await API.patch(`/facility/home-users/${membershipId}`, payload);
     return res.data;
   },
