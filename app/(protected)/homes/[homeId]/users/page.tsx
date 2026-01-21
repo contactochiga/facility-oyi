@@ -6,7 +6,8 @@ import { useParams } from "next/navigation";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
-import facilityService, { type HomeMembershipRow } from "@/services/facilityService";
+import facilityService from "@/services/facilityService";
+import type { HomeMembershipRow } from "@/services/facilityService";
 import type { ColumnDef } from "@tanstack/react-table";
 
 function pill(status?: string) {
