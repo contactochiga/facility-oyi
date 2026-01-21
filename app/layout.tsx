@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Sidebar from "@/components/shell/Sidebar";
-import Header from "@/components/shell/Header";
-import "@/styles/globals.css";
+import Header from "@/components/shell/Topbar";
+import "../styles/globals.css";
 
 export default function RootLayout({
   children,
