@@ -112,7 +112,8 @@ export default function SidebarContent({
   };
 
   return (
-    <>
+    // ✅ THIS WRAPPER IS THE KEY: it makes mt-auto work properly
+    <div className="flex h-full flex-col">
       {/* HEADER */}
       <div className="p-6">
         <div className="text-lg font-semibold tracking-tight">
@@ -133,7 +134,9 @@ export default function SidebarContent({
               href={n.href}
               onClick={onNavigate}
               className={`block rounded-xl px-4 py-3 text-sm transition ${
-                active ? "bg-white/10 text-white" : "text-zinc-300 hover:bg-white/5"
+                active
+                  ? "bg-white/10 text-white"
+                  : "text-zinc-300 hover:bg-white/5"
               }`}
             >
               {n.label}
@@ -142,7 +145,7 @@ export default function SidebarContent({
         })}
       </nav>
 
-      {/* ACCOUNT FOOTER (no “Ops philosophy” section) */}
+      {/* ✅ FOOTER ACCOUNT AREA (Ops philosophy removed) */}
       <div className="mt-auto">
         <div className="px-4 pb-5 border-t border-white/10 bg-black/30">
           <div className="pt-5 flex items-center justify-between">
@@ -163,6 +166,7 @@ export default function SidebarContent({
             <button
               onClick={() => setProfileOpen((v) => !v)}
               className="text-white/70"
+              aria-label="Toggle account menu"
             >
               {profileOpen ? <FiChevronUp /> : <FiChevronDown />}
             </button>
@@ -221,6 +225,6 @@ export default function SidebarContent({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
