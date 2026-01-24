@@ -4,11 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { jwtDecode } from "jwt-decode";
-import {
-  FiChevronDown,
-  FiChevronUp,
-  FiLogOut,
-} from "react-icons/fi";
+import { FiChevronDown, FiChevronUp, FiLogOut } from "react-icons/fi";
 import { MdOutlinePerson, MdSettings } from "react-icons/md";
 
 const NAV = [
@@ -19,10 +15,14 @@ const NAV = [
   { href: "/alerts", label: "Alerts" },
 ];
 
-// --- tiny cookie helpers (no extra imports) ---
+// --- tiny cookie helpers ---
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
-  const m = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[$()*+.?[\\\]^{|}-]/g, "\\$&")}=([^;]*)`));
+  const m = document.cookie.match(
+    new RegExp(
+      `(?:^|; )${name.replace(/[$()*+.?[\\\]^{|}-]/g, "\\$&")}=([^;]*)`
+    )
+  );
   return m ? decodeURIComponent(m[1]) : null;
 }
 
@@ -39,24 +39,23 @@ type Decoded = {
   id?: string;
 };
 
-export default function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+export default function SidebarContent({
+  onNavigate,
+}: {
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Try to read token from common places (cookie + localStorage)
   const token = useMemo(() => {
     if (typeof window === "undefined") return null;
-
     return (
-      // facility cookie names (adjust if you already use one)
       getCookie("oyi_facility_token") ||
       getCookie("facility_token") ||
-      // fallback (if you reused consumer token during testing)
       getCookie("oyi_consumer_token") ||
-      // localStorage fallbacks
       localStorage.getItem("oyi_facility_token") ||
       localStorage.getItem("facility_token") ||
       localStorage.getItem("oyi_consumer_token")
@@ -73,7 +72,10 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   }, [token]);
 
   const displayName =
-    decoded?.username || decoded?.name || (decoded?.email ? decoded.email.split("@")[0] : null) || "Operator";
+    decoded?.username ||
+    decoded?.name ||
+    (decoded?.email ? decoded.email.split("@")[0] : null) ||
+    "Operator";
 
   const displayEmail = decoded?.email || "Account";
 
@@ -94,12 +96,10 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   };
 
   const logout = () => {
-    // Clear cookies that may exist
     deleteCookie("oyi_facility_token");
     deleteCookie("facility_token");
     deleteCookie("oyi_consumer_token");
 
-    // Clear local storage tokens if any
     if (typeof window !== "undefined") {
       localStorage.removeItem("oyi_facility_token");
       localStorage.removeItem("facility_token");
@@ -115,8 +115,12 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
     <>
       {/* HEADER */}
       <div className="p-6">
-        <div className="text-lg font-semibold tracking-tight">facility.oyi.com</div>
-        <div className="mt-1 text-xs text-zinc-500">Infrastructure control plane</div>
+        <div className="text-lg font-semibold tracking-tight">
+          facility.oyi.com
+        </div>
+        <div className="mt-1 text-xs text-zinc-500">
+          Infrastructure control plane
+        </div>
       </div>
 
       {/* NAV */}
@@ -138,23 +142,15 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
         })}
       </nav>
 
-      {/* FOOTER AREA (Ops philosophy + Account like consumer app) */}
+      {/* ACCOUNT FOOTER (no “Ops philosophy” section) */}
       <div className="mt-auto">
-        <div className="px-4 pb-4">
-          <div className="glass p-4 text-xs text-zinc-400 rounded-2xl">
-            <div className="font-medium text-zinc-200">Ops philosophy</div>
-            <div className="mt-1">Simple UI. Hard control.</div>
-          </div>
-        </div>
-
-        {/* ACCOUNT FOOTER (same pattern as consumer) */}
         <div className="px-4 pb-5 border-t border-white/10 bg-black/30">
           <div className="pt-5 flex items-center justify-between">
-            <button onClick={() => goToAccount("profile")} className="flex items-center gap-3">
-              <div
-                className="w-12 h-12 rounded-full bg-[#E11D2E] flex items-center justify-center text-white font-semibold"
-                aria-label="Account avatar"
-              >
+            <button
+              onClick={() => goToAccount("profile")}
+              className="flex items-center gap-3"
+            >
+              <div className="w-12 h-12 rounded-full bg-[#E11D2E] flex items-center justify-center text-white font-semibold">
                 {initials}
               </div>
 
@@ -164,7 +160,10 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
               </div>
             </button>
 
-            <button onClick={() => setProfileOpen((v) => !v)} className="text-white/70">
+            <button
+              onClick={() => setProfileOpen((v) => !v)}
+              className="text-white/70"
+            >
               {profileOpen ? <FiChevronUp /> : <FiChevronDown />}
             </button>
           </div>
@@ -212,7 +211,10 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                 Cancel
               </button>
 
-              <button onClick={logout} className="flex-1 py-3 rounded-xl bg-[#E11D2E] text-white">
+              <button
+                onClick={logout}
+                className="flex-1 py-3 rounded-xl bg-[#E11D2E] text-white"
+              >
                 Logout
               </button>
             </div>
