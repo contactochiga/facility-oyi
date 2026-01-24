@@ -8,7 +8,14 @@ import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
 import type { FacilityOverview } from "@/types/facility";
 import { formatMoney, formatNumber } from "@/lib/format";
-import { LineChart, Line, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import {
+  LineChart,
+  Line,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+} from "recharts";
 
 function series(seed = 10) {
   const now = Date.now();
@@ -30,8 +37,8 @@ function OpsPill({ label, value }: { label: string; value: number }) {
     value >= 80
       ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
       : value >= 55
-        ? "border-yellow-500/20 bg-yellow-500/10 text-yellow-200"
-        : "border-red-500/20 bg-red-500/10 text-red-200";
+      ? "border-yellow-500/20 bg-yellow-500/10 text-yellow-200"
+      : "border-red-500/20 bg-red-500/10 text-red-200";
 
   return (
     <div className={`glass p-4 border ${color}`}>
@@ -43,11 +50,7 @@ function OpsPill({ label, value }: { label: string; value: number }) {
 
 function extractErr(e: any) {
   const status = e?.response?.status;
-  const msg =
-    e?.response?.data?.error ||
-    e?.message ||
-    "Request failed";
-
+  const msg = e?.response?.data?.error || e?.message || "Request failed";
   return { status, msg: String(msg) };
 }
 
@@ -97,7 +100,7 @@ export default function OverviewPage() {
       return null;
     } catch (e: any) {
       const { status, msg } = extractErr(e);
-      setErr(`Failed to check estates${status ? ` (${status})` : ""}: ${msg}`);
+      setErr(`Failed to check sites${status ? ` (${status})` : ""}: ${msg}`);
       return null;
     }
   }
@@ -123,15 +126,12 @@ export default function OverviewPage() {
 
       // If backend says estate not linked, fallback to membership estates
       const lower = msg.toLowerCase();
-      const looksLikeNotLinked =
-        lower.includes("estate not linked") ||
-        status === 400;
+      const looksLikeNotLinked = lower.includes("estate not linked") || status === 400;
 
       if (looksLikeNotLinked) {
         const eid = await hydrateEstateFromMembership();
 
-        // If user already has an estate membership, we treat this as "syncing"
-        // (common when req.user.estate_id is coming from token/claims and not refreshed yet)
+        // If user already has a membership, treat as "syncing"
         if (eid) {
           setData(null);
           setSyncingEstate(true);
@@ -171,7 +171,7 @@ export default function OverviewPage() {
       setShowCreate(false);
       setEstateForm({ name: "", address: "", lat: "", lng: "", type: "estate" });
 
-      // Pull estates again (this is the most reliable way to see the created estate immediately)
+      // Pull estates again
       await hydrateEstateFromMembership();
 
       // Try overview again
@@ -198,19 +198,19 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-7">
-      <Topbar
-        title="Overview"
-        subtitle="Estate operational summary • signal-first • executive clarity"
-      />
+      {/* SHORT + CLEAN HEADER */}
+      <Topbar title="Overview" subtitle="Operational summary" />
 
       {/* HEADER STRIP */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="muted">{estateId ? `Estate: ${estateId}` : "Estate: —"}</div>
+        <div className="muted">
+          {estateId ? `Site: ${estateId}` : "Site: —"}
+        </div>
 
         {/* CTA logic */}
         {!estateId ? (
           <Button onClick={() => setShowCreate(true)} disabled={creating}>
-            {creating ? "Creating..." : "Create Estate"}
+            {creating ? "Creating..." : "Create Site"}
           </Button>
         ) : (
           <Button variant="ghost" onClick={load} disabled={loading}>
@@ -224,19 +224,19 @@ export default function OverviewPage() {
         <div className="glass border border-white/10 rounded-2xl p-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
-              <div className="text-lg font-semibold">No estate linked yet</div>
+              <div className="text-lg font-semibold">No site linked yet</div>
               <div className="text-sm text-zinc-400 mt-1 max-w-2xl">
-                To unlock homes, rooms, devices, visitors and maintenance, create your first estate.
+                To unlock homes, rooms, devices, visitors and maintenance, create your first site.
                 You’ll automatically become <span className="text-zinc-200">Owner</span> and can invite facility managers.
               </div>
               <div className="text-xs text-zinc-500 mt-3">
-                This is like registering the “master site” before you start adding blocks/units.
+                Think of this as registering the “master site” before adding blocks/units.
               </div>
             </div>
 
             <div className="flex gap-2">
               <Button onClick={() => setShowCreate(true)} disabled={creating}>
-                {creating ? "Creating..." : "Create Estate"}
+                {creating ? "Creating..." : "Create Site"}
               </Button>
               <Button variant="ghost" onClick={load} disabled={loading}>
                 {loading ? "Checking..." : "Retry"}
@@ -246,18 +246,18 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* SYNCING PANEL (estate exists, but overview still says not linked) */}
+      {/* SYNCING PANEL */}
       {syncingEstate && (
         <div className="glass border border-white/10 rounded-2xl p-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
-              <div className="text-lg font-semibold">Estate created — syncing access</div>
+              <div className="text-lg font-semibold">Site created — syncing access</div>
               <div className="text-sm text-zinc-400 mt-1 max-w-2xl">
-                Your estate membership is active, but the overview is still reading from a “linked estate” field.
-                Tap retry to refresh. If it keeps happening, we’ll update the backend overview to derive the estate from membership.
+                Your membership is active, but the overview is still reading from a “linked site” field.
+                Tap retry to refresh. If it keeps happening, we’ll update the backend overview to derive the site from membership.
               </div>
               <div className="text-xs text-zinc-500 mt-3">
-                Estate: <span className="text-zinc-200">{estateId || "—"}</span>
+                Site: <span className="text-zinc-200">{estateId || "—"}</span>
               </div>
             </div>
 
@@ -266,7 +266,7 @@ export default function OverviewPage() {
                 {loading ? "Refreshing..." : "Retry"}
               </Button>
               <Button onClick={() => setShowCreate(true)} disabled={creating}>
-                {creating ? "Creating..." : "Create Another Estate"}
+                {creating ? "Creating..." : "Create Another Site"}
               </Button>
             </div>
           </div>
@@ -280,7 +280,7 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* MAIN GRID (CLICKABLE) */}
+      {/* MAIN GRID */}
       <div className="grid gap-4 lg:gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total Homes"
@@ -403,13 +403,13 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* UNIQUE SIGNATURE: OPS STRIP */}
+      {/* OPS STRIP */}
       <div className="glass p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="text-sm font-medium">Operational Strip</div>
             <div className="text-xs text-zinc-500 mt-1">
-              A single strip that tells you where the estate is bleeding right now.
+              A single strip that tells you where the site is bleeding right now.
             </div>
           </div>
 
@@ -432,9 +432,9 @@ export default function OverviewPage() {
           <div className="relative glass border border-white/10 rounded-2xl w-full max-w-xl p-6">
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-lg font-semibold">Create Estate</div>
+                <div className="text-lg font-semibold">Create Site</div>
                 <div className="text-sm text-zinc-400 mt-1">
-                  Register the master estate. You’ll become the Owner and can invite managers.
+                  Register the master site. You’ll become the Owner and can invite managers.
                 </div>
               </div>
               <button
@@ -455,20 +455,16 @@ export default function OverviewPage() {
             <div className="grid gap-3 mt-5">
               <input
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
-                placeholder="Estate name (e.g. Ochiga Smart Estate)"
+                placeholder="Site name (e.g. Ochiga Smart Estate)"
                 value={estateForm.name}
-                onChange={(e) =>
-                  setEstateForm((p) => ({ ...p, name: e.target.value }))
-                }
+                onChange={(e) => setEstateForm((p) => ({ ...p, name: e.target.value }))}
               />
 
               <input
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 placeholder="Address (optional)"
                 value={estateForm.address}
-                onChange={(e) =>
-                  setEstateForm((p) => ({ ...p, address: e.target.value }))
-                }
+                onChange={(e) => setEstateForm((p) => ({ ...p, address: e.target.value }))}
               />
 
               <div className="grid grid-cols-2 gap-3">
@@ -476,26 +472,20 @@ export default function OverviewPage() {
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Latitude (optional)"
                   value={estateForm.lat}
-                  onChange={(e) =>
-                    setEstateForm((p) => ({ ...p, lat: e.target.value }))
-                  }
+                  onChange={(e) => setEstateForm((p) => ({ ...p, lat: e.target.value }))}
                 />
                 <input
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Longitude (optional)"
                   value={estateForm.lng}
-                  onChange={(e) =>
-                    setEstateForm((p) => ({ ...p, lng: e.target.value }))
-                  }
+                  onChange={(e) => setEstateForm((p) => ({ ...p, lng: e.target.value }))}
                 />
               </div>
 
               <select
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 value={estateForm.type}
-                onChange={(e) =>
-                  setEstateForm((p) => ({ ...p, type: e.target.value }))
-                }
+                onChange={(e) => setEstateForm((p) => ({ ...p, type: e.target.value }))}
               >
                 <option value="estate">Estate</option>
                 <option value="facility">Facility</option>
@@ -503,18 +493,11 @@ export default function OverviewPage() {
               </select>
 
               <div className="flex gap-2 mt-2">
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowCreate(false)}
-                  disabled={creating}
-                >
+                <Button variant="ghost" onClick={() => setShowCreate(false)} disabled={creating}>
                   Cancel
                 </Button>
-                <Button
-                  onClick={createEstate}
-                  disabled={!canCreateEstate || creating}
-                >
-                  {creating ? "Creating..." : "Create Estate"}
+                <Button onClick={createEstate} disabled={!canCreateEstate || creating}>
+                  {creating ? "Creating..." : "Create Site"}
                 </Button>
               </div>
 
