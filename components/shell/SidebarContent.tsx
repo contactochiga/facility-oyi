@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { FiChevronDown, FiChevronUp, FiLogOut } from "react-icons/fi";
+import { jwtDecode } from "jwt-decode";
+import {
+  FiChevronDown,
+  FiChevronUp,
+  FiLogOut,
+} from "react-icons/fi";
 import { MdOutlinePerson, MdSettings } from "react-icons/md";
-import useAuth from "@/hooks/useAuth";
 
 const NAV = [
   { href: "/overview", label: "Overview" },
@@ -15,30 +19,68 @@ const NAV = [
   { href: "/alerts", label: "Alerts" },
 ];
 
-export default function SidebarContent({
-  onNavigate,
-}: {
-  onNavigate?: () => void;
-}) {
+// --- tiny cookie helpers (no extra imports) ---
+function getCookie(name: string) {
+  if (typeof document === "undefined") return null;
+  const m = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[$()*+.?[\\\]^{|}-]/g, "\\$&")}=([^;]*)`));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+function deleteCookie(name: string) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=; Max-Age=0; path=/; SameSite=Lax`;
+}
+
+type Decoded = {
+  email?: string;
+  username?: string;
+  name?: string;
+  role?: string;
+  id?: string;
+};
+
+export default function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const initials = useMemo(() => {
-    const name =
-      (user as any)?.username ||
-      (user as any)?.name ||
-      (user as any)?.email ||
-      "U";
-    return String(name).trim().charAt(0).toUpperCase() || "U";
-  }, [user]);
+  // Try to read token from common places (cookie + localStorage)
+  const token = useMemo(() => {
+    if (typeof window === "undefined") return null;
+
+    return (
+      // facility cookie names (adjust if you already use one)
+      getCookie("oyi_facility_token") ||
+      getCookie("facility_token") ||
+      // fallback (if you reused consumer token during testing)
+      getCookie("oyi_consumer_token") ||
+      // localStorage fallbacks
+      localStorage.getItem("oyi_facility_token") ||
+      localStorage.getItem("facility_token") ||
+      localStorage.getItem("oyi_consumer_token")
+    );
+  }, []);
+
+  const decoded = useMemo<Decoded | null>(() => {
+    if (!token) return null;
+    try {
+      return jwtDecode<Decoded>(token);
+    } catch {
+      return null;
+    }
+  }, [token]);
 
   const displayName =
-    (user as any)?.username || (user as any)?.name || "Operator";
-  const displayEmail = (user as any)?.email || "Account";
+    decoded?.username || decoded?.name || (decoded?.email ? decoded.email.split("@")[0] : null) || "Operator";
+
+  const displayEmail = decoded?.email || "Account";
+
+  const initials = useMemo(() => {
+    const s = (displayName || "O").trim();
+    return s ? s[0].toUpperCase() : "O";
+  }, [displayName]);
 
   const closeAll = () => {
     setProfileOpen(false);
@@ -51,139 +93,113 @@ export default function SidebarContent({
     router.push(tab ? `/account?tab=${tab}` : "/account");
   };
 
-  const handleLogout = async () => {
+  const logout = () => {
+    // Clear cookies that may exist
+    deleteCookie("oyi_facility_token");
+    deleteCookie("facility_token");
+    deleteCookie("oyi_consumer_token");
+
+    // Clear local storage tokens if any
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("oyi_facility_token");
+      localStorage.removeItem("facility_token");
+      localStorage.removeItem("oyi_consumer_token");
+      localStorage.removeItem("token");
+    }
+
     closeAll();
-    await logout?.();
-    try {
-      localStorage.clear();
-    } catch {}
     router.replace("/auth/login");
   };
 
   return (
     <>
-      {/* Make the sidebar a full-height column so footer can sit at bottom */}
-      <div className="flex h-full flex-col">
-        {/* HEADER */}
-        <div className="p-6">
-          <div className="text-lg font-semibold tracking-tight">
-            facility.oyi.com
-          </div>
-          <div className="mt-1 text-xs text-zinc-500">
-            Infrastructure control plane
-          </div>
-        </div>
+      {/* HEADER */}
+      <div className="p-6">
+        <div className="text-lg font-semibold tracking-tight">facility.oyi.com</div>
+        <div className="mt-1 text-xs text-zinc-500">Infrastructure control plane</div>
+      </div>
 
-        {/* NAV */}
-        <nav className="px-4 pb-6 space-y-1">
-          {NAV.map((n) => {
-            const active = pathname.startsWith(n.href);
-            return (
-              <Link
-                key={n.href}
-                href={n.href}
-                onClick={closeAll}
-                className={`block rounded-xl px-4 py-3 text-sm transition ${
-                  active
-                    ? "bg-white/10 text-white"
-                    : "text-zinc-300 hover:bg-white/5"
-                }`}
-              >
-                {n.label}
-              </Link>
-            );
-          })}
-        </nav>
+      {/* NAV */}
+      <nav className="px-4 pb-6 space-y-1">
+        {NAV.map((n) => {
+          const active = pathname.startsWith(n.href);
+          return (
+            <Link
+              key={n.href}
+              href={n.href}
+              onClick={onNavigate}
+              className={`block rounded-xl px-4 py-3 text-sm transition ${
+                active ? "bg-white/10 text-white" : "text-zinc-300 hover:bg-white/5"
+              }`}
+            >
+              {n.label}
+            </Link>
+          );
+        })}
+      </nav>
 
-        {/* OPS CARD */}
-        <div className="mt-auto p-4">
-          <div className="glass p-4 text-xs text-zinc-400">
+      {/* FOOTER AREA (Ops philosophy + Account like consumer app) */}
+      <div className="mt-auto">
+        <div className="px-4 pb-4">
+          <div className="glass p-4 text-xs text-zinc-400 rounded-2xl">
             <div className="font-medium text-zinc-200">Ops philosophy</div>
             <div className="mt-1">Simple UI. Hard control.</div>
           </div>
+        </div>
 
-          {/* PROFILE / ACCOUNT FOOTER (Consumer-style) */}
-          <div className="mt-4 border-t border-white/10 pt-4">
-            <div className="flex items-center justify-between">
+        {/* ACCOUNT FOOTER (same pattern as consumer) */}
+        <div className="px-4 pb-5 border-t border-white/10 bg-black/30">
+          <div className="pt-5 flex items-center justify-between">
+            <button onClick={() => goToAccount("profile")} className="flex items-center gap-3">
+              <div
+                className="w-12 h-12 rounded-full bg-[#E11D2E] flex items-center justify-center text-white font-semibold"
+                aria-label="Account avatar"
+              >
+                {initials}
+              </div>
+
+              <div className="text-left">
+                <p className="text-white text-sm font-semibold">{displayName}</p>
+                <p className="text-white/50 text-xs">{displayEmail}</p>
+              </div>
+            </button>
+
+            <button onClick={() => setProfileOpen((v) => !v)} className="text-white/70">
+              {profileOpen ? <FiChevronUp /> : <FiChevronDown />}
+            </button>
+          </div>
+
+          {profileOpen && (
+            <div className="mt-3 bg-gray-900 border border-white/10 rounded-xl overflow-hidden">
               <button
                 onClick={() => goToAccount("profile")}
-                className="flex items-center gap-3"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition text-white"
               >
-                <div
-                  className="w-12 h-12 rounded-full bg-[#E11D2E]
-                             flex items-center justify-center
-                             text-white font-semibold"
-                >
-                  {initials}
-                </div>
-
-                <div className="text-left">
-                  <p className="text-white text-sm font-semibold">
-                    {displayName}
-                  </p>
-                  <p className="text-white/50 text-xs">{displayEmail}</p>
-                </div>
+                <MdOutlinePerson /> Profile
               </button>
 
               <button
-                onClick={() => setProfileOpen((v) => !v)}
-                className="text-white/70"
-                aria-label="Toggle account menu"
+                onClick={() => goToAccount("settings")}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition text-white"
               >
-                {profileOpen ? <FiChevronUp /> : <FiChevronDown />}
+                <MdSettings /> Settings
+              </button>
+
+              <button
+                onClick={() => setShowLogoutConfirm(true)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-[#E11D2E] hover:bg-gray-800 transition"
+              >
+                <FiLogOut /> Logout
               </button>
             </div>
-
-            {profileOpen && (
-              <div
-                className="mt-3 bg-zinc-950/60
-                           border border-white/10
-                           rounded-xl overflow-hidden"
-              >
-                <button
-                  onClick={() => goToAccount("profile")}
-                  className="w-full flex items-center gap-3
-                             px-4 py-3 hover:bg-white/5 transition
-                             text-zinc-200"
-                >
-                  <MdOutlinePerson /> Profile
-                </button>
-
-                <button
-                  onClick={() => goToAccount("settings")}
-                  className="w-full flex items-center gap-3
-                             px-4 py-3 hover:bg-white/5 transition
-                             text-zinc-200"
-                >
-                  <MdSettings /> Settings
-                </button>
-
-                <button
-                  onClick={() => setShowLogoutConfirm(true)}
-                  className="w-full flex items-center gap-3
-                             px-4 py-3 text-[#E11D2E]
-                             hover:bg-white/5 transition"
-                >
-                  <FiLogOut /> Logout
-                </button>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
-      {/* LOGOUT CONFIRM (same behavior as consumer) */}
+      {/* LOGOUT CONFIRM */}
       {showLogoutConfirm && (
-        <div
-          className="fixed inset-0 z-[120]
-                     bg-black/70 backdrop-blur
-                     flex items-center justify-center px-6"
-        >
-          <div
-            className="bg-zinc-950 p-6 rounded-2xl
-                       w-full max-w-sm
-                       border border-white/10"
-          >
+        <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur flex items-center justify-center px-6">
+          <div className="bg-gray-900 p-6 rounded-2xl w-full max-w-sm border border-gray-700">
             <p className="text-white text-center font-semibold text-lg mb-6">
               Logout from Facility Control?
             </p>
@@ -191,15 +207,12 @@ export default function SidebarContent({
             <div className="flex gap-4">
               <button
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-3 rounded-xl bg-white/10 text-white"
+                className="flex-1 py-3 rounded-xl bg-gray-700 text-white"
               >
                 Cancel
               </button>
 
-              <button
-                onClick={handleLogout}
-                className="flex-1 py-3 rounded-xl bg-[#E11D2E] text-white"
-              >
+              <button onClick={logout} className="flex-1 py-3 rounded-xl bg-[#E11D2E] text-white">
                 Logout
               </button>
             </div>
