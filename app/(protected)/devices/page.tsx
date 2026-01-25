@@ -1,3 +1,4 @@
+// app/(protected)/devices/page.tsx
 "use client";
 
 import Topbar from "@/components/shell/Topbar";
@@ -75,23 +76,39 @@ export default function DevicesPage() {
     setScanResults([]);
     setSelected({});
 
+    // ✅ open modal immediately so user sees scanning state
+    setScanOpen(true);
+
     try {
+      // ✅ cache-bust every discover call (prevents 304 + empty body issues)
+      const baseOpts: Record<string, any> = { _ts: Date.now() };
+
       const opts =
         adapter === "onvif"
           ? {
+              ...baseOpts,
               cidr,
               username: onvifUser || undefined,
               password: onvifPass || undefined,
             }
-          : {};
+          : baseOpts;
 
-      const res = await facilityService.discoverDevices(adapter, opts);
+      const res: any = await facilityService.discoverDevices(adapter, opts);
 
-      setScanResults(res.devices || []);
-      setScanOpen(true);
+      // ✅ Guard: if backend responded with 304/no-body, res may be null/empty string
+      const devices = Array.isArray(res?.devices) ? res.devices : null;
+
+      if (!devices) {
+        setScanErr(
+          "Discovery returned no JSON devices (likely cached 304). Fix backend: set Cache-Control: no-store on /facility/devices/discover and disable ETag for that route."
+        );
+        setScanResults([]);
+        return;
+      }
+
+      setScanResults(devices);
     } catch (e: any) {
-      setScanErr(e?.response?.data?.error || "Scan failed");
-      setScanOpen(true);
+      setScanErr(e?.response?.data?.error || e?.message || "Scan failed");
       setScanResults([]);
     } finally {
       setScanning(false);
@@ -99,14 +116,11 @@ export default function DevicesPage() {
   }
 
   async function addOne(d: any) {
-    // This will work once backend endpoint exists:
-    // POST /facility/devices/register
-    // For now, you’ll get a clean error in the modal if not implemented yet.
     setScanErr(null);
     setAdding(true);
     try {
       const payload = {
-        estate_id: (d?.estate_id as string) || "", // backend can also infer from req.user, but keep for v1.1
+        estate_id: (d?.estate_id as string) || "",
         adapter: d?.adapter || adapter,
         external_id: canonicalExternalId(d),
         name: canonicalName(d),
@@ -116,12 +130,14 @@ export default function DevicesPage() {
         metadata: d?.metadata || d,
       };
 
-      // if you haven’t implemented registry yet, this will error:
       await facilityService.registerDevice(payload);
-
       await load();
     } catch (e: any) {
-      setScanErr(e?.response?.data?.error || e?.message || "Register failed (registry endpoint not ready yet)");
+      setScanErr(
+        e?.response?.data?.error ||
+          e?.message ||
+          "Register failed (registry endpoint not ready yet)"
+      );
     } finally {
       setAdding(false);
     }
@@ -163,9 +179,13 @@ export default function DevicesPage() {
             s === "active"
               ? "text-emerald-200 bg-emerald-500/10 border-emerald-500/20"
               : s === "offline"
-              ? "text-red-200 bg-red-500/10 border-red-500/20"
-              : "text-zinc-200 bg-white/5 border-white/10";
-          return <span className={`px-2 py-1 rounded-full border text-xs ${tone}`}>{s}</span>;
+                ? "text-red-200 bg-red-500/10 border-red-500/20"
+                : "text-zinc-200 bg-white/5 border-white/10";
+          return (
+            <span className={`px-2 py-1 rounded-full border text-xs ${tone}`}>
+              {s}
+            </span>
+          );
         },
       },
       { accessorKey: "room", header: "Room" },
@@ -187,11 +207,19 @@ export default function DevicesPage() {
 
   return (
     <div className="space-y-7">
-      <Topbar title="Devices" subtitle="Estate device registry • operational truth • control hooks" />
+      <Topbar title="Devices" subtitle="Device registry • discovery • control hooks" />
 
       {/* Actions */}
       <div className="flex items-center justify-end gap-2 flex-wrap">
-        <Button onClick={() => setScanOpen(true)}>Open Discovery</Button>
+        <Button
+          onClick={() => {
+            setScanOpen(true);
+            // optional: auto-scan when opening
+            // scan();
+          }}
+        >
+          Open Discovery
+        </Button>
 
         <Button variant="ghost" onClick={load} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh"}
@@ -204,21 +232,30 @@ export default function DevicesPage() {
       {/* Discovery Modal */}
       {scanOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-          <div className="absolute inset-0 bg-black/70" onClick={() => !scanning && setScanOpen(false)} />
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => !scanning && !adding && setScanOpen(false)}
+          />
 
           <div className="relative glass border border-white/10 rounded-2xl w-full max-w-4xl p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-lg font-semibold">Device Discovery</div>
                 <div className="text-sm text-zinc-400 mt-1">
-                  Adapter: <span className="text-zinc-200">{adapter.toUpperCase()}</span> • Found{" "}
-                  <span className="text-zinc-200">{scanResults.length}</span> device(s)
+                  Adapter: <span className="text-zinc-200">{adapter.toUpperCase()}</span> •{" "}
+                  {scanning ? (
+                    <span className="text-zinc-200">Scanning…</span>
+                  ) : (
+                    <>
+                      Found <span className="text-zinc-200">{scanResults.length}</span> device(s)
+                    </>
+                  )}
                 </div>
               </div>
 
               <button
                 className="text-zinc-400 hover:text-zinc-200"
-                onClick={() => !scanning && setScanOpen(false)}
+                onClick={() => !scanning && !adding && setScanOpen(false)}
                 aria-label="Close"
               >
                 ✕
@@ -243,11 +280,19 @@ export default function DevicesPage() {
                   {scanning ? "Scanning..." : "Scan"}
                 </Button>
 
-                <Button variant="ghost" onClick={bulkAdd} disabled={!selectedCount || scanning || adding}>
+                <Button
+                  variant="ghost"
+                  onClick={bulkAdd}
+                  disabled={!selectedCount || scanning || adding}
+                >
                   Add Selected ({selectedCount})
                 </Button>
 
-                <Button variant="ghost" onClick={() => setSelected({})} disabled={!selectedCount || scanning || adding}>
+                <Button
+                  variant="ghost"
+                  onClick={() => setSelected({})}
+                  disabled={!selectedCount || scanning || adding}
+                >
                   Clear Selection
                 </Button>
               </div>
@@ -331,7 +376,11 @@ export default function DevicesPage() {
                         </td>
 
                         <td className="py-3 text-right">
-                          <Button variant="ghost" onClick={() => addOne(d)} disabled={scanning || adding}>
+                          <Button
+                            variant="ghost"
+                            onClick={() => addOne(d)}
+                            disabled={scanning || adding}
+                          >
                             {adding ? "Adding..." : "Add"}
                           </Button>
                         </td>
@@ -339,10 +388,18 @@ export default function DevicesPage() {
                     );
                   })}
 
-                  {!scanErr && !scanResults.length && (
+                  {!scanErr && !scanResults.length && !scanning && (
                     <tr>
                       <td colSpan={6} className="py-6 text-center text-zinc-500">
                         No devices yet. Choose an adapter and hit Scan.
+                      </td>
+                    </tr>
+                  )}
+
+                  {scanning && (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-zinc-400">
+                        Scanning… please wait.
                       </td>
                     </tr>
                   )}
@@ -351,7 +408,11 @@ export default function DevicesPage() {
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setScanOpen(false)} disabled={scanning || adding}>
+              <Button
+                variant="ghost"
+                onClick={() => setScanOpen(false)}
+                disabled={scanning || adding}
+              >
                 Close
               </Button>
               <Button onClick={scan} disabled={scanning || adding}>
