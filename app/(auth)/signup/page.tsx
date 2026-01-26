@@ -29,7 +29,8 @@ async function sendOtp(email: string) {
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || "Failed to send OTP");
+  if (!res.ok)
+    throw new Error(data?.message || data?.error || "Failed to send OTP");
   return data;
 }
 
@@ -44,7 +45,8 @@ async function verifyOtp(email: string, code: string) {
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || "OTP verification failed");
+  if (!res.ok)
+    throw new Error(data?.message || data?.error || "OTP verification failed");
   return data;
 }
 
@@ -52,6 +54,7 @@ function SignupInner() {
   const router = useRouter();
   const params = useSearchParams();
 
+  // ✅ Hydration guard
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -132,6 +135,13 @@ function SignupInner() {
       setLoading(false);
     }
   }
+
+  const changeEmail = () => {
+    setErr(null);
+    setInfo(null);
+    setOtp("");
+    setStep("form");
+  };
 
   if (!mounted) {
     return (
@@ -222,16 +232,16 @@ function SignupInner() {
               className="mt-3 w-full"
               onClick={startOtp}
               disabled={loading}
-              variant="secondary" as any
+              variant="secondary"
             >
               {loading ? "..." : "Resend code"}
             </Button>
 
             <Button
               className="mt-3 w-full"
-              onClick={() => setStep("form")}
+              onClick={changeEmail}
               disabled={loading}
-              variant="secondary" as any
+              variant="secondary"
             >
               Change email
             </Button>
@@ -251,7 +261,8 @@ function SignupInner() {
         <div className="mt-4 text-xs text-zinc-500">
           Backend:{" "}
           <span className="text-zinc-300">
-            {process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL}
+            {process.env.NEXT_PUBLIC_API_URL ||
+              process.env.NEXT_PUBLIC_API_BASE_URL}
           </span>
         </div>
       </div>
