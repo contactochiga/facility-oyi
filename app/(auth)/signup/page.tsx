@@ -89,7 +89,7 @@ function ResendIcon({ className = "" }: { className?: string }) {
   );
 }
 
-/** OTP 6 boxes that ALWAYS fits inside the card */
+/** 6-box OTP input that stays inside the card */
 function Otp6({
   value,
   onChange,
@@ -119,7 +119,6 @@ function Otp6({
 
   return (
     <div className="mt-4" onPaste={handlePaste}>
-      {/* grid ensures it never spills outside the card */}
       <div className="grid grid-cols-6 gap-2">
         {Array.from({ length: 6 }).map((_, i) => {
           const v = value[i] || "";
@@ -157,12 +156,6 @@ function Otp6({
           );
         })}
       </div>
-
-      {/* Tip + timers (clean + professional) */}
-      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-zinc-500">
-        <span>Tip: you can paste the full code.</span>
-        {/* timers will be injected from parent UI */}
-      </div>
     </div>
   );
 }
@@ -190,29 +183,28 @@ function SignupInner() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // ✅ pro UX timers
-  // - resend cooldown: 60s
-  // - otp expiry display: 10min (matches your email copy)
-  const [resendLeft, setResendLeft] = useState(0);
+  // ✅ Single timer display: expiry only (10 minutes)
   const [expiresLeft, setExpiresLeft] = useState(0);
+
+  // ✅ Resend cooldown: 60s (no extra timer UI)
+  const [resendLocked, setResendLocked] = useState(true);
 
   const cleanEmail = email.trim().toLowerCase();
 
-  // tick timers
+  // tick expiry timer
   useEffect(() => {
     if (step !== "otp") return;
-
-    const t = setInterval(() => {
-      setResendLeft((s) => Math.max(0, s - 1));
-      setExpiresLeft((s) => Math.max(0, s - 1));
-    }, 1000);
-
+    const t = setInterval(() => setExpiresLeft((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(t);
   }, [step]);
 
-  function startOtpTimers() {
-    setResendLeft(60);
+  function startOtpSession() {
+    // expiry displayed: 10 mins
     setExpiresLeft(10 * 60);
+
+    // resend locked for 60s (best practice)
+    setResendLocked(true);
+    window.setTimeout(() => setResendLocked(false), 60 * 1000);
   }
 
   async function startOtp() {
@@ -232,9 +224,26 @@ function SignupInner() {
 
       setOtp("");
       setStep("otp");
-      startOtpTimers();
+      startOtpSession();
     } catch (e: any) {
       setErr(e?.message || "Failed to send OTP");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendNow() {
+    if (loading) return;
+    if (resendLocked) return;
+
+    setErr(null);
+    setLoading(true);
+    try {
+      await sendOtp(cleanEmail);
+      setOtp("");
+      startOtpSession();
+    } catch (e: any) {
+      setErr(e?.message || "Failed to resend OTP");
     } finally {
       setLoading(false);
     }
@@ -278,26 +287,9 @@ function SignupInner() {
   function changeEmail() {
     setErr(null);
     setOtp("");
-    setResendLeft(0);
     setExpiresLeft(0);
+    setResendLocked(true);
     setStep("form");
-  }
-
-  async function resendNow() {
-    if (loading) return;
-    if (resendLeft > 0) return;
-
-    setErr(null);
-    setLoading(true);
-    try {
-      await sendOtp(cleanEmail);
-      setOtp("");
-      startOtpTimers();
-    } catch (e: any) {
-      setErr(e?.message || "Failed to resend OTP");
-    } finally {
-      setLoading(false);
-    }
   }
 
   if (!mounted) {
@@ -319,13 +311,13 @@ function SignupInner() {
           {step === "form" ? "Create your facility control account" : "Enter the verification code we sent"}
         </div>
 
-        {/* SLIDE WRAPPER */}
+        {/* Slide wrapper */}
         <div
           className={`mt-6 flex w-[200%] transition-transform duration-300 ease-out ${
             step === "otp" ? "-translate-x-1/2" : "translate-x-0"
           }`}
         >
-          {/* STEP 1: FORM */}
+          {/* FORM */}
           <div className="w-1/2 pr-4">
             <div className="space-y-3">
               <Input
@@ -377,7 +369,7 @@ function SignupInner() {
             </div>
           </div>
 
-          {/* STEP 2: OTP ONLY */}
+          {/* OTP */}
           <div className="w-1/2 pl-4">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-sm text-zinc-300">We sent a 6-digit code to</div>
@@ -387,10 +379,25 @@ function SignupInner() {
 
               <Otp6 value={otp} onChange={setOtp} disabled={loading} />
 
-              {/* timers row under tip */}
-              <div className="-mt-6 flex items-center justify-between gap-3 text-xs text-zinc-500">
-                <span />
-                <span className="text-zinc-400">Expires in {formatMMSS(expiresLeft)}</span>
+              {/* SINGLE ROW: expiry timer + resend (no extra text, no second timer UI) */}
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <div className="text-xs text-zinc-400">Expires in {formatMMSS(expiresLeft)}</div>
+
+                <button
+                  type="button"
+                  onClick={resendNow}
+                  disabled={loading || resendLocked}
+                  className={`inline-flex items-center gap-2 rounded-lg px-2 py-1 text-xs transition ${
+                    loading || resendLocked
+                      ? "text-zinc-600 cursor-not-allowed"
+                      : "text-zinc-200 hover:bg-white/5"
+                  }`}
+                  aria-disabled={loading || resendLocked}
+                  title={resendLocked ? "You can resend after 1 minute" : "Resend code"}
+                >
+                  <ResendIcon className="opacity-90" />
+                  <span>Resend</span>
+                </button>
               </div>
 
               {err && (
@@ -399,6 +406,7 @@ function SignupInner() {
                 </div>
               )}
 
+              {/* Verify button comes DOWN (below timers row) */}
               <Button
                 className="mt-5 w-full"
                 onClick={verifyAndCreate}
@@ -407,28 +415,6 @@ function SignupInner() {
                 {loading ? "Verifying..." : "Verify & Create account"}
               </Button>
 
-              {/* inline resend control (professional) */}
-              <div className="mt-4 flex items-center justify-between text-xs">
-                <button
-                  type="button"
-                  onClick={resendNow}
-                  disabled={loading || resendLeft > 0}
-                  className={`inline-flex items-center gap-2 rounded-lg px-2 py-1 transition ${
-                    loading || resendLeft > 0
-                      ? "text-zinc-600 cursor-not-allowed"
-                      : "text-zinc-200 hover:bg-white/5"
-                  }`}
-                >
-                  <ResendIcon className="opacity-90" />
-                  <span>Resend</span>
-                </button>
-
-                <span className="text-zinc-500">
-                  {resendLeft > 0 ? `Available in ${formatMMSS(resendLeft)}` : "You can resend now"}
-                </span>
-              </div>
-
-              {/* change email stays small but clear */}
               <button
                 type="button"
                 onClick={changeEmail}
