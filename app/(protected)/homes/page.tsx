@@ -291,9 +291,11 @@ export default function HomesPage() {
                                     Manage Rooms
                                   </a>
 
-                                  {/* ✅ NEW: Manage Users */}
+                                  {/* ✅ Manage Users (NOW includes estateId) */}
                                   <a
-                                    href={`/homes/${h.id}/users`}
+                                    href={`/homes/${h.id}/users?estateId=${encodeURIComponent(
+                                      estateId || ""
+                                    )}`}
                                     className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm bg-white/5 border border-white/10 hover:bg-white/10 transition"
                                     onClick={(e) => e.stopPropagation()}
                                   >
@@ -331,8 +333,9 @@ export default function HomesPage() {
                               </div>
 
                               <div className="text-xs text-zinc-500 mt-2">
-                                Home users are managed in <span className="text-zinc-300">Manage Users</span>.
-                                Residents will later manage visitors/staff inside the consumer app.
+                                Home users are managed in{" "}
+                                <span className="text-zinc-300">Manage Users</span>. Residents will later
+                                manage visitors/staff inside the consumer app.
                               </div>
                             </div>
                           </div>
