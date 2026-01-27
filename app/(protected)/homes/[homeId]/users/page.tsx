@@ -1,7 +1,9 @@
+// app/(protected)/homes/[homeId]/users/page.tsx
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
@@ -16,17 +18,20 @@ function pill(status?: string) {
     s === "active"
       ? "text-emerald-200 bg-emerald-500/10 border-emerald-500/20"
       : s === "invited"
-        ? "text-yellow-200 bg-yellow-500/10 border-yellow-500/20"
-        : s === "disabled"
-          ? "text-red-200 bg-red-500/10 border-red-500/20"
-          : "text-zinc-200 bg-white/5 border-white/10";
+      ? "text-yellow-200 bg-yellow-500/10 border-yellow-500/20"
+      : s === "disabled"
+      ? "text-red-200 bg-red-500/10 border-red-500/20"
+      : "text-zinc-200 bg-white/5 border-white/10";
 
   return <span className={`px-2 py-1 rounded-full border text-xs ${tone}`}>{s}</span>;
 }
 
 export default function HomeUsersPage() {
   const params = useParams<{ homeId: string }>();
+  const sp = useSearchParams();
+
   const homeId = String(params.homeId);
+  const estateId = sp.get("estateId") || ""; // ✅ from Homes page link
 
   const [items, setItems] = useState<HomeMembershipRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,8 +39,8 @@ export default function HomeUsersPage() {
   // Invite modal
   const [showInvite, setShowInvite] = useState(false);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("resident");
-  const [inviteResult, setInviteResult] = useState<{ inviteUrl?: string; qrDataUrl?: string } | null>(null);
+  const [role, setRole] = useState<"resident" | "home_member" | "home_admin">("resident");
+  const [inviteResult, setInviteResult] = useState<{ inviteId?: string; invited_email?: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -52,14 +57,26 @@ export default function HomeUsersPage() {
       alert("Email is required");
       return;
     }
+    if (!estateId) {
+      alert("Missing estateId. Go back to Homes and click Manage Users again.");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await facilityService.inviteHomeUser(homeId, {
+        estate_id: estateId,
         email: email.trim(),
-        role: role || "resident",
+        role, // already backend role format now
         permissions: {},
       });
-      setInviteResult({ inviteUrl: res.inviteUrl, qrDataUrl: res.qrDataUrl });
+
+      setInviteResult({
+        inviteId: res?.invite?.id,
+        invited_email: res?.invite?.invited_email,
+      });
+
+      // Membership list updates only after consumer accepts
       await load();
     } catch (e: any) {
       alert(e?.response?.data?.error || e?.message || "Invite failed");
@@ -98,65 +115,70 @@ export default function HomeUsersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeId]);
 
-  const columns = useMemo<ColumnDef<HomeMembershipRow>[]>(() => [
-    {
-      header: "User",
-      accessorFn: (r) => r.users?.email || r.users?.full_name || r.users?.username || r.users?.id,
-      cell: ({ row }) => {
-        const u = row.original.users;
-        return (
-          <div>
-            <div className="font-medium text-zinc-100">{u?.full_name || u?.username || "—"}</div>
-            <div className="text-xs text-zinc-500 mt-1">{u?.email || "—"}</div>
-          </div>
-        );
-      }
-    },
-    {
-      header: "Home Role",
-      accessorKey: "role",
-      cell: ({ row }) => <span className="text-sm text-zinc-200">{row.original.role}</span>,
-    },
-    {
-      header: "Status",
-      accessorKey: "status",
-      cell: ({ row }) => pill(row.original.status),
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => {
-        const m = row.original;
-        return (
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => setMembership(m.id, { status: m.status === "active" ? "disabled" : "active" })}
-              disabled={loading}
-            >
-              {m.status === "active" ? "Disable" : "Activate"}
-            </Button>
+  const columns = useMemo<ColumnDef<HomeMembershipRow>[]>(
+    () => [
+      {
+        header: "User",
+        accessorFn: (r) => r.users?.email || r.users?.full_name || r.users?.username || r.users?.id,
+        cell: ({ row }) => {
+          const u = row.original.users;
+          return (
+            <div>
+              <div className="font-medium text-zinc-100">{u?.full_name || u?.username || "—"}</div>
+              <div className="text-xs text-zinc-500 mt-1">{u?.email || "—"}</div>
+            </div>
+          );
+        },
+      },
+      {
+        header: "Home Role",
+        accessorKey: "role",
+        cell: ({ row }) => <span className="text-sm text-zinc-200">{row.original.role}</span>,
+      },
+      {
+        header: "Status",
+        accessorKey: "status",
+        cell: ({ row }) => pill(row.original.status),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const m = row.original;
+          return (
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  setMembership(m.id, { status: m.status === "active" ? "disabled" : "active" })
+                }
+                disabled={loading}
+              >
+                {m.status === "active" ? "Disable" : "Activate"}
+              </Button>
 
-            <Button
-              variant="ghost"
-              onClick={() => {
-                const next = prompt("Set role (owner / resident / staff)", m.role);
-                if (!next) return;
-                setMembership(m.id, { role: next });
-              }}
-              disabled={loading}
-            >
-              Role
-            </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  const next = prompt("Set role (resident / home_member / home_admin)", m.role);
+                  if (!next) return;
+                  setMembership(m.id, { role: next });
+                }}
+                disabled={loading}
+              >
+                Role
+              </Button>
 
-            <Button variant="ghost" onClick={() => removeMembership(m.id)} disabled={loading}>
-              Remove
-            </Button>
-          </div>
-        );
-      }
-    }
-  ], [loading]);
+              <Button variant="ghost" onClick={() => removeMembership(m.id)} disabled={loading}>
+                Remove
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    [loading]
+  );
 
   return (
     <div className="space-y-7">
@@ -165,11 +187,22 @@ export default function HomeUsersPage() {
         subtitle="Private membership • owner-controlled access • onboarding via invites"
       />
 
+      {!estateId && (
+        <div className="glass border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-200">
+          Missing <b>estateId</b> in URL. Go back to <b>Homes</b> and click <b>Manage Users</b> again.
+        </div>
+      )}
+
       <div className="flex items-center justify-end gap-2">
         <Button variant="ghost" onClick={load} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh"}
         </Button>
-        <Button onClick={() => { setShowInvite(true); setInviteResult(null); }}>
+        <Button
+          onClick={() => {
+            setShowInvite(true);
+            setInviteResult(null);
+          }}
+        >
           Invite User
         </Button>
       </div>
@@ -186,6 +219,9 @@ export default function HomeUsersPage() {
                 <div className="text-sm text-zinc-400 mt-1">
                   Home: <span className="text-zinc-200">{homeId}</span>
                 </div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  Invite sends an in-app request to the consumer app.
+                </div>
               </div>
               <button className="text-zinc-400 hover:text-white" onClick={() => setShowInvite(false)}>
                 ✕
@@ -200,26 +236,27 @@ export default function HomeUsersPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
 
-              <input
+              {/* ✅ backend roles */}
+              <select
                 className="w-full rounded-xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-white/20"
-                placeholder="Role (owner / resident / staff)"
                 value={role}
-                onChange={(e) => setRole(e.target.value)}
-              />
+                onChange={(e) => setRole(e.target.value as any)}
+              >
+                <option value="resident">resident</option>
+                <option value="home_member">home_member</option>
+                <option value="home_admin">home_admin</option>
+              </select>
 
-              {inviteResult?.inviteUrl && (
+              {inviteResult?.inviteId && (
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
                   <div className="text-sm text-emerald-200 font-medium">Invite created</div>
-                  <div className="text-xs text-zinc-300 mt-2 break-all">
-                    {inviteResult.inviteUrl}
+                  <div className="text-xs text-zinc-300 mt-2">
+                    Invite ID: <span className="text-zinc-100">{inviteResult.inviteId}</span>
                   </div>
-
-                  {inviteResult.qrDataUrl && (
-                    <div className="mt-3">
-                      <img src={inviteResult.qrDataUrl} alt="Invite QR" className="h-40 w-40 rounded-xl border border-white/10" />
-                      <div className="text-xs text-zinc-400 mt-2">Scan QR or share the link.</div>
-                    </div>
-                  )}
+                  <div className="text-xs text-zinc-400 mt-2">
+                    The user will see a <b>Home invite</b> prompt inside the consumer app and can Accept/Decline.
+                    After they accept, they will appear in this Home Members list.
+                  </div>
                 </div>
               )}
             </div>
@@ -228,7 +265,7 @@ export default function HomeUsersPage() {
               <Button variant="ghost" onClick={() => setShowInvite(false)}>
                 Close
               </Button>
-              <Button onClick={invite} disabled={loading}>
+              <Button onClick={invite} disabled={loading || !estateId}>
                 {loading ? "Inviting..." : "Create Invite"}
               </Button>
             </div>
