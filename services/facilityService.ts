@@ -1,3 +1,5 @@
+// services/facilityService.ts
+
 import API from "./api";
 import type { FacilityOverview } from "@/types/facility";
 
@@ -44,7 +46,6 @@ export type CreateRoomResponse = {
 // DEVICES (DISCOVERY)
 // ---------------------------
 export type DiscoveredDevice = {
-  // legacy tuya-ish shapes:
   id?: string;
   name?: string;
   local_name?: string;
@@ -56,7 +57,6 @@ export type DiscoveredDevice = {
   isOnline?: boolean;
   status?: string;
 
-  // adapter-canonical shapes (ssdp/onvif/etc):
   externalId?: string;
   adapter?: string;
   capabilities?: string[];
@@ -75,12 +75,9 @@ export type DiscoverDevicesResponse = {
 export type DiscoverAdapter = "tuya" | "ssdp" | "onvif";
 
 export type DiscoverOptions = {
-  // ONVIF / network scan options
   cidr?: string;
   username?: string;
   password?: string;
-
-  // future: targetIp, ports, etc
   [key: string]: any;
 };
 
@@ -136,16 +133,28 @@ export type ListHomeUsersResponse = {
 
 export type InviteHomeUserPayload = {
   email: string;
-  role?: string; // owner | resident | staff | etc
-  permissions?: Record<string, any>;
+  role?: string; // UI role: owner | resident | staff (we map to backend roles)
+  permissions?: Record<string, any>; // reserved
+};
+
+/**
+ * ✅ Backend invite shape (from POST /invites)
+ */
+export type HomeInvite = {
+  id: string;
+  estate_id: string;
+  home_id: string;
+  invited_email: string;
+  role: "resident" | "home_member" | "home_admin";
+  status: "pending" | "accepted" | "declined" | "expired";
+  created_at?: string | null;
+  created_by?: string | null;
+  expires_at?: string | null;
 };
 
 export type InviteHomeUserResponse = {
-  message: string;
-  inviteUrl: string;
-  qrDataUrl: string;
-  invited_user_id: string;
-  membership: any;
+  ok: boolean;
+  invite: HomeInvite;
 };
 
 export type UpdateHomeUserPayload = {
@@ -171,6 +180,25 @@ export type RegisterDevicePayload = {
   protocols?: string[];
   metadata?: any;
 };
+
+function normalizeEmail(email: string) {
+  return String(email || "").trim().toLowerCase();
+}
+
+/**
+ * Map facility UI role -> backend HomeRole
+ * - owner  -> home_admin
+ * - resident -> resident
+ * - staff -> home_member
+ * - anything else -> home_member (safe default)
+ */
+function mapRoleToBackend(role?: string): "resident" | "home_member" | "home_admin" {
+  const r = String(role || "").trim().toLowerCase();
+  if (r === "owner" || r === "home_admin") return "home_admin";
+  if (r === "resident") return "resident";
+  if (r === "staff" || r === "home_member") return "home_member";
+  return "home_member";
+}
 
 export const facilityService = {
   // ---------------------------
@@ -259,16 +287,13 @@ export const facilityService = {
 
   // ---------------------------
   // DEVICES (REGISTRY) - hooks for v1.1
-  // NOTE: backend endpoints may not exist yet.
   // ---------------------------
   async registerDevice(payload: RegisterDevicePayload): Promise<any> {
-    // expected backend: POST /facility/devices/register
     const res = await API.post("/facility/devices/register", payload);
     return res.data;
   },
 
   async attachDevice(deviceId: string, roomId: string): Promise<any> {
-    // expected backend: PATCH /facility/devices/:deviceId/attach
     const res = await API.patch(`/facility/devices/${deviceId}/attach`, {
       room_id: roomId,
     });
@@ -276,7 +301,6 @@ export const facilityService = {
   },
 
   async sendDeviceCommand(deviceId: string, command: Record<string, any>): Promise<any> {
-    // already exists: POST /facility/devices/:deviceId/command
     const res = await API.post(`/facility/devices/${deviceId}/command`, { command });
     return res.data;
   },
@@ -307,9 +331,31 @@ export const facilityService = {
     return res.data;
   },
 
-  async inviteHomeUser(homeId: string, payload: InviteHomeUserPayload): Promise<InviteHomeUserResponse> {
-    const res = await API.post(`/facility/homes/${homeId}/invite`, payload);
-    return res.data;
+  /**
+   * ✅ NEW: Create invite using shared invite system
+   * POST /invites
+   */
+  async inviteHomeUser(
+    homeId: string,
+    payload: InviteHomeUserPayload & { estate_id?: string }
+  ): Promise<InviteHomeUserResponse> {
+    const estate_id = String(payload.estate_id || "").trim();
+    if (!estate_id) {
+      throw new Error("Missing estate_id for invite. Open Manage Users from Homes page.");
+    }
+
+    const invited_email = normalizeEmail(payload.email);
+    const role = mapRoleToBackend(payload.role);
+
+    const res = await API.post("/invites", {
+      estate_id,
+      home_id: homeId,
+      invited_email,
+      role,
+      // expires_at: optional (you can add later)
+    });
+
+    return res.data as InviteHomeUserResponse;
   },
 
   async updateHomeUser(membershipId: string, payload: UpdateHomeUserPayload) {
