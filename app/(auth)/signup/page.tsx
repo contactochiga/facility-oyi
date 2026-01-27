@@ -57,14 +57,7 @@ function formatMMSS(totalSeconds: number) {
 
 function ResendIcon({ className = "" }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M20 12a8 8 0 0 1-14.3 5M4 12A8 8 0 0 1 18.3 7"
         stroke="currentColor"
@@ -89,7 +82,23 @@ function ResendIcon({ className = "" }: { className?: string }) {
   );
 }
 
-/** 6-box OTP input that stays inside the card */
+function StatusDot({ ok }: { ok: boolean | null }) {
+  const title = ok === null ? "Checking connection" : ok ? "Backend connected" : "Backend offline";
+  const cls =
+    ok === null
+      ? "bg-zinc-500"
+      : ok
+      ? "bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.12)]"
+      : "bg-red-400 shadow-[0_0_0_3px_rgba(248,113,113,0.12)]";
+
+  return (
+    <span className="inline-flex items-center gap-2" title={title} aria-label={title}>
+      <span className={`h-2.5 w-2.5 rounded-full ${cls}`} />
+    </span>
+  );
+}
+
+/** 6-box OTP input */
 function Otp6({
   value,
   onChange,
@@ -183,13 +192,43 @@ function SignupInner() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // ✅ Single timer display: expiry only (10 minutes)
+  // ✅ single timer: expiry
   const [expiresLeft, setExpiresLeft] = useState(0);
 
-  // ✅ Resend cooldown: 60s (no extra timer UI)
+  // ✅ resend lock: 60s (no timer UI)
   const [resendLocked, setResendLocked] = useState(true);
 
+  // ✅ backend status dot
+  const [backendOk, setBackendOk] = useState<boolean | null>(null);
+
   const cleanEmail = email.trim().toLowerCase();
+
+  // check backend connectivity (light ping)
+  useEffect(() => {
+    const API = getApiBase();
+    if (!API) {
+      setBackendOk(false);
+      return;
+    }
+
+    let cancelled = false;
+    setBackendOk(null);
+
+    (async () => {
+      try {
+        const res = await fetch(`${API}/health`, { method: "GET" });
+        if (cancelled) return;
+        setBackendOk(res.ok);
+      } catch {
+        if (cancelled) return;
+        setBackendOk(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // tick expiry timer
   useEffect(() => {
@@ -199,10 +238,7 @@ function SignupInner() {
   }, [step]);
 
   function startOtpSession() {
-    // expiry displayed: 10 mins
     setExpiresLeft(10 * 60);
-
-    // resend locked for 60s (best practice)
     setResendLocked(true);
     window.setTimeout(() => setResendLocked(false), 60 * 1000);
   }
@@ -303,12 +339,17 @@ function SignupInner() {
     );
   }
 
+  const subtitle =
+    step === "form" ? "Create your facility control account" : "Enter the verification code we sent";
+
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
       <div className="glass w-full max-w-md p-8 overflow-hidden">
         <div className="text-xl font-semibold tracking-tight">Oyi Facility</div>
-        <div className="muted mt-1">
-          {step === "form" ? "Create your facility control account" : "Enter the verification code we sent"}
+
+        <div className="mt-1 flex items-center justify-between">
+          <div className="muted">{subtitle}</div>
+          <StatusDot ok={backendOk} />
         </div>
 
         {/* Slide wrapper */}
@@ -363,10 +404,6 @@ function SignupInner() {
                 Sign in
               </a>
             </div>
-
-            <div className="mt-4 text-xs text-zinc-500">
-              Backend: <span className="text-zinc-300">{getApiBase()}</span>
-            </div>
           </div>
 
           {/* OTP */}
@@ -379,7 +416,6 @@ function SignupInner() {
 
               <Otp6 value={otp} onChange={setOtp} disabled={loading} />
 
-              {/* SINGLE ROW: expiry timer + resend (no extra text, no second timer UI) */}
               <div className="mt-3 flex items-center justify-between gap-3">
                 <div className="text-xs text-zinc-400">Expires in {formatMMSS(expiresLeft)}</div>
 
@@ -406,7 +442,6 @@ function SignupInner() {
                 </div>
               )}
 
-              {/* Verify button comes DOWN (below timers row) */}
               <Button
                 className="mt-5 w-full"
                 onClick={verifyAndCreate}
@@ -432,10 +467,6 @@ function SignupInner() {
               <a className="text-zinc-200 underline" href={`/login?next=${encodeURIComponent(next)}`}>
                 Sign in
               </a>
-            </div>
-
-            <div className="mt-4 text-xs text-zinc-500">
-              Backend: <span className="text-zinc-300">{getApiBase()}</span>
             </div>
           </div>
         </div>
