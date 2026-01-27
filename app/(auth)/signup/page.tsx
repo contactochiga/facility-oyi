@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { authService } from "@/services/authService";
@@ -11,11 +11,11 @@ import { setCookie, decodeToken, isExpired } from "@/lib/auth";
 type Step = "form" | "otp";
 
 function getApiBase() {
-  return (
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    ""
-  );
+  return process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 async function sendOtp(email: string) {
@@ -29,8 +29,7 @@ async function sendOtp(email: string) {
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok)
-    throw new Error(data?.message || data?.error || "Failed to send OTP");
+  if (!res.ok) throw new Error(data?.message || data?.error || "Failed to send OTP");
   return data;
 }
 
@@ -45,16 +44,89 @@ async function verifyOtp(email: string, code: string) {
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok)
-    throw new Error(data?.message || data?.error || "OTP verification failed");
+  if (!res.ok) throw new Error(data?.message || data?.error || "OTP verification failed");
   return data;
+}
+
+/** 6-digit OTP input with auto-advance/backspace */
+function Otp6({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+
+  function setAt(index: number, char: string) {
+    const chars = value.split("");
+    while (chars.length < 6) chars.push("");
+    chars[index] = char;
+    onChange(chars.join("").slice(0, 6));
+  }
+
+  function handlePaste(e: React.ClipboardEvent) {
+    const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!text) return;
+    e.preventDefault();
+    onChange(text.padEnd(6, "").slice(0, 6));
+    const last = Math.min(text.length - 1, 5);
+    inputsRef.current[last]?.focus();
+  }
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between gap-2" onPaste={handlePaste}>
+        {Array.from({ length: 6 }).map((_, i) => {
+          const v = value[i] || "";
+          return (
+            <input
+              key={i}
+              ref={(el) => {
+                inputsRef.current[i] = el;
+              }}
+              value={v}
+              disabled={disabled}
+              inputMode="numeric"
+              maxLength={1}
+              className="w-11 h-12 rounded-xl bg-white/5 border border-white/10 text-center text-lg font-semibold outline-none focus:border-white/20"
+              onChange={(e) => {
+                const next = e.target.value.replace(/\D/g, "").slice(0, 1);
+                setAt(i, next);
+                if (next && i < 5) inputsRef.current[i + 1]?.focus();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Backspace") {
+                  if (value[i]) {
+                    setAt(i, "");
+                    return;
+                  }
+                  if (i > 0) {
+                    inputsRef.current[i - 1]?.focus();
+                    setAt(i - 1, "");
+                  }
+                }
+                if (e.key === "ArrowLeft" && i > 0) inputsRef.current[i - 1]?.focus();
+                if (e.key === "ArrowRight" && i < 5) inputsRef.current[i + 1]?.focus();
+              }}
+            />
+          );
+        })}
+      </div>
+
+      <div className="mt-2 text-xs text-zinc-500">
+        Tip: you can paste the full code.
+      </div>
+    </div>
+  );
 }
 
 function SignupInner() {
   const router = useRouter();
   const params = useSearchParams();
 
-  // ✅ Hydration guard
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -68,8 +140,8 @@ function SignupInner() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState("");
 
+  const [otp, setOtp] = useState(""); // stores digits only
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -81,16 +153,17 @@ function SignupInner() {
     setInfo(null);
     setLoading(true);
     try {
-      if (!cleanEmail || !cleanEmail.includes("@")) {
-        setErr("Enter a valid email");
-        return;
-      }
       if (!fullName.trim() || !password) {
         setErr("Fill full name and password");
         return;
       }
+      if (!isValidEmail(cleanEmail)) {
+        setErr("Enter a valid email");
+        return;
+      }
 
       await sendOtp(cleanEmail);
+      setOtp("");
       setStep("otp");
       setInfo(`OTP sent to ${cleanEmail}`);
     } catch (e: any) {
@@ -105,15 +178,15 @@ function SignupInner() {
     setInfo(null);
     setLoading(true);
     try {
-      if (!otp.trim() || otp.trim().length < 4) {
-        setErr("Enter the OTP code");
+      const code = otp.replace(/\D/g, "").slice(0, 6);
+      if (code.length !== 6) {
+        setErr("Enter the 6-digit OTP code");
         return;
       }
 
-      await verifyOtp(cleanEmail, otp.trim());
+      await verifyOtp(cleanEmail, code);
 
       const res = await authService.signup(cleanEmail, password, fullName.trim());
-
       if (res.error || !res.token) {
         setErr(res.error || "Signup failed");
         return;
@@ -127,7 +200,6 @@ function SignupInner() {
 
       setCookie("oyi_facility_token", res.token, 30);
       setToken(res.token);
-
       router.replace(next);
     } catch (e: any) {
       setErr(e?.message || "Signup failed");
@@ -136,12 +208,12 @@ function SignupInner() {
     }
   }
 
-  const changeEmail = () => {
+  function backToForm() {
     setErr(null);
     setInfo(null);
     setOtp("");
     setStep("form");
-  };
+  }
 
   if (!mounted) {
     return (
@@ -156,114 +228,117 @@ function SignupInner() {
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
-      <div className="glass w-full max-w-md p-8">
+      <div className="glass w-full max-w-md p-8 overflow-hidden">
         <div className="text-xl font-semibold tracking-tight">Oyi Facility</div>
         <div className="muted mt-1">
-          {step === "form"
-            ? "Create your facility control account"
-            : "Enter the verification code we sent"}
+          {step === "form" ? "Create your facility control account" : "Enter the verification code we sent"}
         </div>
 
-        <div className="mt-6 space-y-3">
-          <Input
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Full name"
-            type="text"
-            disabled={loading || step === "otp"}
-          />
-          <Input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            type="email"
-            disabled={loading || step === "otp"}
-          />
-          <Input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            type="password"
-            disabled={loading || step === "otp"}
-          />
+        {/* SLIDER */}
+        <div
+          className={`mt-6 flex w-[200%] transition-transform duration-300 ease-out ${
+            step === "otp" ? "-translate-x-1/2" : "translate-x-0"
+          }`}
+        >
+          {/* FORM PANEL */}
+          <div className="w-1/2 pr-4">
+            <div className="space-y-3">
+              <Input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Full name"
+                type="text"
+                disabled={loading}
+              />
+              <Input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                type="email"
+                disabled={loading}
+              />
+              <Input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                type="password"
+                disabled={loading}
+              />
+            </div>
 
-          {step === "otp" && (
-            <Input
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              placeholder="OTP code"
-              type="text"
-              disabled={loading}
-            />
-          )}
-        </div>
+            {err && (
+              <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {err}
+              </div>
+            )}
 
-        {info && (
-          <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-            {info}
-          </div>
-        )}
-
-        {err && (
-          <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            {err}
-          </div>
-        )}
-
-        {step === "form" ? (
-          <Button
-            className="mt-5 w-full"
-            onClick={startOtp}
-            disabled={loading || !fullName || !email || !password}
-          >
-            {loading ? "Sending code..." : "Send verification code"}
-          </Button>
-        ) : (
-          <>
             <Button
               className="mt-5 w-full"
-              onClick={verifyAndCreate}
-              disabled={loading || otp.trim().length < 4}
-            >
-              {loading ? "Verifying..." : "Verify & Create account"}
-            </Button>
-
-            <Button
-              className="mt-3 w-full"
               onClick={startOtp}
-              disabled={loading}
-              variant="secondary"
+              disabled={loading || !fullName.trim() || !email.trim() || !password}
             >
-              {loading ? "..." : "Resend code"}
+              {loading ? "Please wait..." : "Continue"}
             </Button>
 
-            <Button
-              className="mt-3 w-full"
-              onClick={changeEmail}
-              disabled={loading}
-              variant="secondary"
-            >
-              Change email
-            </Button>
-          </>
-        )}
+            <div className="mt-6 text-xs text-zinc-500">
+              Already have an account?{" "}
+              <a className="text-zinc-200 underline" href={`/login?next=${encodeURIComponent(next)}`}>
+                Sign in
+              </a>
+            </div>
 
-        <div className="mt-6 text-xs text-zinc-500">
-          Already have an account?{" "}
-          <a
-            className="text-zinc-200 underline"
-            href={`/login?next=${encodeURIComponent(next)}`}
-          >
-            Sign in
-          </a>
-        </div>
+            <div className="mt-4 text-xs text-zinc-500">
+              Backend: <span className="text-zinc-300">{getApiBase()}</span>
+            </div>
+          </div>
 
-        <div className="mt-4 text-xs text-zinc-500">
-          Backend:{" "}
-          <span className="text-zinc-300">
-            {process.env.NEXT_PUBLIC_API_URL ||
-              process.env.NEXT_PUBLIC_API_BASE_URL}
-          </span>
+          {/* OTP PANEL */}
+          <div className="w-1/2 pl-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-sm text-zinc-300">We sent a 6-digit code to</div>
+              <div className="mt-1 text-sm font-medium text-white break-all">{cleanEmail || "—"}</div>
+
+              <Otp6 value={otp} onChange={setOtp} disabled={loading} />
+
+              {info && (
+                <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                  {info}
+                </div>
+              )}
+
+              {err && (
+                <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {err}
+                </div>
+              )}
+
+              <Button
+                className="mt-5 w-full"
+                onClick={verifyAndCreate}
+                disabled={loading || otp.replace(/\D/g, "").length !== 6}
+              >
+                {loading ? "Verifying..." : "Verify & Create account"}
+              </Button>
+
+              <Button
+                className="mt-3 w-full"
+                onClick={startOtp}
+                disabled={loading}
+                variant="ghost"
+              >
+                {loading ? "..." : "Resend code"}
+              </Button>
+
+              <Button
+                className="mt-3 w-full"
+                onClick={backToForm}
+                disabled={loading}
+                variant="ghost"
+              >
+                Change email
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
