@@ -1,6 +1,7 @@
+// app/(auth)/signup/page.tsx
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { authService } from "@/services/authService";
@@ -45,7 +46,7 @@ async function verifyOtp(email: string, code: string) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message || data?.error || "OTP verification failed");
-  return data;
+  return data as { ok?: boolean; otpToken?: string; message?: string };
 }
 
 function formatMMSS(totalSeconds: number) {
@@ -195,7 +196,7 @@ function SignupInner() {
   // ✅ single timer: expiry
   const [expiresLeft, setExpiresLeft] = useState(0);
 
-  // ✅ resend lock: 60s (no timer UI)
+  // ✅ resend lock: 60s
   const [resendLocked, setResendLocked] = useState(true);
 
   // ✅ backend status dot
@@ -203,7 +204,6 @@ function SignupInner() {
 
   const cleanEmail = email.trim().toLowerCase();
 
-  // check backend connectivity (light ping)
   useEffect(() => {
     const API = getApiBase();
     if (!API) {
@@ -230,7 +230,6 @@ function SignupInner() {
     };
   }, []);
 
-  // tick expiry timer
   useEffect(() => {
     if (step !== "otp") return;
     const t = setInterval(() => setExpiresLeft((s) => Math.max(0, s - 1)), 1000);
@@ -295,9 +294,18 @@ function SignupInner() {
         return;
       }
 
-      await verifyOtp(cleanEmail, code);
+      // ✅ get the short-lived otpToken from backend
+      const v = await verifyOtp(cleanEmail, code);
+      const otpToken = v?.otpToken;
 
-      const res = await authService.signup(cleanEmail, password, fullName.trim());
+      if (!otpToken) {
+        setErr("OTP verified, but no token returned. Please try again.");
+        return;
+      }
+
+      // ✅ PASS OTP TOKEN INTO SIGNUP (this removes “OTP required”)
+      const res = await authService.signup(cleanEmail, password, fullName.trim(), otpToken);
+
       if (res.error || !res.token) {
         setErr(res.error || "Signup failed");
         return;
@@ -339,8 +347,7 @@ function SignupInner() {
     );
   }
 
-  const subtitle =
-    step === "form" ? "Create your facility control account" : "Enter the verification code we sent";
+  const subtitle = step === "form" ? "Create your facility control account" : "Enter the verification code we sent";
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
@@ -352,7 +359,6 @@ function SignupInner() {
           <StatusDot ok={backendOk} />
         </div>
 
-        {/* Slide wrapper */}
         <div
           className={`mt-6 flex w-[200%] transition-transform duration-300 ease-out ${
             step === "otp" ? "-translate-x-1/2" : "translate-x-0"
@@ -361,27 +367,9 @@ function SignupInner() {
           {/* FORM */}
           <div className="w-1/2 pr-4">
             <div className="space-y-3">
-              <Input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Full name"
-                type="text"
-                disabled={loading}
-              />
-              <Input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                type="email"
-                disabled={loading}
-              />
-              <Input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                type="password"
-                disabled={loading}
-              />
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name" type="text" disabled={loading} />
+              <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" disabled={loading} />
+              <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" disabled={loading} />
             </div>
 
             {err && (
@@ -390,11 +378,7 @@ function SignupInner() {
               </div>
             )}
 
-            <Button
-              className="mt-5 w-full"
-              onClick={startOtp}
-              disabled={loading || !fullName.trim() || !email.trim() || !password}
-            >
+            <Button className="mt-5 w-full" onClick={startOtp} disabled={loading || !fullName.trim() || !email.trim() || !password}>
               {loading ? "Please wait..." : "Continue"}
             </Button>
 
@@ -424,9 +408,7 @@ function SignupInner() {
                   onClick={resendNow}
                   disabled={loading || resendLocked}
                   className={`inline-flex items-center gap-2 rounded-lg px-2 py-1 text-xs transition ${
-                    loading || resendLocked
-                      ? "text-zinc-600 cursor-not-allowed"
-                      : "text-zinc-200 hover:bg-white/5"
+                    loading || resendLocked ? "text-zinc-600 cursor-not-allowed" : "text-zinc-200 hover:bg-white/5"
                   }`}
                   aria-disabled={loading || resendLocked}
                   title={resendLocked ? "You can resend after 1 minute" : "Resend code"}
@@ -442,11 +424,7 @@ function SignupInner() {
                 </div>
               )}
 
-              <Button
-                className="mt-5 w-full"
-                onClick={verifyAndCreate}
-                disabled={loading || otp.replace(/\D/g, "").length !== 6}
-              >
+              <Button className="mt-5 w-full" onClick={verifyAndCreate} disabled={loading || otp.replace(/\D/g, "").length !== 6}>
                 {loading ? "Verifying..." : "Verify & Create account"}
               </Button>
 
