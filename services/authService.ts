@@ -7,29 +7,32 @@ export const authService = {
       const res = await API.post("/auth/login", { email, password });
       return res.data;
     } catch (err: any) {
-      return { error: err?.response?.data?.error || "Login failed" };
+      return {
+        error:
+          err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          "Login failed",
+      };
     }
   },
 
-  // ✅ otpToken is required for signup gate
   async signup(email: string, password: string, fullName: string, otpToken?: string) {
     try {
       const res = await API.post(
         "/auth/signup",
-        {
-          email,
-          password,
-          full_name: fullName, // ✅ backend expects full_name
-          otpToken,            // ✅ body fallback
-        },
-        {
-          headers: otpToken ? { "x-otp-token": otpToken } : undefined, // ✅ main gate header
-        }
+        { email, password, full_name: fullName, otpToken },
+        { headers: otpToken ? { "x-otp-token": otpToken } : undefined }
       );
-
       return res.data;
     } catch (err: any) {
-      return { error: err?.response?.data?.error || "Signup failed" };
+      return {
+        error:
+          err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          err?.response?.data?.detail ||
+          err?.message ||
+          "Signup failed",
+      };
     }
   },
 };
