@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useRef } from "react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { authService } from "@/services/authService";
@@ -48,7 +48,7 @@ async function verifyOtp(email: string, code: string) {
   return data;
 }
 
-/** 6-digit OTP input with auto-advance/backspace */
+/** OTP 6 boxes */
 function Otp6({
   value,
   onChange,
@@ -77,8 +77,8 @@ function Otp6({
   }
 
   return (
-    <div className="mt-4">
-      <div className="flex items-center justify-between gap-2" onPaste={handlePaste}>
+    <div className="mt-5" onPaste={handlePaste}>
+      <div className="flex items-center justify-between gap-2">
         {Array.from({ length: 6 }).map((_, i) => {
           const v = value[i] || "";
           return (
@@ -91,7 +91,7 @@ function Otp6({
               disabled={disabled}
               inputMode="numeric"
               maxLength={1}
-              className="w-11 h-12 rounded-xl bg-white/5 border border-white/10 text-center text-lg font-semibold outline-none focus:border-white/20"
+              className="w-11 h-12 rounded-xl bg-white/5 border border-white/10 text-center text-lg font-semibold outline-none focus:border-white/25"
               onChange={(e) => {
                 const next = e.target.value.replace(/\D/g, "").slice(0, 1);
                 setAt(i, next);
@@ -116,9 +116,7 @@ function Otp6({
         })}
       </div>
 
-      <div className="mt-2 text-xs text-zinc-500">
-        Tip: you can paste the full code.
-      </div>
+      <div className="mt-2 text-xs text-zinc-500">Tip: you can paste the full code.</div>
     </div>
   );
 }
@@ -141,7 +139,8 @@ function SignupInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [otp, setOtp] = useState(""); // stores digits only
+  const [otp, setOtp] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -200,6 +199,7 @@ function SignupInner() {
 
       setCookie("oyi_facility_token", res.token, 30);
       setToken(res.token);
+
       router.replace(next);
     } catch (e: any) {
       setErr(e?.message || "Signup failed");
@@ -208,7 +208,7 @@ function SignupInner() {
     }
   }
 
-  function backToForm() {
+  function changeEmail() {
     setErr(null);
     setInfo(null);
     setOtp("");
@@ -234,13 +234,13 @@ function SignupInner() {
           {step === "form" ? "Create your facility control account" : "Enter the verification code we sent"}
         </div>
 
-        {/* SLIDER */}
+        {/* SLIDE WRAPPER */}
         <div
           className={`mt-6 flex w-[200%] transition-transform duration-300 ease-out ${
             step === "otp" ? "-translate-x-1/2" : "translate-x-0"
           }`}
         >
-          {/* FORM PANEL */}
+          {/* STEP 1: FORM */}
           <div className="w-1/2 pr-4">
             <div className="space-y-3">
               <Input
@@ -292,7 +292,7 @@ function SignupInner() {
             </div>
           </div>
 
-          {/* OTP PANEL */}
+          {/* STEP 2: OTP ONLY (NO FULLNAME/EMAIL/PASSWORD HERE) */}
           <div className="w-1/2 pl-4">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-sm text-zinc-300">We sent a 6-digit code to</div>
@@ -320,23 +320,24 @@ function SignupInner() {
                 {loading ? "Verifying..." : "Verify & Create account"}
               </Button>
 
-              <Button
-                className="mt-3 w-full"
-                onClick={startOtp}
-                disabled={loading}
-                variant="ghost"
-              >
+              <Button className="mt-3 w-full" onClick={startOtp} disabled={loading} variant="ghost">
                 {loading ? "..." : "Resend code"}
               </Button>
 
-              <Button
-                className="mt-3 w-full"
-                onClick={backToForm}
-                disabled={loading}
-                variant="ghost"
-              >
+              <Button className="mt-3 w-full" onClick={changeEmail} disabled={loading} variant="ghost">
                 Change email
               </Button>
+            </div>
+
+            <div className="mt-6 text-xs text-zinc-500">
+              Already have an account?{" "}
+              <a className="text-zinc-200 underline" href={`/login?next=${encodeURIComponent(next)}`}>
+                Sign in
+              </a>
+            </div>
+
+            <div className="mt-4 text-xs text-zinc-500">
+              Backend: <span className="text-zinc-300">{getApiBase()}</span>
             </div>
           </div>
         </div>
