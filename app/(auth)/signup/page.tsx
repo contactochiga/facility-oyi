@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { authService } from "@/services/authService";
@@ -48,7 +48,48 @@ async function verifyOtp(email: string, code: string) {
   return data;
 }
 
-/** OTP 6 boxes */
+function formatMMSS(totalSeconds: number) {
+  const s = Math.max(0, totalSeconds);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+}
+
+function ResendIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M20 12a8 8 0 0 1-14.3 5M4 12A8 8 0 0 1 18.3 7"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M18 3v4h-4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6 21v-4h4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** OTP 6 boxes that ALWAYS fits inside the card */
 function Otp6({
   value,
   onChange,
@@ -77,8 +118,9 @@ function Otp6({
   }
 
   return (
-    <div className="mt-5" onPaste={handlePaste}>
-      <div className="flex items-center justify-between gap-2">
+    <div className="mt-4" onPaste={handlePaste}>
+      {/* grid ensures it never spills outside the card */}
+      <div className="grid grid-cols-6 gap-2">
         {Array.from({ length: 6 }).map((_, i) => {
           const v = value[i] || "";
           return (
@@ -91,7 +133,7 @@ function Otp6({
               disabled={disabled}
               inputMode="numeric"
               maxLength={1}
-              className="w-11 h-12 rounded-xl bg-white/5 border border-white/10 text-center text-lg font-semibold outline-none focus:border-white/25"
+              className="h-12 w-full rounded-xl bg-white/5 border border-white/10 text-center text-lg font-semibold outline-none focus:border-white/25"
               onChange={(e) => {
                 const next = e.target.value.replace(/\D/g, "").slice(0, 1);
                 setAt(i, next);
@@ -116,7 +158,11 @@ function Otp6({
         })}
       </div>
 
-      <div className="mt-2 text-xs text-zinc-500">Tip: you can paste the full code.</div>
+      {/* Tip + timers (clean + professional) */}
+      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-zinc-500">
+        <span>Tip: you can paste the full code.</span>
+        {/* timers will be injected from parent UI */}
+      </div>
     </div>
   );
 }
@@ -143,13 +189,34 @@ function SignupInner() {
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+
+  // ✅ pro UX timers
+  // - resend cooldown: 60s
+  // - otp expiry display: 10min (matches your email copy)
+  const [resendLeft, setResendLeft] = useState(0);
+  const [expiresLeft, setExpiresLeft] = useState(0);
 
   const cleanEmail = email.trim().toLowerCase();
 
+  // tick timers
+  useEffect(() => {
+    if (step !== "otp") return;
+
+    const t = setInterval(() => {
+      setResendLeft((s) => Math.max(0, s - 1));
+      setExpiresLeft((s) => Math.max(0, s - 1));
+    }, 1000);
+
+    return () => clearInterval(t);
+  }, [step]);
+
+  function startOtpTimers() {
+    setResendLeft(60);
+    setExpiresLeft(10 * 60);
+  }
+
   async function startOtp() {
     setErr(null);
-    setInfo(null);
     setLoading(true);
     try {
       if (!fullName.trim() || !password) {
@@ -162,9 +229,10 @@ function SignupInner() {
       }
 
       await sendOtp(cleanEmail);
+
       setOtp("");
       setStep("otp");
-      setInfo(`OTP sent to ${cleanEmail}`);
+      startOtpTimers();
     } catch (e: any) {
       setErr(e?.message || "Failed to send OTP");
     } finally {
@@ -174,7 +242,6 @@ function SignupInner() {
 
   async function verifyAndCreate() {
     setErr(null);
-    setInfo(null);
     setLoading(true);
     try {
       const code = otp.replace(/\D/g, "").slice(0, 6);
@@ -210,9 +277,27 @@ function SignupInner() {
 
   function changeEmail() {
     setErr(null);
-    setInfo(null);
     setOtp("");
+    setResendLeft(0);
+    setExpiresLeft(0);
     setStep("form");
+  }
+
+  async function resendNow() {
+    if (loading) return;
+    if (resendLeft > 0) return;
+
+    setErr(null);
+    setLoading(true);
+    try {
+      await sendOtp(cleanEmail);
+      setOtp("");
+      startOtpTimers();
+    } catch (e: any) {
+      setErr(e?.message || "Failed to resend OTP");
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (!mounted) {
@@ -292,19 +377,21 @@ function SignupInner() {
             </div>
           </div>
 
-          {/* STEP 2: OTP ONLY (NO FULLNAME/EMAIL/PASSWORD HERE) */}
+          {/* STEP 2: OTP ONLY */}
           <div className="w-1/2 pl-4">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-sm text-zinc-300">We sent a 6-digit code to</div>
-              <div className="mt-1 text-sm font-medium text-white break-all">{cleanEmail || "—"}</div>
+              <div className="mt-1 text-sm font-medium text-white break-all underline underline-offset-4">
+                {cleanEmail || "—"}
+              </div>
 
               <Otp6 value={otp} onChange={setOtp} disabled={loading} />
 
-              {info && (
-                <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                  {info}
-                </div>
-              )}
+              {/* timers row under tip */}
+              <div className="-mt-6 flex items-center justify-between gap-3 text-xs text-zinc-500">
+                <span />
+                <span className="text-zinc-400">Expires in {formatMMSS(expiresLeft)}</span>
+              </div>
 
               {err && (
                 <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
@@ -320,13 +407,38 @@ function SignupInner() {
                 {loading ? "Verifying..." : "Verify & Create account"}
               </Button>
 
-              <Button className="mt-3 w-full" onClick={startOtp} disabled={loading} variant="ghost">
-                {loading ? "..." : "Resend code"}
-              </Button>
+              {/* inline resend control (professional) */}
+              <div className="mt-4 flex items-center justify-between text-xs">
+                <button
+                  type="button"
+                  onClick={resendNow}
+                  disabled={loading || resendLeft > 0}
+                  className={`inline-flex items-center gap-2 rounded-lg px-2 py-1 transition ${
+                    loading || resendLeft > 0
+                      ? "text-zinc-600 cursor-not-allowed"
+                      : "text-zinc-200 hover:bg-white/5"
+                  }`}
+                >
+                  <ResendIcon className="opacity-90" />
+                  <span>Resend</span>
+                </button>
 
-              <Button className="mt-3 w-full" onClick={changeEmail} disabled={loading} variant="ghost">
+                <span className="text-zinc-500">
+                  {resendLeft > 0 ? `Available in ${formatMMSS(resendLeft)}` : "You can resend now"}
+                </span>
+              </div>
+
+              {/* change email stays small but clear */}
+              <button
+                type="button"
+                onClick={changeEmail}
+                disabled={loading}
+                className={`mt-3 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium transition ${
+                  loading ? "opacity-50 cursor-not-allowed" : "hover:bg-white/10"
+                }`}
+              >
                 Change email
-              </Button>
+              </button>
             </div>
 
             <div className="mt-6 text-xs text-zinc-500">
