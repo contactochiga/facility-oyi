@@ -20,7 +20,7 @@ function pill(status?: string) {
       : s === "invited"
       ? "text-yellow-200 bg-yellow-500/10 border-yellow-500/20"
       : s === "disabled"
-      ? "text-red-200 bg-red-500/10 border-red-500/10"
+      ? "text-red-200 bg-red-500/10 border-red-500/20"
       : "text-zinc-200 bg-white/5 border-white/10";
 
   return <span className={`px-2 py-1 rounded-full border text-xs ${tone}`}>{s}</span>;
@@ -38,8 +38,9 @@ export default function HomeUsersPage() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"resident" | "home_member" | "home_admin">("resident");
   const [inviteResult, setInviteResult] = useState<{
-    inviteId?: string;
-    invited_email?: string;
+    invited_user_id?: string;
+    inviteUrl?: string;
+    qrDataUrl?: string;
   } | null>(null);
 
   async function load() {
@@ -60,19 +61,19 @@ export default function HomeUsersPage() {
 
     setLoading(true);
     try {
-      // ✅ FIX: do NOT pass estate_id. Backend derives estate via homeId -> homes.estate_id
       const res = await facilityService.inviteHomeUser(homeId, {
         email: email.trim(),
-        role, // backend role format
+        role, // UI role value (we map on service)
         permissions: {},
       });
 
       setInviteResult({
-        inviteId: res?.invite?.id,
-        invited_email: res?.invite?.invited_email,
+        invited_user_id: res?.invited_user_id,
+        inviteUrl: res?.inviteUrl,
+        qrDataUrl: res?.qrDataUrl,
       });
 
-      // Membership list updates only after consumer accepts (but we can still refresh)
+      // Membership will remain "invited" until user accepts (then becomes active)
       await load();
     } catch (e: any) {
       alert(e?.response?.data?.error || e?.message || "Invite failed");
@@ -156,7 +157,7 @@ export default function HomeUsersPage() {
               <Button
                 variant="ghost"
                 onClick={() => {
-                  const next = prompt("Set role (resident / home_member / home_admin)", m.role);
+                  const next = prompt("Set role (resident / member / staff / owner)", m.role);
                   if (!next) return;
                   setMembership(m.id, { role: next });
                 }}
@@ -210,7 +211,7 @@ export default function HomeUsersPage() {
                   Home: <span className="text-zinc-200">{homeId}</span>
                 </div>
                 <div className="text-xs text-zinc-500 mt-1">
-                  Invite sends an in-app request to the consumer app.
+                  This creates an invite link/QR. User accepts in consumer app → membership becomes active.
                 </div>
               </div>
               <button className="text-zinc-400 hover:text-white" onClick={() => setShowInvite(false)}>
@@ -226,6 +227,7 @@ export default function HomeUsersPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
 
+              {/* UI roles (service maps to DB enum-safe roles) */}
               <select
                 className="w-full rounded-xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-white/20"
                 value={role}
@@ -236,15 +238,30 @@ export default function HomeUsersPage() {
                 <option value="home_admin">home_admin</option>
               </select>
 
-              {inviteResult?.inviteId && (
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+              {inviteResult?.inviteUrl && (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 space-y-2">
                   <div className="text-sm text-emerald-200 font-medium">Invite created</div>
-                  <div className="text-xs text-zinc-300 mt-2">
-                    Invite ID: <span className="text-zinc-100">{inviteResult.inviteId}</span>
+
+                  <div className="text-xs text-zinc-300">
+                    Invited user id: <span className="text-zinc-100">{inviteResult.invited_user_id}</span>
                   </div>
-                  <div className="text-xs text-zinc-400 mt-2">
-                    The user will see a <b>Home invite</b> prompt inside the consumer app and can Accept/Decline.
-                    After they accept, they will appear in this Home Members list.
+
+                  <div className="text-xs text-zinc-300 break-all">
+                    Invite URL: <span className="text-zinc-100">{inviteResult.inviteUrl}</span>
+                  </div>
+
+                  {inviteResult.qrDataUrl && (
+                    <div className="pt-2">
+                      <img
+                        src={inviteResult.qrDataUrl}
+                        alt="Invite QR"
+                        className="w-40 h-40 rounded-lg border border-white/10"
+                      />
+                    </div>
+                  )}
+
+                  <div className="text-xs text-zinc-400">
+                    After they accept in the consumer app, refresh this page and their status becomes <b>active</b>.
                   </div>
                 </div>
               )}
