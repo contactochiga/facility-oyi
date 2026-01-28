@@ -133,28 +133,17 @@ export type ListHomeUsersResponse = {
 
 export type InviteHomeUserPayload = {
   email: string;
-  role?: string; // UI role: owner | resident | staff (we map to backend roles)
-  permissions?: Record<string, any>; // reserved
+  role?: string; // owner | resident | staff | guest | member
+  permissions?: Record<string, any>;
 };
 
-/**
- * ✅ Backend invite shape (from POST /invites)
- */
-export type HomeInvite = {
-  id: string;
-  estate_id: string;
-  home_id: string;
-  invited_email: string;
-  role: "resident" | "home_member" | "home_admin";
-  status: "pending" | "accepted" | "declined" | "expired";
-  created_at?: string | null;
-  created_by?: string | null;
-  expires_at?: string | null;
-};
-
+// ✅ Matches your backend inviteHomeUser() return (inviteUrl + qr + membership)
 export type InviteHomeUserResponse = {
-  ok: boolean;
-  invite: HomeInvite;
+  message: string;
+  inviteUrl: string;
+  qrDataUrl: string;
+  invited_user_id: string;
+  membership: HomeMembershipRow; // upserted home_memberships row
 };
 
 export type UpdateHomeUserPayload = {
@@ -186,18 +175,14 @@ function normalizeEmail(email: string) {
 }
 
 /**
- * Map facility UI role -> backend HomeRole
- * - owner  -> home_admin
- * - resident -> resident
- * - staff -> home_member
- * - anything else -> home_member (safe default)
+ * Map facility UI role -> backend membership_role
+ * Your DB enum supports:
+ * owner | admin | manager | security | resident | member | guest | staff | viewer
  */
-function mapRoleToBackend(role?: string): "resident" | "home_member" | "home_admin" {
+function mapRoleToMembershipRole(role?: string): string | undefined {
   const r = String(role || "").trim().toLowerCase();
-  if (r === "owner" || r === "home_admin") return "home_admin";
-  if (r === "resident") return "resident";
-  if (r === "staff" || r === "home_member") return "home_member";
-  return "home_member";
+  if (["owner", "resident", "staff", "guest", "member", "viewer"].includes(r)) return r;
+  return "member";
 }
 
 export const facilityService = {
@@ -332,27 +317,19 @@ export const facilityService = {
   },
 
   /**
-   * ✅ NEW: Create invite using shared invite system
-   * POST /invites
+   * ✅ FIXED:
+   * Facility should invite via:
+   * POST /facility/homes/:homeId/invite
+   * (backend will derive estate_id from home)
    */
-  async inviteHomeUser(
-    homeId: string,
-    payload: InviteHomeUserPayload & { estate_id?: string }
-  ): Promise<InviteHomeUserResponse> {
-    const estate_id = String(payload.estate_id || "").trim();
-    if (!estate_id) {
-      throw new Error("Missing estate_id for invite. Open Manage Users from Homes page.");
-    }
+  async inviteHomeUser(homeId: string, payload: InviteHomeUserPayload): Promise<InviteHomeUserResponse> {
+    const invitedEmail = normalizeEmail(payload.email);
+    if (!invitedEmail.includes("@")) throw new Error("Invalid email");
 
-    const invited_email = normalizeEmail(payload.email);
-    const role = mapRoleToBackend(payload.role);
-
-    const res = await API.post("/invites", {
-      estate_id,
-      home_id: homeId,
-      invited_email,
-      role,
-      // expires_at: optional (you can add later)
+    const res = await API.post(`/facility/homes/${homeId}/invite`, {
+      email: invitedEmail,
+      role: mapRoleToMembershipRole(payload.role),
+      permissions: payload.permissions || {},
     });
 
     return res.data as InviteHomeUserResponse;
