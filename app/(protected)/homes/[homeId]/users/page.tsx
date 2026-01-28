@@ -3,7 +3,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
@@ -20,7 +20,7 @@ function pill(status?: string) {
       : s === "invited"
       ? "text-yellow-200 bg-yellow-500/10 border-yellow-500/20"
       : s === "disabled"
-      ? "text-red-200 bg-red-500/10 border-red-500/20"
+      ? "text-red-200 bg-red-500/10 border-red-500/10"
       : "text-zinc-200 bg-white/5 border-white/10";
 
   return <span className={`px-2 py-1 rounded-full border text-xs ${tone}`}>{s}</span>;
@@ -28,10 +28,7 @@ function pill(status?: string) {
 
 export default function HomeUsersPage() {
   const params = useParams<{ homeId: string }>();
-  const sp = useSearchParams();
-
   const homeId = String(params.homeId);
-  const estateId = sp.get("estateId") || ""; // ✅ from Homes page link
 
   const [items, setItems] = useState<HomeMembershipRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,7 +37,10 @@ export default function HomeUsersPage() {
   const [showInvite, setShowInvite] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"resident" | "home_member" | "home_admin">("resident");
-  const [inviteResult, setInviteResult] = useState<{ inviteId?: string; invited_email?: string } | null>(null);
+  const [inviteResult, setInviteResult] = useState<{
+    inviteId?: string;
+    invited_email?: string;
+  } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -57,17 +57,13 @@ export default function HomeUsersPage() {
       alert("Email is required");
       return;
     }
-    if (!estateId) {
-      alert("Missing estateId. Go back to Homes and click Manage Users again.");
-      return;
-    }
 
     setLoading(true);
     try {
+      // ✅ FIX: do NOT pass estate_id. Backend derives estate via homeId -> homes.estate_id
       const res = await facilityService.inviteHomeUser(homeId, {
-        estate_id: estateId,
         email: email.trim(),
-        role, // already backend role format now
+        role, // backend role format
         permissions: {},
       });
 
@@ -76,7 +72,7 @@ export default function HomeUsersPage() {
         invited_email: res?.invite?.invited_email,
       });
 
-      // Membership list updates only after consumer accepts
+      // Membership list updates only after consumer accepts (but we can still refresh)
       await load();
     } catch (e: any) {
       alert(e?.response?.data?.error || e?.message || "Invite failed");
@@ -187,12 +183,6 @@ export default function HomeUsersPage() {
         subtitle="Private membership • owner-controlled access • onboarding via invites"
       />
 
-      {!estateId && (
-        <div className="glass border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-200">
-          Missing <b>estateId</b> in URL. Go back to <b>Homes</b> and click <b>Manage Users</b> again.
-        </div>
-      )}
-
       <div className="flex items-center justify-end gap-2">
         <Button variant="ghost" onClick={load} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh"}
@@ -236,7 +226,6 @@ export default function HomeUsersPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
 
-              {/* ✅ backend roles */}
               <select
                 className="w-full rounded-xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-white/20"
                 value={role}
@@ -265,7 +254,7 @@ export default function HomeUsersPage() {
               <Button variant="ghost" onClick={() => setShowInvite(false)}>
                 Close
               </Button>
-              <Button onClick={invite} disabled={loading || !estateId}>
+              <Button onClick={invite} disabled={loading}>
                 {loading ? "Inviting..." : "Create Invite"}
               </Button>
             </div>
