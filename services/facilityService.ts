@@ -137,13 +137,13 @@ export type InviteHomeUserPayload = {
   permissions?: Record<string, any>;
 };
 
-// ✅ Matches your backend inviteHomeUser() return (inviteUrl + qr + membership)
+// ✅ Matches backend inviteHomeUser() return (inviteUrl + qr + membership)
 export type InviteHomeUserResponse = {
   message: string;
   inviteUrl: string;
   qrDataUrl: string;
   invited_user_id: string;
-  membership: HomeMembershipRow; // upserted home_memberships row
+  membership: HomeMembershipRow;
 };
 
 export type UpdateHomeUserPayload = {
@@ -175,14 +175,24 @@ function normalizeEmail(email: string) {
 }
 
 /**
- * Map facility UI role -> backend membership_role
+ * Map UI roles -> DB enum-safe membership_role
  * Your DB enum supports:
  * owner | admin | manager | security | resident | member | guest | staff | viewer
+ *
+ * Your UI currently uses:
+ * resident | home_member | home_admin
+ *
+ * We'll map:
+ * home_admin  -> owner
+ * home_member -> member
+ * resident    -> resident
  */
-function mapRoleToMembershipRole(role?: string): string | undefined {
+function mapRoleToMembershipRole(role?: string): string {
   const r = String(role || "").trim().toLowerCase();
-  if (["owner", "resident", "staff", "guest", "member", "viewer"].includes(r)) return r;
-  return "member";
+  if (r === "home_admin" || r === "owner") return "owner";
+  if (r === "home_member" || r === "member" || r === "staff") return "member";
+  if (r === "guest" || r === "viewer") return r;
+  return "resident";
 }
 
 export const facilityService = {
@@ -317,10 +327,9 @@ export const facilityService = {
   },
 
   /**
-   * ✅ FIXED:
-   * Facility should invite via:
+   * ✅ Facility invites via:
    * POST /facility/homes/:homeId/invite
-   * (backend will derive estate_id from home)
+   * Backend derives estate_id from home record.
    */
   async inviteHomeUser(homeId: string, payload: InviteHomeUserPayload): Promise<InviteHomeUserResponse> {
     const invitedEmail = normalizeEmail(payload.email);
