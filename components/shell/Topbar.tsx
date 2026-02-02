@@ -1,33 +1,30 @@
+// src/components/shell/Topbar.tsx
 "use client";
 
-import { useSessionStore } from "@/store/useSessionStore";
-import { Bars3Icon } from "@heroicons/react/24/outline";
-import type React from "react";
+import { Bars3Icon, BellIcon } from "@heroicons/react/24/outline";
 
 export default function Topbar({
   title,
   subtitle,
   onOpenMenu,
-  showUserEmail = true,
-  rightSlot,
+
+  // ✅ new
+  showUser = false, // default off (we don’t want email/role in header)
+  showNotifications = true,
+  onOpenNotifications,
 }: {
   title: string;
   subtitle?: string;
   onOpenMenu?: () => void;
 
-  // ✅ NEW
-  showUserEmail?: boolean;
-
-  // ✅ NEW (optional: inject buttons like Refresh)
-  rightSlot?: React.ReactNode;
+  showUser?: boolean;
+  showNotifications?: boolean;
+  onOpenNotifications?: () => void;
 }) {
-  const { user } = useSessionStore();
-
   return (
     <div className="flex items-center justify-between gap-4">
-      {/* Left section */}
+      {/* Left */}
       <div className="flex items-center gap-3 min-w-0">
-        {/* Mobile hamburger */}
         {onOpenMenu && (
           <button
             onClick={onOpenMenu}
@@ -44,23 +41,21 @@ export default function Topbar({
         </div>
       </div>
 
-      {/* Right section */}
-      <div className="flex items-center gap-3">
-        {/* Optional right-side slot */}
-        {rightSlot ? <div className="hidden sm:block">{rightSlot}</div> : null}
-
-        {/* User info */}
-        {showUserEmail ? (
-          <div className="hidden sm:block text-right">
-            <div className="text-sm text-zinc-200">{user?.email ?? "—"}</div>
-            <div className="text-xs text-zinc-500">{user?.role ?? "operator"}</div>
-          </div>
-        ) : (
-          // ✅ if email hidden, still keep role only (optional but nice)
-          <div className="hidden sm:block text-right">
-            <div className="text-xs text-zinc-500">{user?.role ?? "operator"}</div>
-          </div>
+      {/* Right (icons only) */}
+      <div className="flex items-center gap-2">
+        {showNotifications && (
+          <button
+            onClick={onOpenNotifications}
+            className="rounded-lg p-2 hover:bg-white/10"
+            aria-label="Notifications"
+            title="Notifications"
+          >
+            <BellIcon className="h-5 w-5 text-zinc-300" />
+          </button>
         )}
+
+        {/* ✅ reserved space for future icons: settings/profile/help */}
+        {/* {showUser && <UserMenu />} */}
       </div>
     </div>
   );
