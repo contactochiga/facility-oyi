@@ -1,7 +1,40 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import SidebarContent from "./SidebarContent";
+
+function SidebarBrand({ onClick }: { onClick?: () => void }) {
+  return (
+    <div className="p-5 border-b border-white/10">
+      <Link
+        href="/overview"
+        onClick={onClick}
+        className="flex items-center gap-3 group"
+      >
+        <div className="relative h-9 w-9 shrink-0">
+          <Image
+            src="/oyi-logo-transparent.png"
+            alt="OI"
+            fill
+            className="object-contain"
+            priority
+          />
+        </div>
+
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-zinc-100 truncate group-hover:text-white">
+            facility.getoyi.com
+          </div>
+          <div className="text-xs text-zinc-500 truncate">
+            Infrastructure control plane
+          </div>
+        </div>
+      </Link>
+    </div>
+  );
+}
 
 export default function Sidebar({
   mobileOpen,
@@ -15,6 +48,10 @@ export default function Sidebar({
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex h-screen w-[280px] flex-col border-r border-white/10 bg-zinc-950">
         <div className="flex h-full flex-col">
+          {/* ✅ Brand header */}
+          <SidebarBrand />
+
+          {/* Navigation + user block */}
           <SidebarContent />
         </div>
       </aside>
@@ -35,19 +72,24 @@ export default function Sidebar({
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* ✅ Make the whole drawer a column with full height */}
+        {/* ✅ Full height column */}
         <div className="flex h-[100dvh] flex-col">
-          <div className="flex items-center justify-between p-4 border-b border-white/10">
-            <div className="text-sm font-medium text-zinc-300">Navigation</div>
+          <div className="flex items-center justify-between border-b border-white/10">
+            {/* ✅ Brand header (mobile) */}
+            <div className="flex-1">
+              <SidebarBrand onClick={onClose} />
+            </div>
+
             <button
               onClick={onClose}
-              className="rounded-lg p-2 hover:bg-white/10"
+              className="m-3 rounded-lg p-2 hover:bg-white/10"
+              aria-label="Close navigation"
             >
               <XMarkIcon className="h-5 w-5 text-zinc-300" />
             </button>
           </div>
 
-          {/* ✅ SidebarContent now has a flex parent so mt-auto works */}
+          {/* ✅ SidebarContent gets a flex parent so mt-auto works */}
           <div className="flex-1 flex flex-col overflow-hidden">
             <SidebarContent onNavigate={onClose} />
           </div>
