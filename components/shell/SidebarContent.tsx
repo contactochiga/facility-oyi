@@ -114,18 +114,8 @@ export default function SidebarContent({
   return (
     // ✅ THIS WRAPPER IS THE KEY: it makes mt-auto work properly
     <div className="flex h-full flex-col">
-      {/* HEADER */}
-      <div className="p-6">
-        <div className="text-lg font-semibold tracking-tight">
-          facility.oyi.com
-        </div>
-        <div className="mt-1 text-xs text-zinc-500">
-          Infrastructure control plane
-        </div>
-      </div>
-
       {/* NAV */}
-      <nav className="px-4 pb-6 space-y-1">
+      <nav className="px-4 pb-6 pt-4 space-y-1">
         {NAV.map((n) => {
           const active = pathname.startsWith(n.href);
           return (
