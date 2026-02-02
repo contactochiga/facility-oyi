@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/shell/Sidebar";
-import Topbar from "@/components/shell/Topbar";
 import { useSessionStore } from "@/store/useSessionStore";
 import { usePathname } from "next/navigation";
 
@@ -41,15 +40,12 @@ export default function ProtectedLayout({
         <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="p-6 lg:p-10 pb-0">
-            <Topbar
-              title="Facility Control"
-              subtitle="Infrastructure control plane"
-              onOpenMenu={() => setMobileOpen(true)}
-            />
-          </div>
+          {/* ✅ No global Topbar here.
+              Each page renders its own Topbar title/subtitle (Overview, Devices, etc.)
+              This removes duplicate notification icons and removes “Facility Control” globally.
+          */}
 
-          <main className="flex-1 p-6 lg:p-10 pt-6">{children}</main>
+          <main className="flex-1 p-6 lg:p-10">{children}</main>
         </div>
       </div>
     </div>
