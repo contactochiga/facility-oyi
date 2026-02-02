@@ -126,7 +126,8 @@ export default function OverviewPage() {
 
       // If backend says estate not linked, fallback to membership estates
       const lower = msg.toLowerCase();
-      const looksLikeNotLinked = lower.includes("estate not linked") || status === 400;
+      const looksLikeNotLinked =
+        lower.includes("estate not linked") || status === 400;
 
       if (looksLikeNotLinked) {
         const eid = await hydrateEstateFromMembership();
@@ -198,14 +199,12 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-7">
-      {/* SHORT + CLEAN HEADER */}
-      <Topbar title="Overview" subtitle="Operational summary" />
+      {/* SHORT + CLEAN HEADER (✅ email removed here) */}
+      <Topbar title="Overview" subtitle="Operational summary" showUserEmail={false} />
 
       {/* HEADER STRIP */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="muted">
-          {estateId ? `Site: ${estateId}` : "Site: —"}
-        </div>
+        <div className="muted">{estateId ? `Site: ${estateId}` : "Site: —"}</div>
 
         {/* CTA logic */}
         {!estateId ? (
@@ -227,7 +226,8 @@ export default function OverviewPage() {
               <div className="text-lg font-semibold">No site linked yet</div>
               <div className="text-sm text-zinc-400 mt-1 max-w-2xl">
                 To unlock homes, rooms, devices, visitors and maintenance, create your first site.
-                You’ll automatically become <span className="text-zinc-200">Owner</span> and can invite facility managers.
+                You’ll automatically become{" "}
+                <span className="text-zinc-200">Owner</span> and can invite facility managers.
               </div>
               <div className="text-xs text-zinc-500 mt-3">
                 Think of this as registering the “master site” before adding blocks/units.
@@ -457,14 +457,18 @@ export default function OverviewPage() {
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 placeholder="Site name (e.g. Ochiga Smart Estate)"
                 value={estateForm.name}
-                onChange={(e) => setEstateForm((p) => ({ ...p, name: e.target.value }))}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, name: e.target.value }))
+                }
               />
 
               <input
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 placeholder="Address (optional)"
                 value={estateForm.address}
-                onChange={(e) => setEstateForm((p) => ({ ...p, address: e.target.value }))}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, address: e.target.value }))
+                }
               />
 
               <div className="grid grid-cols-2 gap-3">
@@ -472,20 +476,26 @@ export default function OverviewPage() {
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Latitude (optional)"
                   value={estateForm.lat}
-                  onChange={(e) => setEstateForm((p) => ({ ...p, lat: e.target.value }))}
+                  onChange={(e) =>
+                    setEstateForm((p) => ({ ...p, lat: e.target.value }))
+                  }
                 />
                 <input
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Longitude (optional)"
                   value={estateForm.lng}
-                  onChange={(e) => setEstateForm((p) => ({ ...p, lng: e.target.value }))}
+                  onChange={(e) =>
+                    setEstateForm((p) => ({ ...p, lng: e.target.value }))
+                  }
                 />
               </div>
 
               <select
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 value={estateForm.type}
-                onChange={(e) => setEstateForm((p) => ({ ...p, type: e.target.value }))}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, type: e.target.value }))
+                }
               >
                 <option value="estate">Estate</option>
                 <option value="facility">Facility</option>
@@ -493,10 +503,17 @@ export default function OverviewPage() {
               </select>
 
               <div className="flex gap-2 mt-2">
-                <Button variant="ghost" onClick={() => setShowCreate(false)} disabled={creating}>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowCreate(false)}
+                  disabled={creating}
+                >
                   Cancel
                 </Button>
-                <Button onClick={createEstate} disabled={!canCreateEstate || creating}>
+                <Button
+                  onClick={createEstate}
+                  disabled={!canCreateEstate || creating}
+                >
                   {creating ? "Creating..." : "Create Site"}
                 </Button>
               </div>
