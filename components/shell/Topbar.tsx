@@ -2,15 +2,24 @@
 
 import { useSessionStore } from "@/store/useSessionStore";
 import { Bars3Icon } from "@heroicons/react/24/outline";
+import type React from "react";
 
 export default function Topbar({
   title,
   subtitle,
   onOpenMenu,
+  showUserEmail = true,
+  rightSlot,
 }: {
   title: string;
   subtitle?: string;
   onOpenMenu?: () => void;
+
+  // ✅ NEW
+  showUserEmail?: boolean;
+
+  // ✅ NEW (optional: inject buttons like Refresh)
+  rightSlot?: React.ReactNode;
 }) {
   const { user } = useSessionStore();
 
@@ -35,12 +44,23 @@ export default function Topbar({
         </div>
       </div>
 
-      {/* Right section (user info only, no logout) */}
+      {/* Right section */}
       <div className="flex items-center gap-3">
-        <div className="hidden sm:block text-right">
-          <div className="text-sm text-zinc-200">{user?.email ?? "—"}</div>
-          <div className="text-xs text-zinc-500">{user?.role ?? "operator"}</div>
-        </div>
+        {/* Optional right-side slot */}
+        {rightSlot ? <div className="hidden sm:block">{rightSlot}</div> : null}
+
+        {/* User info */}
+        {showUserEmail ? (
+          <div className="hidden sm:block text-right">
+            <div className="text-sm text-zinc-200">{user?.email ?? "—"}</div>
+            <div className="text-xs text-zinc-500">{user?.role ?? "operator"}</div>
+          </div>
+        ) : (
+          // ✅ if email hidden, still keep role only (optional but nice)
+          <div className="hidden sm:block text-right">
+            <div className="text-xs text-zinc-500">{user?.role ?? "operator"}</div>
+          </div>
+        )}
       </div>
     </div>
   );
