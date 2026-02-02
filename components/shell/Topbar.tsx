@@ -1,4 +1,3 @@
-// src/components/shell/Topbar.tsx
 "use client";
 
 import { Bars3Icon, BellIcon } from "@heroicons/react/24/outline";
@@ -7,24 +6,24 @@ export default function Topbar({
   title,
   subtitle,
   onOpenMenu,
-
-  // ✅ new
-  showUser = false, // default off (we don’t want email/role in header)
   showNotifications = true,
-  onOpenNotifications,
+  rightSlot,
 }: {
   title: string;
   subtitle?: string;
   onOpenMenu?: () => void;
 
-  showUser?: boolean;
+  // show bell ONLY here (single source of truth)
   showNotifications?: boolean;
-  onOpenNotifications?: () => void;
+
+  // optional: page actions (Refresh, Create, etc.)
+  rightSlot?: React.ReactNode;
 }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      {/* Left */}
+      {/* LEFT */}
       <div className="flex items-center gap-3 min-w-0">
+        {/* Mobile hamburger */}
         {onOpenMenu && (
           <button
             onClick={onOpenMenu}
@@ -41,21 +40,20 @@ export default function Topbar({
         </div>
       </div>
 
-      {/* Right (icons only) */}
+      {/* RIGHT */}
       <div className="flex items-center gap-2">
+        {rightSlot}
+
         {showNotifications && (
           <button
-            onClick={onOpenNotifications}
             className="rounded-lg p-2 hover:bg-white/10"
             aria-label="Notifications"
-            title="Notifications"
+            // we’ll wire this to a dropdown/panel later
+            onClick={() => {}}
           >
-            <BellIcon className="h-5 w-5 text-zinc-300" />
+            <BellIcon className="h-5 w-5 text-zinc-200" />
           </button>
         )}
-
-        {/* ✅ reserved space for future icons: settings/profile/help */}
-        {/* {showUser && <UserMenu />} */}
       </div>
     </div>
   );
