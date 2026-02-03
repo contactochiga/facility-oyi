@@ -29,34 +29,37 @@ function pickError(err: any, fallback: string) {
 
 export const communityService = {
   /**
-   * GET /community/posts/:estateId
-   * returns: CommunityPost[]
+   * ✅ BACKEND: GET /community/posts/estate/:estateId
    */
-  async listByEstate(estateId: string): Promise<{ items: CommunityPost[]; error?: string }> {
-    if (!estateId) return { items: [], error: "No estateId provided" };
-
+  async listByEstate(estateId: string): Promise<CommunityPost[]> {
+    if (!estateId) return [];
     try {
-      const res = await API.get(`/community/posts/${estateId}`);
-      return { items: (res.data || []) as CommunityPost[] };
-    } catch (err: any) {
-      return { items: [], error: pickError(err, "Failed to load community posts") };
+      const res = await API.get(`/community/posts/estate/${estateId}`);
+      return Array.isArray(res.data) ? (res.data as CommunityPost[]) : [];
+    } catch {
+      return [];
     }
   },
 
   /**
-   * POST /community/posts
-   * body: { title, content, estateId, media?, poll? }
-   * returns: CommunityPost
+   * ✅ BACKEND: POST /community/post
+   * Body expected: { title, content, media, poll, estateId }
    */
   async create(payload: {
     estateId: string;
     title: string;
-    content: string;
+    content?: string;
     media?: any;
     poll?: any;
   }): Promise<{ post?: CommunityPost; error?: string }> {
     try {
-      const res = await API.post("/community/posts", payload);
+      const res = await API.post(`/community/post`, {
+        estateId: payload.estateId,
+        title: payload.title,
+        content: payload.content ?? "",
+        media: payload.media ?? null,
+        poll: payload.poll ?? null,
+      });
       return { post: res.data as CommunityPost };
     } catch (err: any) {
       return { error: pickError(err, "Failed to create post") };
