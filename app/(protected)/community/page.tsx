@@ -8,7 +8,7 @@ import { communityService, type CommunityPost } from "@/services/communityServic
 import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 
-// --- tiny cookie helper ---
+// --- tiny cookie helper (same as before) ---
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
   const m = document.cookie.match(
@@ -69,23 +69,29 @@ export default function CommunityPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // ✅ store estateId once resolved
+  const [estateId, setEstateId] = useState<string | null>(null);
+
+  // modal state
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  async function resolveEstate() {
+    const overview = await api<{ estate_id: string }>("/facility/overview");
+    if (!overview?.estate_id) throw new Error("No estate linked to this operator account yet.");
+    setEstateId(overview.estate_id);
+    return overview.estate_id;
+  }
+
   async function load() {
     setLoading(true);
     setErr(null);
 
     try {
-      // ✅ Facility-grade: resolve estate context from backend
-      const overview = await api<{ estate_id: string }>("/facility/overview");
-      const estateId = overview?.estate_id;
-
-      if (!estateId) {
-        setErr("No estate linked to this operator account yet.");
-        setItems([]);
-        return;
-      }
-
-      // ✅ listByEstate returns CommunityPost[]
-      const posts = await communityService.listByEstate(estateId);
+      const eid = estateId || (await resolveEstate());
+      const posts = await communityService.listByEstate(eid);
       setItems(posts || []);
     } catch (e: any) {
       setErr(e?.message || "Failed to load community posts");
@@ -97,7 +103,40 @@ export default function CommunityPage() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function createPost() {
+    if (!title.trim()) {
+      setErr("Title is required.");
+      return;
+    }
+
+    setCreating(true);
+    setErr(null);
+
+    try {
+      const eid = estateId || (await resolveEstate());
+
+      const newPost = await communityService.createPost({
+        estateId: eid,
+        title: title.trim(),
+        content: content.trim() || null,
+      });
+
+      // ✅ optimistic insert on top
+      setItems((prev) => [newPost, ...prev]);
+
+      // reset + close
+      setTitle("");
+      setContent("");
+      setOpen(false);
+    } catch (e: any) {
+      setErr(e?.message || "Failed to create post");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   const columns = useMemo<ColumnDef<CommunityPost>[]>(() => [
     {
@@ -150,7 +189,7 @@ export default function CommunityPage() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <Button
           variant="secondary"
-          onClick={() => setErr("New Update modal not wired yet. We can add it next.")}
+          onClick={() => setOpen(true)}
           disabled={loading}
         >
           New Update
@@ -167,6 +206,66 @@ export default function CommunityPage() {
         title="Community Posts"
         searchKey="title"
       />
+
+      {/* ✅ NEW UPDATE MODAL */}
+      {open && (
+        <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur flex items-center justify-center px-5">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-white font-semibold text-lg">New Community Update</div>
+                <div className="text-xs text-white/50 mt-1">
+                  This will broadcast to the estate and should appear on the consumer app.
+                </div>
+              </div>
+
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-lg px-3 py-2 text-white/70 hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <div className="text-xs text-white/60 mb-1">Title *</div>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. Water shutdown notice"
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-white outline-none focus:border-white/20"
+                />
+              </div>
+
+              <div>
+                <div className="text-xs text-white/60 mb-1">Message (optional)</div>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Add details…"
+                  rows={5}
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-white outline-none focus:border-white/20"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <Button variant="ghost" onClick={() => setOpen(false)} disabled={creating}>
+                  Cancel
+                </Button>
+
+                <Button variant="primary" onClick={createPost} disabled={creating}>
+                  {creating ? "Posting..." : "Post Update"}
+                </Button>
+              </div>
+
+              <div className="text-[11px] text-white/40 pt-1">
+                Tip: keep titles short. Consumer UI can show title + preview.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
