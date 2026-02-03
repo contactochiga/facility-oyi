@@ -12,7 +12,12 @@ function when(iso?: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString([], {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function pill(status?: string) {
@@ -32,64 +37,88 @@ export default function VisitorsPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = todayOnly ? await visitorService.listToday() : await visitorService.list();
+      const res = todayOnly
+        ? await visitorService.listToday()
+        : await visitorService.list();
       setItems(res || []);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, [todayOnly]); // reload on toggle
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayOnly]); // reload on toggle
 
-  const columns = useMemo<ColumnDef<VisitorItem>[]>(() => [
-    {
-      accessorKey: "visitor_name",
-      header: "Visitor",
-      cell: ({ row }) => (
-        <div className="min-w-0">
-          <div className="font-semibold truncate">{row.original.visitor_name}</div>
-          <div className="text-xs text-white/60 truncate">{row.original.purpose || "—"}</div>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "visitor_phone",
-      header: "Phone",
-      cell: ({ row }) => (
-        <span className="text-white/80">{row.original.visitor_phone || "—"}</span>
-      ),
-    },
-    {
-      accessorKey: "access_code",
-      header: "Code",
-      cell: ({ row }) => (
-        <span className="font-mono text-white/90">{row.original.access_code || "—"}</span>
-      ),
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <span className={`inline-flex text-[11px] px-2 py-1 rounded-full border ${pill(row.original.status)}`}>
-          {String(row.original.status || "active").replaceAll("_", " ")}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "created_at",
-      header: "Created",
-      cell: ({ row }) => (
-        <span className="text-white/70 text-xs">{when(row.original.created_at)}</span>
-      ),
-    },
-    {
-      accessorKey: "expires_at",
-      header: "Expires",
-      cell: ({ row }) => (
-        <span className="text-white/70 text-xs">{when(row.original.expires_at)}</span>
-      ),
-    },
-  ], []);
+  const columns = useMemo<ColumnDef<VisitorItem>[]>(
+    () => [
+      {
+        accessorKey: "visitor_name",
+        header: "Visitor",
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <div className="font-semibold truncate">
+              {row.original.visitor_name}
+            </div>
+            <div className="text-xs text-white/60 truncate">
+              {row.original.purpose || "—"}
+            </div>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "visitor_phone",
+        header: "Phone",
+        cell: ({ row }) => (
+          <span className="text-white/80">
+            {row.original.visitor_phone || "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "access_code",
+        header: "Code",
+        cell: ({ row }) => (
+          <span className="font-mono text-white/90">
+            {row.original.access_code || "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <span
+            className={`inline-flex text-[11px] px-2 py-1 rounded-full border ${pill(
+              row.original.status
+            )}`}
+          >
+            {String(row.original.status || "active").replaceAll("_", " ")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "created_at",
+        header: "Created",
+        cell: ({ row }) => (
+          <span className="text-white/70 text-xs">
+            {when(row.original.created_at)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "expires_at",
+        header: "Expires",
+        cell: ({ row }) => (
+          <span className="text-white/70 text-xs">
+            {when(row.original.expires_at)}
+          </span>
+        ),
+      },
+    ],
+    []
+  );
 
   return (
     <div className="space-y-7">
@@ -98,14 +127,14 @@ export default function VisitorsPage() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex gap-2">
           <Button
-            variant={todayOnly ? "default" : "ghost"}
+            variant={todayOnly ? "primary" : "ghost"} // ✅ fixed (no "default" variant)
             onClick={() => setTodayOnly(true)}
             disabled={loading}
           >
             Today
           </Button>
           <Button
-            variant={!todayOnly ? "default" : "ghost"}
+            variant={!todayOnly ? "primary" : "ghost"} // ✅ fixed (no "default" variant)
             onClick={() => setTodayOnly(false)}
             disabled={loading}
           >
