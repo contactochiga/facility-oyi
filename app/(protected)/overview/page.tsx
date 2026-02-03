@@ -17,6 +17,9 @@ import {
   Bar,
 } from "recharts";
 
+import { communityService, type CommunityPost } from "@/services/communityService";
+import Link from "next/link";
+
 function series(seed = 10) {
   const now = Date.now();
   return Array.from({ length: 12 }).map((_, i) => ({
@@ -54,6 +57,18 @@ function extractErr(e: any) {
   return { status, msg: String(msg) };
 }
 
+function when(iso?: string | null) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString([], {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function OverviewPage() {
   const [data, setData] = useState<FacilityOverview | null>(null);
 
@@ -64,8 +79,8 @@ export default function OverviewPage() {
   const [err, setErr] = useState<string | null>(null);
 
   // UX states
-  const [needsEstate, setNeedsEstate] = useState(false); // no estate memberships at all
-  const [syncingEstate, setSyncingEstate] = useState(false); // estate exists but overview still says "not linked"
+  const [needsEstate, setNeedsEstate] = useState(false);
+  const [syncingEstate, setSyncingEstate] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
   const [modalErr, setModalErr] = useState<string | null>(null);
@@ -77,6 +92,11 @@ export default function OverviewPage() {
     lng: "",
     type: "estate",
   });
+
+  // ✅ Community widget state (safe add)
+  const [communityItems, setCommunityItems] = useState<CommunityPost[]>([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  const [communityErr, setCommunityErr] = useState<string | null>(null);
 
   const trendDevices = useMemo(() => series(8), []);
   const trendVisitors = useMemo(() => series(5), []);
@@ -111,6 +131,26 @@ export default function OverviewPage() {
     setEstateId(res?.estate_id || null);
     setNeedsEstate(false);
     setSyncingEstate(false);
+    return res?.estate_id || null;
+  }
+
+  async function loadCommunity(eid?: string | null) {
+    const estate = eid || estateId;
+    if (!estate) return;
+
+    setCommunityLoading(true);
+    setCommunityErr(null);
+
+    try {
+      const posts = await communityService.listByEstate(estate);
+      setCommunityItems(posts || []);
+    } catch (e: any) {
+      const { status, msg } = extractErr(e);
+      setCommunityErr(`${msg}${status ? ` (HTTP ${status})` : ""}`);
+      setCommunityItems([]);
+    } finally {
+      setCommunityLoading(false);
+    }
   }
 
   async function load() {
@@ -120,22 +160,22 @@ export default function OverviewPage() {
     setLoading(true);
 
     try {
-      await loadOverview();
+      const eid = await loadOverview();
+      if (eid) await loadCommunity(eid);
     } catch (e: any) {
       const { status, msg } = extractErr(e);
 
-      // If backend says estate not linked, fallback to membership estates
       const lower = msg.toLowerCase();
       const looksLikeNotLinked = lower.includes("estate not linked") || status === 400;
 
       if (looksLikeNotLinked) {
         const eid = await hydrateEstateFromMembership();
 
-        // If user already has a membership, treat as "syncing"
         if (eid) {
           setData(null);
           setSyncingEstate(true);
           setErr(null);
+          await loadCommunity(eid);
         } else {
           setData(null);
           setNeedsEstate(true);
@@ -167,15 +207,14 @@ export default function OverviewPage() {
 
       await facilityService.createEstate(payload);
 
-      // reset + close modal
       setShowCreate(false);
       setEstateForm({ name: "", address: "", lat: "", lng: "", type: "estate" });
 
-      // Pull estates again
-      await hydrateEstateFromMembership();
+      const eid = await hydrateEstateFromMembership();
 
-      // Try overview again
       await load();
+
+      if (eid) await loadCommunity(eid);
     } catch (e: any) {
       const { status, msg } = extractErr(e);
       const friendly = `${msg}${status ? ` (HTTP ${status})` : ""}`;
@@ -196,9 +235,10 @@ export default function OverviewPage() {
   const uptime = score(70 + (data?.active_devices ?? 0));
   const flow = score(85 - Math.max(0, (data?.visitors_today ?? 0) - 20) * 2);
 
+  const latestPosts = (communityItems || []).slice(0, 3);
+
   return (
     <div className="space-y-7">
-      {/* SHORT + CLEAN HEADER */}
       <Topbar
         title="Overview"
         subtitle="Operational summary"
@@ -212,15 +252,23 @@ export default function OverviewPage() {
           {estateId ? `Site: ${estateId}` : "Site: —"}
         </div>
 
-        {/* CTA logic */}
         {!estateId ? (
           <Button onClick={() => setShowCreate(true)} disabled={creating}>
             {creating ? "Creating..." : "Create Site"}
           </Button>
         ) : (
-          <Button variant="ghost" onClick={load} disabled={loading}>
-            {loading ? "Refreshing..." : "Refresh"}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => loadCommunity(estateId)}
+              disabled={communityLoading}
+            >
+              {communityLoading ? "Refreshing..." : "Refresh Community"}
+            </Button>
+            <Button variant="ghost" onClick={load} disabled={loading}>
+              {loading ? "Refreshing..." : "Refresh"}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -294,10 +342,11 @@ export default function OverviewPage() {
           href="/homes"
         />
 
+        {/* ✅ renamed */}
         <StatCard
-          label="Active Devices"
+          label="Hardware Devices"
           value={formatNumber(data?.active_devices ?? 0)}
-          hint="Online + reporting now"
+          hint="CCTV • sensors • control gear"
           tone="good"
           href="/devices"
         />
@@ -316,6 +365,72 @@ export default function OverviewPage() {
           hint="Entries today"
           href="/visitors"
         />
+      </div>
+
+      {/* ✅ COMMUNITY WIDGET (safe add, does not disturb existing charts) */}
+      <div className="glass p-5">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-sm font-medium">Community</div>
+            <div className="text-xs text-zinc-500 mt-1">
+              Estate broadcasts • announcements • live updates
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Link href="/community">
+              <Button variant="ghost">Open Community</Button>
+            </Link>
+            <Button
+              variant="ghost"
+              onClick={() => loadCommunity(estateId)}
+              disabled={!estateId || communityLoading}
+            >
+              {communityLoading ? "Refreshing..." : "Refresh"}
+            </Button>
+          </div>
+        </div>
+
+        {communityErr && (
+          <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            {communityErr}
+          </div>
+        )}
+
+        {!estateId ? (
+          <div className="mt-4 text-sm text-zinc-400">
+            No site linked yet. Select/onboard a site to view community updates.
+          </div>
+        ) : (
+          <div className="mt-4 space-y-2">
+            {latestPosts.length === 0 ? (
+              <div className="text-sm text-zinc-400">
+                No community posts yet.
+              </div>
+            ) : (
+              latestPosts.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white truncate">
+                      {p.title || "Untitled"}
+                    </div>
+                    <div className="text-xs text-zinc-500">
+                      {when(p.created_at)} • {p.status || "published"}
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-zinc-500 shrink-0">
+                    {/* keep simple, no demo */}
+                    Live
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* SIGNAL PANELS */}
@@ -450,7 +565,6 @@ export default function OverviewPage() {
               </button>
             </div>
 
-            {/* modal error */}
             {modalErr && (
               <div className="mt-4 glass border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200 rounded-xl">
                 {modalErr}
