@@ -10,13 +10,19 @@ import { MdOutlinePerson, MdSettings } from "react-icons/md";
 
 const NAV = [
   { href: "/overview", label: "Overview" },
-  { href: "/devices", label: "Devices" },
+
+  // ✅ rename to feel infra-grade
+  { href: "/devices", label: "Hardware Devices" },
+
   { href: "/maintenance", label: "Maintenance" },
   { href: "/visitors", label: "Visitors" },
 
   // ✅ Alerts removed, Wallet + Community added
   { href: "/wallets", label: "Wallets" },
   { href: "/community", label: "Community" },
+
+  // ✅ NEW: Facility Services (utilities + estate payments)
+  { href: "/services", label: "Facility Services" },
 ];
 
 // --- tiny cookie helpers ---
@@ -116,7 +122,6 @@ export default function SidebarContent({
   };
 
   return (
-    // ✅ THIS WRAPPER IS THE KEY: it makes mt-auto work properly
     <div className="flex h-full flex-col">
       {/* NAV */}
       <nav className="px-4 pb-6 pt-4 space-y-1">
@@ -141,7 +146,7 @@ export default function SidebarContent({
         })}
       </nav>
 
-      {/* ✅ FOOTER ACCOUNT AREA */}
+      {/* FOOTER ACCOUNT AREA */}
       <div className="mt-auto">
         <div className="px-4 pb-5 border-t border-white/10 bg-black/30">
           <div className="pt-5 flex items-center justify-between">
