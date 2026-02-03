@@ -8,12 +8,12 @@ export type MaintenanceItem = {
 };
 
 export const maintenanceService = {
-  async list(): Promise<MaintenanceItem[]> {
-    try {
-      const res = await API.get("/maintenance?status=open");
-      return res.data?.items || res.data || [];
-    } catch {
-      return [];
-    }
+  async list(params?: { status?: string }): Promise<MaintenanceItem[]> {
+    const res = await API.get("/facility/maintenance", {
+      params: params?.status ? { status: params.status } : undefined,
+    });
+
+    // backend returns: { requests: [...] }
+    return res.data?.requests || [];
   },
 };
