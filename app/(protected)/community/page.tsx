@@ -8,6 +8,50 @@ import { communityService, type CommunityPost } from "@/services/communityServic
 import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 
+// --- tiny cookie helper ---
+function getCookie(name: string) {
+  if (typeof document === "undefined") return null;
+  const m = document.cookie.match(
+    new RegExp(
+      `(?:^|; )${name.replace(/[$()*+.?[\\\]^{|}-]/g, "\\$&")}=([^;]*)`
+    )
+  );
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  "https://oyi-os.onrender.com";
+
+async function api<T>(path: string): Promise<T> {
+  const token =
+    getCookie("oyi_facility_token") ||
+    getCookie("facility_token") ||
+    getCookie("oyi_consumer_token") ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("oyi_facility_token") ||
+        localStorage.getItem("facility_token") ||
+        localStorage.getItem("oyi_consumer_token") ||
+        localStorage.getItem("token")
+      : null);
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    cache: "no-store",
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json?.error || json?.message || `Request failed (${res.status})`);
+  }
+  return json as T;
+}
+
 function when(iso?: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -20,18 +64,6 @@ function when(iso?: string | null) {
   });
 }
 
-function getEstateId(): string | null {
-  if (typeof window === "undefined") return null;
-
-  // common keys we’ve used across the apps
-  return (
-    localStorage.getItem("ochiga_estate") ||
-    localStorage.getItem("oyi_estate") ||
-    localStorage.getItem("estate_id") ||
-    null
-  );
-}
-
 export default function CommunityPage() {
   const [items, setItems] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,10 +72,14 @@ export default function CommunityPage() {
   async function load() {
     setLoading(true);
     setErr(null);
+
     try {
-      const estateId = getEstateId();
+      // ✅ Facility-grade: resolve estate context from backend
+      const overview = await api<{ estate_id: string }>("/facility/overview");
+      const estateId = overview?.estate_id;
+
       if (!estateId) {
-        setErr("No estate linked yet. Please select/onboard an estate.");
+        setErr("No estate linked to this operator account yet.");
         setItems([]);
         return;
       }
@@ -114,10 +150,7 @@ export default function CommunityPage() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <Button
           variant="secondary"
-          onClick={() => {
-            // Placeholder for your “New Update” modal later
-            setErr("New Update modal not wired yet. We can add it next.");
-          }}
+          onClick={() => setErr("New Update modal not wired yet. We can add it next.")}
           disabled={loading}
         >
           New Update
