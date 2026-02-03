@@ -1,3 +1,4 @@
+// components/shell/SidebarContent.tsx
 "use client";
 
 import Link from "next/link";
@@ -12,7 +13,10 @@ const NAV = [
   { href: "/devices", label: "Devices" },
   { href: "/maintenance", label: "Maintenance" },
   { href: "/visitors", label: "Visitors" },
-  { href: "/alerts", label: "Alerts" },
+
+  // ✅ Alerts removed, Wallet + Community added
+  { href: "/wallets", label: "Wallets" },
+  { href: "/community", label: "Community" },
 ];
 
 // --- tiny cookie helpers ---
@@ -117,7 +121,9 @@ export default function SidebarContent({
       {/* NAV */}
       <nav className="px-4 pb-6 pt-4 space-y-1">
         {NAV.map((n) => {
-          const active = pathname.startsWith(n.href);
+          const active =
+            pathname === n.href || pathname.startsWith(`${n.href}/`);
+
           return (
             <Link
               key={n.href}
@@ -135,7 +141,7 @@ export default function SidebarContent({
         })}
       </nav>
 
-      {/* ✅ FOOTER ACCOUNT AREA (Ops philosophy removed) */}
+      {/* ✅ FOOTER ACCOUNT AREA */}
       <div className="mt-auto">
         <div className="px-4 pb-5 border-t border-white/10 bg-black/30">
           <div className="pt-5 flex items-center justify-between">
