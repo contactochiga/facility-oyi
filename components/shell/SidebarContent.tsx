@@ -11,17 +11,15 @@ import { MdOutlinePerson, MdSettings } from "react-icons/md";
 const NAV = [
   { href: "/overview", label: "Overview" },
 
-  // ✅ rename to feel infra-grade
+  // ✅ infra-grade naming
   { href: "/devices", label: "Hardware Devices" },
 
   { href: "/maintenance", label: "Maintenance" },
   { href: "/visitors", label: "Visitors" },
 
-  // ✅ Alerts removed, Wallet + Community added
   { href: "/wallets", label: "Wallets" },
   { href: "/community", label: "Community" },
 
-  // ✅ NEW: Facility Services (utilities + estate payments)
   { href: "/services", label: "Facility Services" },
 ];
 
@@ -49,6 +47,15 @@ type Decoded = {
   id?: string;
 };
 
+function prettyRole(role?: string) {
+  const r = String(role || "").trim().toLowerCase();
+  if (r === "estate_admin") return "owner";
+  if (r === "admin") return "admin";
+  if (r === "manager") return "manager";
+  if (r === "security") return "security";
+  return r || "operator";
+}
+
 export default function SidebarContent({
   onNavigate,
 }: {
@@ -60,15 +67,14 @@ export default function SidebarContent({
   const [profileOpen, setProfileOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
+  // ✅ IMPORTANT: facility-only token selection (prevents "resident" showing here)
   const token = useMemo(() => {
     if (typeof window === "undefined") return null;
     return (
       getCookie("oyi_facility_token") ||
       getCookie("facility_token") ||
-      getCookie("oyi_consumer_token") ||
       localStorage.getItem("oyi_facility_token") ||
-      localStorage.getItem("facility_token") ||
-      localStorage.getItem("oyi_consumer_token")
+      localStorage.getItem("facility_token")
     );
   }, []);
 
@@ -88,6 +94,7 @@ export default function SidebarContent({
     "Operator";
 
   const displayEmail = decoded?.email || "Account";
+  const roleLabel = prettyRole(decoded?.role);
 
   const initials = useMemo(() => {
     const s = (displayName || "O").trim();
@@ -106,19 +113,19 @@ export default function SidebarContent({
   };
 
   const logout = () => {
+    // ✅ clear ONLY facility auth
     deleteCookie("oyi_facility_token");
     deleteCookie("facility_token");
-    deleteCookie("oyi_consumer_token");
 
     if (typeof window !== "undefined") {
       localStorage.removeItem("oyi_facility_token");
       localStorage.removeItem("facility_token");
-      localStorage.removeItem("oyi_consumer_token");
-      localStorage.removeItem("token");
     }
 
     closeAll();
-    router.replace("/auth/login");
+
+    // ✅ avoid 404: go to your working login route
+    router.replace("/login");
   };
 
   return (
@@ -126,8 +133,7 @@ export default function SidebarContent({
       {/* NAV */}
       <nav className="px-4 pb-6 pt-4 space-y-1">
         {NAV.map((n) => {
-          const active =
-            pathname === n.href || pathname.startsWith(`${n.href}/`);
+          const active = pathname === n.href || pathname.startsWith(`${n.href}/`);
 
           return (
             <Link
@@ -135,9 +141,7 @@ export default function SidebarContent({
               href={n.href}
               onClick={onNavigate}
               className={`block rounded-xl px-4 py-3 text-sm transition ${
-                active
-                  ? "bg-white/10 text-white"
-                  : "text-zinc-300 hover:bg-white/5"
+                active ? "bg-white/10 text-white" : "text-zinc-300 hover:bg-white/5"
               }`}
             >
               {n.label}
@@ -158,9 +162,13 @@ export default function SidebarContent({
                 {initials}
               </div>
 
-              <div className="text-left">
-                <p className="text-white text-sm font-semibold">{displayName}</p>
-                <p className="text-white/50 text-xs">{displayEmail}</p>
+              <div className="text-left min-w-0">
+                <p className="text-white text-sm font-semibold truncate">
+                  {displayName}
+                </p>
+                <p className="text-white/50 text-xs truncate">
+                  {displayEmail} • {roleLabel}
+                </p>
               </div>
             </button>
 
