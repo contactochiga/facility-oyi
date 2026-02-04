@@ -248,7 +248,7 @@ function AccountInner() {
         return;
       }
 
-      const unread = await notificationsService.listUnread();
+      const unread = await notificationService.unread();
       const count = unread?.length || 0;
 
       setErr(
