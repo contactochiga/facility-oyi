@@ -17,7 +17,10 @@ import {
   Bar,
 } from "recharts";
 
-import { communityService, type CommunityPost } from "@/services/communityService";
+import {
+  communityService,
+  type CommunityPost,
+} from "@/services/communityService";
 import Link from "next/link";
 
 function series(seed = 10) {
@@ -93,7 +96,7 @@ export default function OverviewPage() {
     type: "estate",
   });
 
-  // ✅ Community widget state (safe add)
+  // ✅ Community widget state
   const [communityItems, setCommunityItems] = useState<CommunityPost[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
   const [communityErr, setCommunityErr] = useState<string | null>(null);
@@ -106,7 +109,7 @@ export default function OverviewPage() {
 
   async function hydrateEstateFromMembership() {
     try {
-      const res = await facilityService.myEstates(); // { estates: [...] }
+      const res = await facilityService.myEstates();
       const first = res?.estates?.[0];
 
       if (first?.id) {
@@ -166,7 +169,8 @@ export default function OverviewPage() {
       const { status, msg } = extractErr(e);
 
       const lower = msg.toLowerCase();
-      const looksLikeNotLinked = lower.includes("estate not linked") || status === 400;
+      const looksLikeNotLinked =
+        lower.includes("estate not linked") || status === 400;
 
       if (looksLikeNotLinked) {
         const eid = await hydrateEstateFromMembership();
@@ -248,27 +252,16 @@ export default function OverviewPage() {
 
       {/* HEADER STRIP */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="muted">
-          {estateId ? `Site: ${estateId}` : "Site: —"}
-        </div>
+        <div className="muted">{estateId ? `Site: ${estateId}` : "Site: —"}</div>
 
         {!estateId ? (
           <Button onClick={() => setShowCreate(true)} disabled={creating}>
             {creating ? "Creating..." : "Create Site"}
           </Button>
         ) : (
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => loadCommunity(estateId)}
-              disabled={communityLoading}
-            >
-              {communityLoading ? "Refreshing..." : "Refresh Community"}
-            </Button>
-            <Button variant="ghost" onClick={load} disabled={loading}>
-              {loading ? "Refreshing..." : "Refresh"}
-            </Button>
-          </div>
+          <Button variant="ghost" onClick={load} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh"}
+          </Button>
         )}
       </div>
 
@@ -279,11 +272,14 @@ export default function OverviewPage() {
             <div>
               <div className="text-lg font-semibold">No site linked yet</div>
               <div className="text-sm text-zinc-400 mt-1 max-w-2xl">
-                To unlock homes, rooms, devices, visitors and maintenance, create your first site.
-                You’ll automatically become <span className="text-zinc-200">Owner</span> and can invite facility managers.
+                To unlock homes, rooms, devices, visitors and maintenance, create
+                your first site. You’ll automatically become{" "}
+                <span className="text-zinc-200">Owner</span> and can invite
+                facility managers.
               </div>
               <div className="text-xs text-zinc-500 mt-3">
-                Think of this as registering the “master site” before adding blocks/units.
+                Think of this as registering the “master site” before
+                adding blocks/units.
               </div>
             </div>
 
@@ -304,10 +300,14 @@ export default function OverviewPage() {
         <div className="glass border border-white/10 rounded-2xl p-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
-              <div className="text-lg font-semibold">Site created — syncing access</div>
+              <div className="text-lg font-semibold">
+                Site created — syncing access
+              </div>
               <div className="text-sm text-zinc-400 mt-1 max-w-2xl">
-                Your membership is active, but the overview is still reading from a “linked site” field.
-                Tap retry to refresh. If it keeps happening, we’ll update the backend overview to derive the site from membership.
+                Your membership is active, but the overview is still reading
+                from a “linked site” field. Tap retry to refresh. If it keeps
+                happening, we’ll update the backend overview to derive the site
+                from membership.
               </div>
               <div className="text-xs text-zinc-500 mt-3">
                 Site: <span className="text-zinc-200">{estateId || "—"}</span>
@@ -326,7 +326,6 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* OTHER ERRORS */}
       {!!err && !needsEstate && !syncingEstate && (
         <div className="glass border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-200">
           {err}
@@ -342,7 +341,6 @@ export default function OverviewPage() {
           href="/homes"
         />
 
-        {/* ✅ renamed */}
         <StatCard
           label="Hardware Devices"
           value={formatNumber(data?.active_devices ?? 0)}
@@ -367,7 +365,7 @@ export default function OverviewPage() {
         />
       </div>
 
-      {/* ✅ COMMUNITY WIDGET (safe add, does not disturb existing charts) */}
+      {/* ✅ COMMUNITY WIDGET */}
       <div className="glass p-5">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
@@ -381,12 +379,14 @@ export default function OverviewPage() {
             <Link href="/community">
               <Button variant="ghost">Open Community</Button>
             </Link>
+
+            {/* ✅ Refresh renamed to New Update */}
             <Button
               variant="ghost"
               onClick={() => loadCommunity(estateId)}
               disabled={!estateId || communityLoading}
             >
-              {communityLoading ? "Refreshing..." : "Refresh"}
+              {communityLoading ? "Checking..." : "New Update"}
             </Button>
           </div>
         </div>
@@ -404,9 +404,7 @@ export default function OverviewPage() {
         ) : (
           <div className="mt-4 space-y-2">
             {latestPosts.length === 0 ? (
-              <div className="text-sm text-zinc-400">
-                No community posts yet.
-              </div>
+              <div className="text-sm text-zinc-400">No community posts yet.</div>
             ) : (
               latestPosts.map((p) => (
                 <div
@@ -422,10 +420,7 @@ export default function OverviewPage() {
                     </div>
                   </div>
 
-                  <div className="text-xs text-zinc-500 shrink-0">
-                    {/* keep simple, no demo */}
-                    Live
-                  </div>
+                  <div className="text-xs text-zinc-500 shrink-0">Live</div>
                 </div>
               ))
             )}
@@ -442,7 +437,9 @@ export default function OverviewPage() {
               <div className="mt-2 text-3xl font-semibold">
                 {formatNumber(data?.alerts ?? 0)}
               </div>
-              <div className="mt-2 text-xs text-zinc-500">Unread notifications</div>
+              <div className="mt-2 text-xs text-zinc-500">
+                Unread notifications
+              </div>
             </div>
             <div className="text-xs text-zinc-500">Trend</div>
           </div>
@@ -457,7 +454,12 @@ export default function OverviewPage() {
                     borderRadius: 12,
                   }}
                 />
-                <Line type="monotone" dataKey="y" strokeWidth={2} dot={false} />
+                <Line
+                  type="monotone"
+                  dataKey="y"
+                  strokeWidth={2}
+                  dot={false}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -499,7 +501,9 @@ export default function OverviewPage() {
                 {formatMoney(data?.wallet?.balance ?? 0, "NGN")}
               </div>
               <div className="mt-2 text-xs text-zinc-500">
-                Outstanding: {formatMoney(data?.wallet?.outstanding_dues ?? 0, "NGN")} • Collected:{" "}
+                Outstanding:{" "}
+                {formatMoney(data?.wallet?.outstanding_dues ?? 0, "NGN")} •
+                Collected:{" "}
                 {formatMoney(data?.wallet?.collected_this_month ?? 0, "NGN")}
               </div>
             </div>
@@ -516,7 +520,12 @@ export default function OverviewPage() {
                     borderRadius: 12,
                   }}
                 />
-                <Line type="monotone" dataKey="y" strokeWidth={2} dot={false} />
+                <Line
+                  type="monotone"
+                  dataKey="y"
+                  strokeWidth={2}
+                  dot={false}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -554,7 +563,8 @@ export default function OverviewPage() {
               <div>
                 <div className="text-lg font-semibold">Create Site</div>
                 <div className="text-sm text-zinc-400 mt-1">
-                  Register the master site. You’ll become the Owner and can invite managers.
+                  Register the master site. You’ll become the Owner and can invite
+                  managers.
                 </div>
               </div>
               <button
@@ -576,14 +586,18 @@ export default function OverviewPage() {
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 placeholder="Site name (e.g. Ochiga Smart Estate)"
                 value={estateForm.name}
-                onChange={(e) => setEstateForm((p) => ({ ...p, name: e.target.value }))}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, name: e.target.value }))
+                }
               />
 
               <input
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 placeholder="Address (optional)"
                 value={estateForm.address}
-                onChange={(e) => setEstateForm((p) => ({ ...p, address: e.target.value }))}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, address: e.target.value }))
+                }
               />
 
               <div className="grid grid-cols-2 gap-3">
@@ -591,20 +605,26 @@ export default function OverviewPage() {
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Latitude (optional)"
                   value={estateForm.lat}
-                  onChange={(e) => setEstateForm((p) => ({ ...p, lat: e.target.value }))}
+                  onChange={(e) =>
+                    setEstateForm((p) => ({ ...p, lat: e.target.value }))
+                  }
                 />
                 <input
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Longitude (optional)"
                   value={estateForm.lng}
-                  onChange={(e) => setEstateForm((p) => ({ ...p, lng: e.target.value }))}
+                  onChange={(e) =>
+                    setEstateForm((p) => ({ ...p, lng: e.target.value }))
+                  }
                 />
               </div>
 
               <select
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 value={estateForm.type}
-                onChange={(e) => setEstateForm((p) => ({ ...p, type: e.target.value }))}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, type: e.target.value }))
+                }
               >
                 <option value="estate">Estate</option>
                 <option value="facility">Facility</option>
@@ -612,10 +632,17 @@ export default function OverviewPage() {
               </select>
 
               <div className="flex gap-2 mt-2">
-                <Button variant="ghost" onClick={() => setShowCreate(false)} disabled={creating}>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowCreate(false)}
+                  disabled={creating}
+                >
                   Cancel
                 </Button>
-                <Button onClick={createEstate} disabled={!canCreateEstate || creating}>
+                <Button
+                  onClick={createEstate}
+                  disabled={!canCreateEstate || creating}
+                >
                   {creating ? "Creating..." : "Create Site"}
                 </Button>
               </div>
