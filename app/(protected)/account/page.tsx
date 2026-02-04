@@ -1,7 +1,7 @@
 // app/(protected)/account/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
@@ -111,7 +111,9 @@ function SwitchRow({
       >
         <span
           className={`block w-6 h-6 rounded-full transition translate-y-[1px] ${
-            value ? "translate-x-[22px] bg-emerald-300" : "translate-x-[2px] bg-zinc-300"
+            value
+              ? "translate-x-[22px] bg-emerald-300"
+              : "translate-x-[2px] bg-zinc-300"
           }`}
         />
       </button>
@@ -119,7 +121,27 @@ function SwitchRow({
   );
 }
 
+/**
+ * ✅ REQUIRED by Next.js: useSearchParams must be inside Suspense
+ */
 export default function AccountPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-7">
+          <Topbar title="Account" subtitle="Profile • Settings • Permissions" />
+          <div className="glass border border-white/10 rounded-2xl p-6">
+            <div className="text-sm text-zinc-400">Loading account…</div>
+          </div>
+        </div>
+      }
+    >
+      <AccountInner />
+    </Suspense>
+  );
+}
+
+function AccountInner() {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -177,7 +199,6 @@ export default function AccountPage() {
     router.push(`/account?tab=${next}`);
   }
 
-  // Load estate context (facility side)
   async function loadEstate() {
     setErr(null);
     setLoadingEstate(true);
@@ -193,7 +214,8 @@ export default function AccountPage() {
 
       setEstate(estates?.[0] || null);
     } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.message || "Failed to load estate";
+      const msg =
+        e?.response?.data?.error || e?.message || "Failed to load estate";
       setErr(String(msg));
       setEstate(null);
     } finally {
@@ -201,7 +223,6 @@ export default function AccountPage() {
     }
   }
 
-  // Local settings load/save (works now; later we can persist to DB)
   function loadSettingsLocal() {
     if (typeof window === "undefined") return;
     try {
@@ -225,28 +246,23 @@ export default function AccountPage() {
     }
   }
 
-  // "Test notification" — proves wiring path from facility UI -> backend notifications table
-  // Uses POST /notifications if your backend supports it (you already have notifications routes).
-  // If not, it will fail gracefully and you’ll see the error.
   async function testNotification() {
     setTestingNotif(true);
     setErr(null);
     try {
-      // If notifications are disabled, don’t send.
       if (!settings.notificationsEnabled) {
         setErr("Enable notifications first.");
         return;
       }
 
+      // If your backend doesn't support POST /notifications yet, this will show the error cleanly.
       await API.post("/notifications", {
         title: "Facility Test Notification",
         type: "system",
-        message: "If you can see this on consumer, notifications are wired correctly.",
-        // If your backend expects estate_id or user targets, it should infer from auth or you can add:
-        // estate_id: estate?.id,
+        message:
+          "If you can see this on consumer, notifications are wired correctly.",
+        // estate_id: estate?.id, // add only if backend requires it
       });
-
-      // optional: you could also refresh unread count somewhere later
     } catch (e: any) {
       const msg =
         e?.response?.data?.error ||
@@ -286,7 +302,11 @@ export default function AccountPage() {
         </div>
 
         <div className="text-xs text-zinc-500">
-          {loadingEstate ? "Syncing site..." : estate?.id ? `Site: ${estate.id}` : "Site: —"}
+          {loadingEstate
+            ? "Syncing site..."
+            : estate?.id
+            ? `Site: ${estate.id}`
+            : "Site: —"}
         </div>
       </div>
 
@@ -299,11 +319,12 @@ export default function AccountPage() {
       {/* PROFILE TAB */}
       {tab === "profile" && (
         <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-2">
-          {/* User card */}
           <div className="glass border border-white/10 rounded-2xl p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-lg font-semibold text-white">Operator Profile</div>
+                <div className="text-lg font-semibold text-white">
+                  Operator Profile
+                </div>
                 <div className="text-sm text-zinc-400 mt-1">
                   Who is currently running this control plane session.
                 </div>
@@ -326,7 +347,6 @@ export default function AccountPage() {
             </div>
           </div>
 
-          {/* Estate card */}
           <div className="glass border border-white/10 rounded-2xl p-6">
             <div className="text-lg font-semibold text-white">Site Context</div>
             <div className="text-sm text-zinc-400 mt-1">
@@ -347,7 +367,8 @@ export default function AccountPage() {
             </div>
 
             <div className="text-xs text-zinc-500 mt-3">
-              This pulls from <span className="text-zinc-200">/facility/my-estates</span>.
+              This pulls from{" "}
+              <span className="text-zinc-200">/facility/my-estates</span>.
             </div>
           </div>
         </div>
@@ -356,9 +377,10 @@ export default function AccountPage() {
       {/* SETTINGS TAB */}
       {tab === "settings" && (
         <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-2">
-          {/* Notifications */}
           <div className="glass border border-white/10 rounded-2xl p-6">
-            <div className="text-lg font-semibold text-white">Notification Settings</div>
+            <div className="text-lg font-semibold text-white">
+              Notification Settings
+            </div>
             <div className="text-sm text-zinc-400 mt-1">
               What this operator account should send/receive.
             </div>
@@ -368,7 +390,9 @@ export default function AccountPage() {
                 title="Enable notifications"
                 desc="Master switch for all notifications from facility control."
                 value={settings.notificationsEnabled}
-                onChange={(v) => setSettings((p) => ({ ...p, notificationsEnabled: v }))}
+                onChange={(v) =>
+                  setSettings((p) => ({ ...p, notificationsEnabled: v }))
+                }
               />
               <SwitchRow
                 title="Push alerts"
@@ -388,45 +412,46 @@ export default function AccountPage() {
                 title="Maintenance alerts"
                 desc="Notify residents when maintenance updates happen."
                 value={settings.maintenanceAlerts}
-                onChange={(v) => setSettings((p) => ({ ...p, maintenanceAlerts: v }))}
+                onChange={(v) =>
+                  setSettings((p) => ({ ...p, maintenanceAlerts: v }))
+                }
                 disabled={!settings.notificationsEnabled}
               />
               <SwitchRow
                 title="Visitor alerts"
                 desc="Notify residents of approvals/entry/exit events."
                 value={settings.visitorAlerts}
-                onChange={(v) => setSettings((p) => ({ ...p, visitorAlerts: v }))}
+                onChange={(v) =>
+                  setSettings((p) => ({ ...p, visitorAlerts: v }))
+                }
                 disabled={!settings.notificationsEnabled}
               />
               <SwitchRow
                 title="Community alerts"
                 desc="Push estate-wide updates to consumer accounts."
                 value={settings.communityAlerts}
-                onChange={(v) => setSettings((p) => ({ ...p, communityAlerts: v }))}
+                onChange={(v) =>
+                  setSettings((p) => ({ ...p, communityAlerts: v }))
+                }
                 disabled={!settings.notificationsEnabled}
               />
             </div>
 
-            <div className="mt-5 flex gap-2">
+            <div className="mt-5 flex gap-2 flex-wrap">
               <Button onClick={saveSettings} disabled={saving}>
                 {saving ? "Saving..." : "Save Settings"}
               </Button>
 
-              <Button
-                variant="ghost"
-                onClick={testNotification}
-                disabled={testingNotif}
-              >
+              <Button variant="ghost" onClick={testNotification} disabled={testingNotif}>
                 {testingNotif ? "Sending..." : "Send Test Notification"}
               </Button>
             </div>
 
             <div className="text-xs text-zinc-500 mt-3">
-              Settings are saved locally for now (safe + immediate). Next step is persisting to DB.
+              Settings are saved locally for now. Next step is persisting to DB.
             </div>
           </div>
 
-          {/* Permissions (placeholder but not “demo” — it’s real structure) */}
           <div className="glass border border-white/10 rounded-2xl p-6">
             <div className="text-lg font-semibold text-white">Permissions</div>
             <div className="text-sm text-zinc-400 mt-1">
@@ -440,7 +465,7 @@ export default function AccountPage() {
             </div>
 
             <div className="text-xs text-zinc-500 mt-4">
-              Next: wire permissions matrix (manager vs estate_admin vs admin) and lock sensitive actions.
+              Next: wire a permissions matrix and lock sensitive actions.
             </div>
           </div>
         </div>
