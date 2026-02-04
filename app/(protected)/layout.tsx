@@ -1,3 +1,4 @@
+// app/(protected)/layout.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -33,19 +34,23 @@ export default function ProtectedLayout({
   }, []);
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    // ✅ Key change: lock the shell to the viewport; prevent page scroll
+    <div className="h-screen overflow-hidden bg-zinc-950">
       <div className="absolute inset-0 bg-grid opacity-[0.10]" />
 
-      <div className="relative flex min-h-screen">
+      {/* ✅ Key change: also lock this container to screen height */}
+      <div className="relative flex h-screen overflow-hidden">
+        {/* Sidebar: already h-screen in your Sidebar.tsx for desktop */}
         <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          {/* ✅ No global Topbar here.
-              Each page renders its own Topbar title/subtitle (Overview, Devices, etc.)
-              This removes duplicate notification icons and removes “Facility Control” globally.
-          */}
+        {/* ✅ Key change: min-w-0 + h-screen + overflow-hidden */}
+        <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
+          {/* No global Topbar here (pages handle Topbar individually) */}
 
-          <main className="flex-1 p-6 lg:p-10">{children}</main>
+          {/* ✅ Key change: ONLY main scrolls */}
+          <main className="flex-1 min-h-0 overflow-y-auto p-6 lg:p-10">
+            {children}
+          </main>
         </div>
       </div>
     </div>
