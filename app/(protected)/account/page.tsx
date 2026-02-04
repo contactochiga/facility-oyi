@@ -7,7 +7,7 @@ import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { jwtDecode } from "jwt-decode";
 import { facilityService } from "@/services/facilityService";
-import { notificationsService } from "@/services/notificationsService";
+import { notificationService } from "@/services/notificationService";
 
 type Decoded = {
   id?: string;
