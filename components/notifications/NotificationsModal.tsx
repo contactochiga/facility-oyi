@@ -1,11 +1,11 @@
 // components/notifications/NotificationsModal.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
-import { notificationsService, type NotificationItem } from "@/services/notificationsService";
+import { notificationService, type AlertItem } from "@/services/notificationService";
 
-function when(iso?: string | null) {
+function when(iso?: string) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
@@ -17,31 +17,27 @@ function when(iso?: string | null) {
   });
 }
 
-function extractErr(e: any) {
-  const status = e?.response?.status;
-  const msg = e?.response?.data?.error || e?.message || "Request failed";
-  return `${String(msg)}${status ? ` (HTTP ${status})` : ""}`;
-}
-
 export default function NotificationsModal({
   open,
   onClose,
+  onChanged,
 }: {
   open: boolean;
   onClose: () => void;
+  onChanged?: () => void; // lets Topbar refresh badge after mark read
 }) {
-  const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState<AlertItem[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     setErr(null);
     try {
-      const res = await notificationsService.listUnread();
+      const res = await notificationService.unread();
       setItems(res || []);
     } catch (e: any) {
-      setErr(extractErr(e));
+      setErr(e?.message || "Failed to load notifications");
       setItems([]);
     } finally {
       setLoading(false);
@@ -49,12 +45,11 @@ export default function NotificationsModal({
   }
 
   async function markRead(id: string) {
-    try {
-      await notificationsService.markRead(id);
-      // remove from list (since it's "unread" view)
+    // If backend supports it, this removes it from unread list.
+    const ok = await notificationService.markRead(id);
+    if (ok) {
       setItems((prev) => prev.filter((x) => x.id !== id));
-    } catch (e: any) {
-      setErr(extractErr(e));
+      onChanged?.();
     }
   }
 
@@ -67,13 +62,18 @@ export default function NotificationsModal({
 
   return (
     <div className="fixed inset-0 z-[120]">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
       <div className="absolute right-4 top-16 w-[92vw] max-w-md">
         <div className="glass border border-white/10 rounded-2xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
             <div>
-              <div className="text-sm font-semibold text-white">Notifications</div>
+              <div className="text-sm font-semibold text-white">
+                Notifications
+              </div>
               <div className="text-xs text-zinc-500">Unread alerts</div>
             </div>
 
@@ -81,6 +81,7 @@ export default function NotificationsModal({
               <Button variant="ghost" onClick={load} disabled={loading}>
                 {loading ? "Refreshing..." : "Refresh"}
               </Button>
+
               <button
                 onClick={onClose}
                 className="rounded-lg px-2 py-1 text-zinc-300 hover:bg-white/5"
@@ -101,7 +102,9 @@ export default function NotificationsModal({
             {loading ? (
               <div className="p-4 text-sm text-zinc-400">Loading…</div>
             ) : items.length === 0 ? (
-              <div className="p-4 text-sm text-zinc-400">No unread notifications.</div>
+              <div className="p-4 text-sm text-zinc-400">
+                No unread notifications.
+              </div>
             ) : (
               <div className="p-3 space-y-2">
                 {items.map((n) => (
@@ -115,10 +118,12 @@ export default function NotificationsModal({
                           {n.title || "Notification"}
                         </div>
                         <div className="text-xs text-zinc-500 mt-1">
-                          {when(n.created_at)} • {n.type || "system"}
+                          {when(n.created_at)}{" "}
+                          {n.status ? `• ${n.status}` : ""}
                         </div>
                       </div>
 
+                      {/* ✅ Only show if you want. If backend doesn't support, it just won't remove. */}
                       <Button variant="ghost" onClick={() => markRead(n.id)}>
                         Mark read
                       </Button>
@@ -136,7 +141,7 @@ export default function NotificationsModal({
           </div>
 
           <div className="px-4 py-3 border-t border-white/10 text-[11px] text-zinc-500">
-            This reads from <span className="text-zinc-200">GET /notifications?unread=true</span>.
+            Source: <span className="text-zinc-200">GET /notifications?unread=true</span>
           </div>
         </div>
       </div>
