@@ -10,16 +10,11 @@ import { MdOutlinePerson, MdSettings } from "react-icons/md";
 
 const NAV = [
   { href: "/overview", label: "Overview" },
-
-  // ✅ infra-grade naming
   { href: "/devices", label: "Hardware Devices" },
-
   { href: "/maintenance", label: "Maintenance" },
   { href: "/visitors", label: "Visitors" },
-
   { href: "/wallets", label: "Wallets" },
   { href: "/community", label: "Community" },
-
   { href: "/services", label: "Facility Services" },
 ];
 
@@ -27,9 +22,7 @@ const NAV = [
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
   const m = document.cookie.match(
-    new RegExp(
-      `(?:^|; )${name.replace(/[$()*+.?[\\\]^{|}-]/g, "\\$&")}=([^;]*)`
-    )
+    new RegExp(`(?:^|; )${name.replace(/[$()*+.?[\\\]^{|}-]/g, "\\$&")}=([^;]*)`)
   );
   return m ? decodeURIComponent(m[1]) : null;
 }
@@ -47,27 +40,14 @@ type Decoded = {
   id?: string;
 };
 
-function prettyRole(role?: string) {
-  const r = String(role || "").trim().toLowerCase();
-  if (r === "estate_admin") return "owner";
-  if (r === "admin") return "admin";
-  if (r === "manager") return "manager";
-  if (r === "security") return "security";
-  return r || "operator";
-}
-
-export default function SidebarContent({
-  onNavigate,
-}: {
-  onNavigate?: () => void;
-}) {
+export default function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // ✅ IMPORTANT: facility-only token selection (prevents "resident" showing here)
+  // ✅ Facility-only token selection (prevents consumer "resident" token leaking)
   const token = useMemo(() => {
     if (typeof window === "undefined") return null;
     return (
@@ -94,7 +74,6 @@ export default function SidebarContent({
     "Operator";
 
   const displayEmail = decoded?.email || "Account";
-  const roleLabel = prettyRole(decoded?.role);
 
   const initials = useMemo(() => {
     const s = (displayName || "O").trim();
@@ -120,11 +99,12 @@ export default function SidebarContent({
     if (typeof window !== "undefined") {
       localStorage.removeItem("oyi_facility_token");
       localStorage.removeItem("facility_token");
+      localStorage.removeItem("token");
     }
 
     closeAll();
 
-    // ✅ avoid 404: go to your working login route
+    // ✅ your login route is /login (app/(auth)/login/page.tsx)
     router.replace("/login");
   };
 
@@ -153,28 +133,27 @@ export default function SidebarContent({
       {/* FOOTER ACCOUNT AREA */}
       <div className="mt-auto">
         <div className="px-4 pb-5 border-t border-white/10 bg-black/30">
-          <div className="pt-5 flex items-center justify-between">
+          <div className="pt-5 flex items-center gap-2">
+            {/* ✅ Make the left block take remaining space so arrow never shifts */}
             <button
               onClick={() => goToAccount("profile")}
-              className="flex items-center gap-3"
+              className="flex items-center gap-3 flex-1 min-w-0"
             >
-              <div className="w-12 h-12 rounded-full bg-[#E11D2E] flex items-center justify-center text-white font-semibold">
+              <div className="w-12 h-12 rounded-full bg-[#E11D2E] flex items-center justify-center text-white font-semibold shrink-0">
                 {initials}
               </div>
 
+              {/* ✅ Role removed. Name + Email only. */}
               <div className="text-left min-w-0">
-                <p className="text-white text-sm font-semibold truncate">
-                  {displayName}
-                </p>
-                <p className="text-white/50 text-xs truncate">
-                  {displayEmail} • {roleLabel}
-                </p>
+                <p className="text-white text-sm font-semibold truncate">{displayName}</p>
+                <p className="text-white/50 text-xs truncate">{displayEmail}</p>
               </div>
             </button>
 
+            {/* ✅ Arrow pinned right */}
             <button
               onClick={() => setProfileOpen((v) => !v)}
-              className="text-white/70"
+              className="text-white/70 shrink-0 rounded-lg p-2 hover:bg-white/5"
               aria-label="Toggle account menu"
             >
               {profileOpen ? <FiChevronUp /> : <FiChevronDown />}
@@ -224,10 +203,7 @@ export default function SidebarContent({
                 Cancel
               </button>
 
-              <button
-                onClick={logout}
-                className="flex-1 py-3 rounded-xl bg-[#E11D2E] text-white"
-              >
+              <button onClick={logout} className="flex-1 py-3 rounded-xl bg-[#E11D2E] text-white">
                 Logout
               </button>
             </div>
