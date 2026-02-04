@@ -14,8 +14,6 @@ type Decoded = {
   username?: string;
   name?: string;
   role?: string;
-  estate_id?: string;
-  home_id?: string;
 };
 
 type EstateItem = {
@@ -26,7 +24,7 @@ type EstateItem = {
   created_at?: string | null;
 };
 
-type FacilityMyEstatesResponse =
+type FacilityEstatesResponse =
   | { estates: EstateItem[] }
   | EstateItem[]
   | any;
@@ -42,6 +40,7 @@ type SettingsState = {
 
 const SETTINGS_KEY = "oyi_facility_settings_v1";
 
+// --- tiny cookie helpers ---
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
   const m = document.cookie.match(
@@ -121,8 +120,20 @@ function SwitchRow({
   );
 }
 
+// ✅ Role display for facility control plane (never show "resident")
+function prettyFacilityRole(role?: string) {
+  const r = String(role || "").trim().toLowerCase();
+  if (r === "estate_admin") return "Owner";
+  if (r === "owner") return "Owner";
+  if (r === "admin") return "Admin";
+  if (r === "manager") return "Manager";
+  if (r === "security") return "Security";
+  return "Operator";
+}
+
 /**
- * ✅ REQUIRED by Next.js: useSearchParams must be inside Suspense
+ * ✅ REQUIRED by Next.js:
+ * useSearchParams must be inside Suspense
  */
 export default function AccountPage() {
   return (
@@ -147,16 +158,14 @@ function AccountInner() {
 
   const tab = (params.get("tab") || "profile") as "profile" | "settings";
 
+  // ✅ facility-only token selection (prevents consumer/resident token leaking here)
   const token = useMemo(() => {
     if (typeof window === "undefined") return null;
     return (
       getCookie("oyi_facility_token") ||
       getCookie("facility_token") ||
-      getCookie("oyi_consumer_token") ||
       localStorage.getItem("oyi_facility_token") ||
-      localStorage.getItem("facility_token") ||
-      localStorage.getItem("oyi_consumer_token") ||
-      localStorage.getItem("token")
+      localStorage.getItem("facility_token")
     );
   }, []);
 
@@ -177,7 +186,7 @@ function AccountInner() {
 
   const displayEmail = decoded?.email || "—";
   const userId = decoded?.id || "—";
-  const role = decoded?.role || "—";
+  const roleLabel = prettyFacilityRole(decoded?.role);
 
   const [loadingEstate, setLoadingEstate] = useState(false);
   const [estate, setEstate] = useState<EstateItem | null>(null);
@@ -199,12 +208,14 @@ function AccountInner() {
     router.push(`/account?tab=${next}`);
   }
 
+  // ✅ FIX: correct endpoint is /facility/estates (matches facilityService.myEstates)
   async function loadEstate() {
     setErr(null);
     setLoadingEstate(true);
+
     try {
-      const res = await API.get("/facility/my-estates");
-      const data: FacilityMyEstatesResponse = res.data;
+      const res = await API.get("/facility/estates");
+      const data: FacilityEstatesResponse = res.data;
 
       const estates: EstateItem[] = Array.isArray(data)
         ? data
@@ -215,7 +226,9 @@ function AccountInner() {
       setEstate(estates?.[0] || null);
     } catch (e: any) {
       const msg =
-        e?.response?.data?.error || e?.message || "Failed to load estate";
+        e?.response?.data?.error ||
+        e?.message ||
+        "Failed to load site context";
       setErr(String(msg));
       setEstate(null);
     } finally {
@@ -249,32 +262,45 @@ function AccountInner() {
   async function testNotification() {
     setTestingNotif(true);
     setErr(null);
+
     try {
       if (!settings.notificationsEnabled) {
         setErr("Enable notifications first.");
         return;
       }
 
-      // If your backend doesn't support POST /notifications yet, this will show the error cleanly.
+      // NOTE: this is a wiring probe. If backend isn't ready, we show the error gracefully.
       await API.post("/notifications", {
         title: "Facility Test Notification",
         type: "system",
         message:
           "If you can see this on consumer, notifications are wired correctly.",
-        // estate_id: estate?.id, // add only if backend requires it
+        estate_id: estate?.id || undefined,
       });
     } catch (e: any) {
+      const status = e?.response?.status;
       const msg =
         e?.response?.data?.error ||
         e?.message ||
-        "Test notification failed (backend may not support POST /notifications yet)";
-      setErr(String(msg));
+        "Test notification failed";
+
+      setErr(
+        status
+          ? `${String(msg)} (HTTP ${status})`
+          : String(msg)
+      );
     } finally {
       setTestingNotif(false);
     }
   }
 
   useEffect(() => {
+    // ✅ Guard: if no facility token, push to login (prevents weird states + 404 loops)
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
     loadSettingsLocal();
     loadEstate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -331,7 +357,7 @@ function AccountInner() {
               </div>
 
               <span className="text-[11px] px-2 py-1 rounded-full border border-white/10 bg-white/5 text-zinc-300">
-                {role}
+                {roleLabel}
               </span>
             </div>
 
@@ -361,14 +387,18 @@ function AccountInner() {
             </div>
 
             <div className="mt-4 flex gap-2">
-              <Button variant="ghost" onClick={loadEstate} disabled={loadingEstate}>
+              <Button
+                variant="ghost"
+                onClick={loadEstate}
+                disabled={loadingEstate}
+              >
                 {loadingEstate ? "Refreshing..." : "Refresh Site"}
               </Button>
             </div>
 
             <div className="text-xs text-zinc-500 mt-3">
               This pulls from{" "}
-              <span className="text-zinc-200">/facility/my-estates</span>.
+              <span className="text-zinc-200">/facility/estates</span>.
             </div>
           </div>
         </div>
@@ -442,7 +472,11 @@ function AccountInner() {
                 {saving ? "Saving..." : "Save Settings"}
               </Button>
 
-              <Button variant="ghost" onClick={testNotification} disabled={testingNotif}>
+              <Button
+                variant="ghost"
+                onClick={testNotification}
+                disabled={testingNotif}
+              >
                 {testingNotif ? "Sending..." : "Send Test Notification"}
               </Button>
             </div>
@@ -459,7 +493,7 @@ function AccountInner() {
             </div>
 
             <div className="mt-5 grid gap-3">
-              {labelValue("Current role", role)}
+              {labelValue("Current role", roleLabel)}
               {labelValue("Scope", estate?.id ? `Estate: ${estate.id}` : "—")}
               {labelValue("Policy", "RBAC (phase 2)")}
             </div>
