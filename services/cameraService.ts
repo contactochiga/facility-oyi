@@ -1,4 +1,9 @@
+// services/cameraService.ts
 import API from "./api";
+
+/* =====================================================
+ * TYPES
+ * ===================================================== */
 
 export type DiscoveredCamera = {
   externalId: string;
@@ -22,17 +27,39 @@ export type BoundCamera = {
   created_at: string;
 };
 
+/* =====================================================
+ * SERVICE
+ * ===================================================== */
+
 export const cameraService = {
-  async scan(payload: { cidr?: string; username?: string; password?: string }) {
-    const res = await API.post("/cameras/scan", payload);
+  /**
+   * 🔍 Scan cameras on LAN (ONVIF)
+   * Backend: POST /facility/cameras/scan
+   */
+  async scan(payload: {
+    cidr?: string;
+    username?: string;
+    password?: string;
+  }) {
+    const res = await API.post("/facility/cameras/scan", payload);
     return res.data as { ok: boolean; items: DiscoveredCamera[] };
   },
 
+  /**
+   * 📋 List bound cameras for estate
+   * Backend: GET /facility/cameras/estate/:estateId
+   */
   async listByEstate(estateId: string) {
-    const res = await API.get(`/cameras/estate/${encodeURIComponent(estateId)}`);
+    const res = await API.get(
+      `/facility/cameras/estate/${encodeURIComponent(estateId)}`
+    );
     return res.data as { ok: boolean; items: BoundCamera[] };
   },
 
+  /**
+   * 🔗 Bind camera
+   * Backend: POST /facility/cameras/bind
+   */
   async bind(payload: {
     estateId?: string;
     name?: string;
@@ -42,14 +69,20 @@ export const cameraService = {
     username?: string;
     password?: string;
   }) {
-    const res = await API.post("/cameras/bind", payload);
+    const res = await API.post("/facility/cameras/bind", payload);
     return res.data as { ok: boolean; camera: BoundCamera };
   },
 
-  // ✅ use same env var as services/api.ts
+  /**
+   * ▶️ HLS stream URL (browser playback)
+   * Backend:
+   * GET /facility/cameras/:cameraId/hls.m3u8
+   */
   hlsUrl(cameraId: string) {
     const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-    return `${base}/cameras/${encodeURIComponent(cameraId)}/hls.m3u8`;
+    return `${base}/facility/cameras/${encodeURIComponent(
+      cameraId
+    )}/hls.m3u8`;
   },
 };
 
