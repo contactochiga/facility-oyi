@@ -1,4 +1,3 @@
-// src/services/cameraService.ts
 import API from "./api";
 
 export type DiscoveredCamera = {
@@ -47,9 +46,11 @@ export const cameraService = {
     return res.data as { ok: boolean; camera: BoundCamera };
   },
 
+  // ✅ use same env var as services/api.ts
   hlsUrl(cameraId: string) {
-    return `${process.env.NEXT_PUBLIC_API_BASE_URL || ""}/cameras/${encodeURIComponent(
-      cameraId
-    )}/hls.m3u8`;
+    const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+    return `${base}/cameras/${encodeURIComponent(cameraId)}/hls.m3u8`;
   },
 };
+
+export default cameraService;
