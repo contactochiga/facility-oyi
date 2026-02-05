@@ -47,7 +47,7 @@ export const cameraService = {
     return res.data as { ok: boolean; camera: BoundCamera };
   },
 
-  // ✅ ONLY ONE hlsUrl (this was duplicated before)
+  // ⚠️ This ONLY builds a URL. It does NOT add auth headers.
   hlsUrl(cameraId: string) {
     const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
     return `${base}/cameras/${encodeURIComponent(cameraId)}/hls.m3u8`;
