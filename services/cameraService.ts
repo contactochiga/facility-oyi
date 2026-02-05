@@ -1,3 +1,4 @@
+// services/cameraService.ts
 import API from "./api";
 
 export type DiscoveredCamera = {
@@ -23,24 +24,15 @@ export type BoundCamera = {
 };
 
 export const cameraService = {
-  async scan(payload: {
-    cidr?: string;
-    username?: string;
-    password?: string;
-  }) {
+  async scan(payload: { cidr?: string; username?: string; password?: string }) {
     const res = await API.post("/cameras/scan", payload);
-    return res.data;
+    return res.data as { ok: boolean; items: DiscoveredCamera[] };
   },
 
   async listByEstate(estateId: string) {
-  const res = await API.get(`/cameras/estate/${encodeURIComponent(estateId)}`);
-  return res.data;
-},
-
-hlsUrl(cameraId: string) {
-  const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-  return `${base}/cameras/${encodeURIComponent(cameraId)}/hls.m3u8`;
-},
+    const res = await API.get(`/cameras/estate/${encodeURIComponent(estateId)}`);
+    return res.data as { ok: boolean; items: BoundCamera[] };
+  },
 
   async bind(payload: {
     estateId?: string;
@@ -52,12 +44,13 @@ hlsUrl(cameraId: string) {
     password?: string;
   }) {
     const res = await API.post("/cameras/bind", payload);
-    return res.data;
+    return res.data as { ok: boolean; camera: BoundCamera };
   },
 
+  // ✅ ONLY ONE hlsUrl (this was duplicated before)
   hlsUrl(cameraId: string) {
     const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-    return `${base}/cameras/${cameraId}/hls.m3u8`;
+    return `${base}/cameras/${encodeURIComponent(cameraId)}/hls.m3u8`;
   },
 };
 
