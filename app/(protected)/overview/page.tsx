@@ -1,3 +1,4 @@
+// app/(protected)/overview/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -24,10 +25,6 @@ import Link from "next/link";
 
 // ✅ Cameras
 import { cameraService, type BoundCamera } from "@/services/cameraService";
-
-/* -------------------------------------------------- */
-/* Helpers                                            */
-/* -------------------------------------------------- */
 
 function series(seed = 10) {
   const now = Date.now();
@@ -78,10 +75,9 @@ function when(iso?: string | null) {
   });
 }
 
-/* -------------------------------------------------- */
-/* Minimal HLS Player                                 */
-/* -------------------------------------------------- */
-
+// ------------------------------------
+// ✅ Minimal HLS player (no extra UI)
+// ------------------------------------
 function HlsVideo({ src }: { src: string }) {
   const ref = useRef<HTMLVideoElement | null>(null);
 
@@ -93,16 +89,19 @@ function HlsVideo({ src }: { src: string }) {
       const video = ref.current;
       if (!video) return;
 
+      // If Safari / iOS supports HLS natively
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
         return;
       }
 
+      // Otherwise use hls.js
       const mod = await import("hls.js");
       if (cancelled) return;
 
       const Hls = mod.default;
       if (!Hls.isSupported()) {
+        // fallback: try set src anyway
         video.src = src;
         return;
       }
@@ -138,10 +137,6 @@ function HlsVideo({ src }: { src: string }) {
   );
 }
 
-/* -------------------------------------------------- */
-/* Page                                               */
-/* -------------------------------------------------- */
-
 export default function OverviewPage() {
   const [data, setData] = useState<FacilityOverview | null>(null);
 
@@ -151,6 +146,7 @@ export default function OverviewPage() {
 
   const [err, setErr] = useState<string | null>(null);
 
+  // UX states
   const [needsEstate, setNeedsEstate] = useState(false);
   const [syncingEstate, setSyncingEstate] = useState(false);
 
@@ -165,10 +161,12 @@ export default function OverviewPage() {
     type: "estate",
   });
 
+  // ✅ Community widget state
   const [communityItems, setCommunityItems] = useState<CommunityPost[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
   const [communityErr, setCommunityErr] = useState<string | null>(null);
 
+  // ✅ Camera widget state
   const [cameras, setCameras] = useState<BoundCamera[]>([]);
   const [cameraLoading, setCameraLoading] = useState(false);
   const [cameraErr, setCameraErr] = useState<string | null>(null);
@@ -180,6 +178,55 @@ export default function OverviewPage() {
 
   const canCreateEstate = estateForm.name.trim().length > 1;
 
+  async function hydrateEstateFromMembership() {
+    try {
+      const res = await facilityService.myEstates();
+      const first = res?.estates?.[0];
+
+      if (first?.id) {
+        setEstateId(first.id);
+        setNeedsEstate(false);
+        return first.id as string;
+      }
+
+      setEstateId(null);
+      setNeedsEstate(true);
+      return null;
+    } catch (e: any) {
+      const { status, msg } = extractErr(e);
+      setErr(`Failed to check sites${status ? ` (${status})` : ""}: ${msg}`);
+      return null;
+    }
+  }
+
+  async function loadOverview() {
+    const res = await facilityService.overview();
+    setData(res);
+    setEstateId(res?.estate_id || null);
+    setNeedsEstate(false);
+    setSyncingEstate(false);
+    return res?.estate_id || null;
+  }
+
+  async function loadCommunity(eid?: string | null) {
+    const estate = eid || estateId;
+    if (!estate) return;
+
+    setCommunityLoading(true);
+    setCommunityErr(null);
+
+    try {
+      const posts = await communityService.listByEstate(estate);
+      setCommunityItems(posts || []);
+    } catch (e: any) {
+      const { status, msg } = extractErr(e);
+      setCommunityErr(`${msg}${status ? ` (HTTP ${status})` : ""}`);
+      setCommunityItems([]);
+    } finally {
+      setCommunityLoading(false);
+    }
+  }
+
   async function loadCameras(eid?: string | null) {
     const estate = eid || estateId;
     if (!estate) return;
@@ -190,18 +237,19 @@ export default function OverviewPage() {
     try {
       const res = await cameraService.listByEstate(estate);
 
-      // ✅ FIX: explicit typing
-      const items: BoundCamera[] = Array.isArray(res?.items)
-        ? res.items
-        : [];
+      // ✅ TS FIX: force proper typing so `.some()` callback isn't `any`
+      const items: BoundCamera[] = Array.isArray(res?.items) ? res.items : [];
 
       setCameras(items);
 
-      if (!activeCameraId && items[0]?.id) {
-        setActiveCameraId(items[0].id);
-      }
+      // pick first camera if none selected
+      if (!activeCameraId && items[0]?.id) setActiveCameraId(items[0].id);
 
-      if (activeCameraId && !items.some((c) => c.id === activeCameraId)) {
+      // if selected camera no longer exists, reset
+      if (
+        activeCameraId &&
+        !items.some((c: BoundCamera) => c.id === activeCameraId)
+      ) {
         setActiveCameraId(items[0]?.id || null);
       }
     } catch (e: any) {
@@ -214,8 +262,596 @@ export default function OverviewPage() {
     }
   }
 
-  /* ---------- rest of file unchanged ---------- */
+  async function load() {
+    setErr(null);
+    setNeedsEstate(false);
+    setSyncingEstate(false);
+    setLoading(true);
 
-  // (Everything below remains EXACTLY as you pasted)
+    try {
+      const eid = await loadOverview();
+      if (eid) {
+        await loadCommunity(eid);
+        await loadCameras(eid);
+      }
+    } catch (e: any) {
+      const { status, msg } = extractErr(e);
 
+      const lower = msg.toLowerCase();
+      const looksLikeNotLinked =
+        lower.includes("estate not linked") || status === 400;
+
+      if (looksLikeNotLinked) {
+        const eid = await hydrateEstateFromMembership();
+
+        if (eid) {
+          setData(null);
+          setSyncingEstate(true);
+          setErr(null);
+          await loadCommunity(eid);
+          await loadCameras(eid);
+        } else {
+          setData(null);
+          setNeedsEstate(true);
+          setErr(null);
+        }
+      } else {
+        setErr(`${msg}${status ? ` (HTTP ${status})` : ""}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createEstate() {
+    if (!canCreateEstate) return;
+
+    setErr(null);
+    setModalErr(null);
+    setCreating(true);
+
+    try {
+      const payload = {
+        name: estateForm.name.trim(),
+        address: estateForm.address.trim() || undefined,
+        lat: estateForm.lat.trim() ? Number(estateForm.lat) : undefined,
+        lng: estateForm.lng.trim() ? Number(estateForm.lng) : undefined,
+        type: estateForm.type || "estate",
+      };
+
+      await facilityService.createEstate(payload);
+
+      setShowCreate(false);
+      setEstateForm({ name: "", address: "", lat: "", lng: "", type: "estate" });
+
+      const eid = await hydrateEstateFromMembership();
+
+      await load();
+
+      if (eid) {
+        await loadCommunity(eid);
+        await loadCameras(eid);
+      }
+    } catch (e: any) {
+      const { status, msg } = extractErr(e);
+      const friendly = `${msg}${status ? ` (HTTP ${status})` : ""}`;
+      setModalErr(friendly);
+      setErr(friendly);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const stability = score(100 - (data?.open_maintenance ?? 0) * 3);
+  const security = score(100 - (data?.alerts ?? 0) * 6);
+  const uptime = score(70 + (data?.active_devices ?? 0));
+  const flow = score(85 - Math.max(0, (data?.visitors_today ?? 0) - 20) * 2);
+
+  const latestPosts = (communityItems || []).slice(0, 3);
+
+  const activeCam = cameras.find((c: BoundCamera) => c.id === activeCameraId) || null;
+  const activeHls = activeCam ? cameraService.hlsUrl(activeCam.id) : null;
+
+  return (
+    <div className="space-y-7">
+      <Topbar
+        title="Overview"
+        subtitle="Operational summary"
+        showUser={false}
+        showNotifications={true}
+      />
+
+      {/* HEADER STRIP */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="muted">{estateId ? `Site: ${estateId}` : "Site: —"}</div>
+
+        {!estateId ? (
+          <Button onClick={() => setShowCreate(true)} disabled={creating}>
+            {creating ? "Creating..." : "Create Site"}
+          </Button>
+        ) : (
+          <Button variant="ghost" onClick={load} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh"}
+          </Button>
+        )}
+      </div>
+
+      {/* NO ESTATE PANEL */}
+      {needsEstate && (
+        <div className="glass border border-white/10 rounded-2xl p-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <div className="text-lg font-semibold">No site linked yet</div>
+              <div className="text-sm text-zinc-400 mt-1 max-w-2xl">
+                To unlock homes, rooms, devices, visitors and maintenance, create
+                your first site. You’ll automatically become{" "}
+                <span className="text-zinc-200">Owner</span> and can invite
+                facility managers.
+              </div>
+              <div className="text-xs text-zinc-500 mt-3">
+                Think of this as registering the “master site” before adding blocks/units.
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={() => setShowCreate(true)} disabled={creating}>
+                {creating ? "Creating..." : "Create Site"}
+              </Button>
+              <Button variant="ghost" onClick={load} disabled={loading}>
+                {loading ? "Checking..." : "Retry"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SYNCING PANEL */}
+      {syncingEstate && (
+        <div className="glass border border-white/10 rounded-2xl p-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <div className="text-lg font-semibold">Site created — syncing access</div>
+              <div className="text-sm text-zinc-400 mt-1 max-w-2xl">
+                Your membership is active, but the overview is still reading from a “linked site”
+                field. Tap retry to refresh. If it keeps happening, we’ll update the backend
+                overview to derive the site from membership.
+              </div>
+              <div className="text-xs text-zinc-500 mt-3">
+                Site: <span className="text-zinc-200">{estateId || "—"}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={load} disabled={loading}>
+                {loading ? "Refreshing..." : "Retry"}
+              </Button>
+              <Button onClick={() => setShowCreate(true)} disabled={creating}>
+                {creating ? "Creating..." : "Create Another Site"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!!err && !needsEstate && !syncingEstate && (
+        <div className="glass border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-200">
+          {err}
+        </div>
+      )}
+
+      {/* MAIN GRID */}
+      <div className="grid gap-4 lg:gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Total Homes"
+          value={formatNumber(data?.homes ?? 0)}
+          hint="Units under management"
+          href="/homes"
+        />
+
+        <StatCard
+          label="Hardware Devices"
+          value={formatNumber(data?.active_devices ?? 0)}
+          hint="CCTV • sensors • control gear"
+          tone="good"
+          href="/devices"
+        />
+
+        <StatCard
+          label="Open Maintenance"
+          value={formatNumber(data?.open_maintenance ?? 0)}
+          hint="Open + in progress"
+          tone={data?.open_maintenance ? "warn" : "good"}
+          href="/maintenance"
+        />
+
+        <StatCard
+          label="Visitors Today"
+          value={formatNumber(data?.visitors_today ?? 0)}
+          hint="Entries today"
+          href="/visitors"
+        />
+      </div>
+
+      {/* ✅ LIVE CAMERAS + COMMUNITY */}
+      <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-2">
+        {/* ✅ LIVE CAMERAS WIDGET */}
+        <div className="glass p-5">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-sm font-medium">Live Cameras</div>
+              <div className="text-xs text-zinc-500 mt-1">
+                HLS stream • facility view • estate security
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => loadCameras(estateId)}
+                disabled={!estateId || cameraLoading}
+              >
+                {cameraLoading ? "Checking..." : "Refresh"}
+              </Button>
+
+              <Link href="/devices">
+                <Button variant="ghost">Manage Devices</Button>
+              </Link>
+            </div>
+          </div>
+
+          {cameraErr && (
+            <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {cameraErr}
+            </div>
+          )}
+
+          {!estateId ? (
+            <div className="mt-4 text-sm text-zinc-400">
+              No site linked yet. Create/select a site to load cameras.
+            </div>
+          ) : cameras.length === 0 && !cameraLoading ? (
+            <div className="mt-4 text-sm text-zinc-400">
+              No cameras bound yet. Go to <span className="text-zinc-200">Devices → ONVIF</span>{" "}
+              and add cameras, then bind them.
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Stream */}
+              <div className="lg:col-span-2">
+                {activeHls ? (
+                  <HlsVideo src={activeHls} />
+                ) : (
+                  <div className="rounded-xl border border-white/10 bg-black/30 p-6 text-sm text-zinc-400">
+                    Select a camera to preview.
+                  </div>
+                )}
+
+                {activeCam && (
+                  <div className="mt-3 text-xs text-zinc-500">
+                    Playing:{" "}
+                    <span className="text-zinc-200">
+                      {activeCam.name || activeCam.ip}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Camera list */}
+              <div className="space-y-2">
+                <div className="text-xs text-zinc-500">Cameras ({cameras.length})</div>
+
+                <div className="space-y-2 max-h-[320px] overflow-auto pr-1">
+                  {cameras.map((c: BoundCamera) => {
+                    const active = c.id === activeCameraId;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => setActiveCameraId(c.id)}
+                        className={[
+                          "w-full text-left rounded-xl border px-4 py-3 transition",
+                          active
+                            ? "border-emerald-500/30 bg-emerald-500/10"
+                            : "border-white/10 bg-black/20 hover:bg-black/30",
+                        ].join(" ")}
+                      >
+                        <div className="text-sm font-semibold text-white truncate">
+                          {c.name || c.ip}
+                        </div>
+                        <div className="text-[11px] text-zinc-500 mt-1">
+                          {c.ip} • RTSP saved • HLS proxy
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ✅ COMMUNITY WIDGET */}
+        <div className="glass p-5">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-sm font-medium">Community</div>
+              <div className="text-xs text-zinc-500 mt-1">
+                Estate broadcasts • announcements • live updates
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Link href="/community">
+                <Button variant="ghost">Open Community</Button>
+              </Link>
+
+              <Button
+                variant="ghost"
+                onClick={() => loadCommunity(estateId)}
+                disabled={!estateId || communityLoading}
+              >
+                {communityLoading ? "Checking..." : "New Update"}
+              </Button>
+            </div>
+          </div>
+
+          {communityErr && (
+            <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {communityErr}
+            </div>
+          )}
+
+          {!estateId ? (
+            <div className="mt-4 text-sm text-zinc-400">
+              No site linked yet. Select/onboard a site to view community updates.
+            </div>
+          ) : (
+            <div className="mt-4 space-y-2">
+              {latestPosts.length === 0 ? (
+                <div className="text-sm text-zinc-400">No community posts yet.</div>
+              ) : (
+                latestPosts.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-white truncate">
+                        {p.title || "Untitled"}
+                      </div>
+                      <div className="text-xs text-zinc-500">
+                        {when(p.created_at)} • {p.status || "published"}
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-zinc-500 shrink-0">Live</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* SIGNAL PANELS */}
+      <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-3">
+        <div className="glass p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs text-zinc-400">Alerts</div>
+              <div className="mt-2 text-3xl font-semibold">
+                {formatNumber(data?.alerts ?? 0)}
+              </div>
+              <div className="mt-2 text-xs text-zinc-500">
+                Unread notifications
+              </div>
+            </div>
+            <div className="text-xs text-zinc-500">Trend</div>
+          </div>
+
+          <div className="h-28 mt-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendDevices.slice(-7)}>
+                <Tooltip
+                  contentStyle={{
+                    background: "rgba(24,24,27,0.95)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 12,
+                  }}
+                />
+                <Line type="monotone" dataKey="y" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="glass p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs text-zinc-400">Visitor Flow</div>
+              <div className="mt-2 text-3xl font-semibold">
+                {formatNumber(data?.visitors_today ?? 0)}
+              </div>
+              <div className="mt-2 text-xs text-zinc-500">Gate pressure</div>
+            </div>
+            <div className="text-xs text-zinc-500">12 days</div>
+          </div>
+
+          <div className="h-28 mt-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={trendVisitors}>
+                <Tooltip
+                  contentStyle={{
+                    background: "rgba(24,24,27,0.95)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 12,
+                  }}
+                />
+                <Bar dataKey="y" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="glass p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs text-zinc-400">Wallet</div>
+              <div className="mt-2 text-2xl font-semibold">
+                {formatMoney(data?.wallet?.balance ?? 0, "NGN")}
+              </div>
+              <div className="mt-2 text-xs text-zinc-500">
+                Outstanding:{" "}
+                {formatMoney(data?.wallet?.outstanding_dues ?? 0, "NGN")} •
+                Collected:{" "}
+                {formatMoney(data?.wallet?.collected_this_month ?? 0, "NGN")}
+              </div>
+            </div>
+            <div className="text-xs text-zinc-500">Signals</div>
+          </div>
+
+          <div className="h-28 mt-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendWallet}>
+                <Tooltip
+                  contentStyle={{
+                    background: "rgba(24,24,27,0.95)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 12,
+                  }}
+                />
+                <Line type="monotone" dataKey="y" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* OPS STRIP */}
+      <div className="glass p-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div className="text-sm font-medium">Operational Strip</div>
+            <div className="text-xs text-zinc-500 mt-1">
+              A single strip that tells you where the site is bleeding right now.
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+            <OpsPill label="Stability" value={stability} />
+            <OpsPill label="Security" value={security} />
+            <OpsPill label="Uptime" value={uptime} />
+            <OpsPill label="Flow" value={flow} />
+          </div>
+        </div>
+      </div>
+
+      {/* CREATE ESTATE MODAL */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => !creating && setShowCreate(false)}
+          />
+          <div className="relative glass border border-white/10 rounded-2xl w-full max-w-xl p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-lg font-semibold">Create Site</div>
+                <div className="text-sm text-zinc-400 mt-1">
+                  Register the master site. You’ll become the Owner and can invite managers.
+                </div>
+              </div>
+              <button
+                className="text-zinc-400 hover:text-zinc-200"
+                onClick={() => !creating && setShowCreate(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            {modalErr && (
+              <div className="mt-4 glass border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200 rounded-xl">
+                {modalErr}
+              </div>
+            )}
+
+            <div className="grid gap-3 mt-5">
+              <input
+                className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                placeholder="Site name (e.g. Ochiga Smart Estate)"
+                value={estateForm.name}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, name: e.target.value }))
+                }
+              />
+
+              <input
+                className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                placeholder="Address (optional)"
+                value={estateForm.address}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, address: e.target.value }))
+                }
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                  placeholder="Latitude (optional)"
+                  value={estateForm.lat}
+                  onChange={(e) =>
+                    setEstateForm((p) => ({ ...p, lat: e.target.value }))
+                  }
+                />
+                <input
+                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                  placeholder="Longitude (optional)"
+                  value={estateForm.lng}
+                  onChange={(e) =>
+                    setEstateForm((p) => ({ ...p, lng: e.target.value }))
+                  }
+                />
+              </div>
+
+              <select
+                className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                value={estateForm.type}
+                onChange={(e) =>
+                  setEstateForm((p) => ({ ...p, type: e.target.value }))
+                }
+              >
+                <option value="estate">Estate</option>
+                <option value="facility">Facility</option>
+                <option value="campus">Campus</option>
+              </select>
+
+              <div className="flex gap-2 mt-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowCreate(false)}
+                  disabled={creating}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={createEstate}
+                  disabled={!canCreateEstate || creating}
+                >
+                  {creating ? "Creating..." : "Create Site"}
+                </Button>
+              </div>
+
+              <div className="text-xs text-zinc-500 mt-2">
+                After creation, you can add homes, rooms, devices and invite managers.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
