@@ -1,7 +1,7 @@
 // app/(protected)/overview/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Topbar from "@/components/shell/Topbar";
 import StatCard from "@/components/ui/StatCard";
 import Button from "@/components/ui/Button";
@@ -22,6 +22,9 @@ import {
   type CommunityPost,
 } from "@/services/communityService";
 import Link from "next/link";
+
+// ✅ Cameras
+import { cameraService, type BoundCamera } from "@/services/cameraService";
 
 function series(seed = 10) {
   const now = Date.now();
@@ -72,6 +75,68 @@ function when(iso?: string | null) {
   });
 }
 
+// ------------------------------------
+// ✅ Minimal HLS player (no extra UI)
+// ------------------------------------
+function HlsVideo({ src }: { src: string }) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    let hls: any = null;
+    let cancelled = false;
+
+    async function attach() {
+      const video = ref.current;
+      if (!video) return;
+
+      // If Safari / iOS supports HLS natively
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = src;
+        return;
+      }
+
+      // Otherwise use hls.js
+      const mod = await import("hls.js");
+      if (cancelled) return;
+
+      const Hls = mod.default;
+      if (!Hls.isSupported()) {
+        // fallback: try set src anyway
+        video.src = src;
+        return;
+      }
+
+      hls = new Hls({
+        lowLatencyMode: true,
+        enableWorker: true,
+      });
+
+      hls.loadSource(src);
+      hls.attachMedia(video);
+    }
+
+    attach();
+
+    return () => {
+      cancelled = true;
+      try {
+        if (hls) hls.destroy();
+      } catch {}
+    };
+  }, [src]);
+
+  return (
+    <video
+      ref={ref}
+      className="w-full rounded-xl border border-white/10 bg-black/40"
+      controls
+      playsInline
+      muted
+      autoPlay
+    />
+  );
+}
+
 export default function OverviewPage() {
   const [data, setData] = useState<FacilityOverview | null>(null);
 
@@ -100,6 +165,12 @@ export default function OverviewPage() {
   const [communityItems, setCommunityItems] = useState<CommunityPost[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
   const [communityErr, setCommunityErr] = useState<string | null>(null);
+
+  // ✅ Camera widget state
+  const [cameras, setCameras] = useState<BoundCamera[]>([]);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraErr, setCameraErr] = useState<string | null>(null);
+  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
 
   const trendDevices = useMemo(() => series(8), []);
   const trendVisitors = useMemo(() => series(5), []);
@@ -156,6 +227,34 @@ export default function OverviewPage() {
     }
   }
 
+  async function loadCameras(eid?: string | null) {
+    const estate = eid || estateId;
+    if (!estate) return;
+
+    setCameraLoading(true);
+    setCameraErr(null);
+
+    try {
+      const res = await cameraService.listByEstate(estate);
+      const items = Array.isArray(res?.items) ? res.items : [];
+      setCameras(items);
+
+      // pick first camera if none selected
+      if (!activeCameraId && items[0]?.id) setActiveCameraId(items[0].id);
+      // if selected camera no longer exists, reset
+      if (activeCameraId && !items.some((c) => c.id === activeCameraId)) {
+        setActiveCameraId(items[0]?.id || null);
+      }
+    } catch (e: any) {
+      const { status, msg } = extractErr(e);
+      setCameraErr(`${msg}${status ? ` (HTTP ${status})` : ""}`);
+      setCameras([]);
+      setActiveCameraId(null);
+    } finally {
+      setCameraLoading(false);
+    }
+  }
+
   async function load() {
     setErr(null);
     setNeedsEstate(false);
@@ -164,7 +263,10 @@ export default function OverviewPage() {
 
     try {
       const eid = await loadOverview();
-      if (eid) await loadCommunity(eid);
+      if (eid) {
+        await loadCommunity(eid);
+        await loadCameras(eid);
+      }
     } catch (e: any) {
       const { status, msg } = extractErr(e);
 
@@ -180,6 +282,7 @@ export default function OverviewPage() {
           setSyncingEstate(true);
           setErr(null);
           await loadCommunity(eid);
+          await loadCameras(eid);
         } else {
           setData(null);
           setNeedsEstate(true);
@@ -218,7 +321,10 @@ export default function OverviewPage() {
 
       await load();
 
-      if (eid) await loadCommunity(eid);
+      if (eid) {
+        await loadCommunity(eid);
+        await loadCameras(eid);
+      }
     } catch (e: any) {
       const { status, msg } = extractErr(e);
       const friendly = `${msg}${status ? ` (HTTP ${status})` : ""}`;
@@ -240,6 +346,9 @@ export default function OverviewPage() {
   const flow = score(85 - Math.max(0, (data?.visitors_today ?? 0) - 20) * 2);
 
   const latestPosts = (communityItems || []).slice(0, 3);
+
+  const activeCam = cameras.find((c) => c.id === activeCameraId) || null;
+  const activeHls = activeCam ? cameraService.hlsUrl(activeCam.id) : null;
 
   return (
     <div className="space-y-7">
@@ -278,8 +387,7 @@ export default function OverviewPage() {
                 facility managers.
               </div>
               <div className="text-xs text-zinc-500 mt-3">
-                Think of this as registering the “master site” before
-                adding blocks/units.
+                Think of this as registering the “master site” before adding blocks/units.
               </div>
             </div>
 
@@ -300,14 +408,11 @@ export default function OverviewPage() {
         <div className="glass border border-white/10 rounded-2xl p-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
-              <div className="text-lg font-semibold">
-                Site created — syncing access
-              </div>
+              <div className="text-lg font-semibold">Site created — syncing access</div>
               <div className="text-sm text-zinc-400 mt-1 max-w-2xl">
-                Your membership is active, but the overview is still reading
-                from a “linked site” field. Tap retry to refresh. If it keeps
-                happening, we’ll update the backend overview to derive the site
-                from membership.
+                Your membership is active, but the overview is still reading from a “linked site”
+                field. Tap retry to refresh. If it keeps happening, we’ll update the backend
+                overview to derive the site from membership.
               </div>
               <div className="text-xs text-zinc-500 mt-3">
                 Site: <span className="text-zinc-200">{estateId || "—"}</span>
@@ -340,7 +445,6 @@ export default function OverviewPage() {
           hint="Units under management"
           href="/homes"
         />
-
         <StatCard
           label="Hardware Devices"
           value={formatNumber(data?.active_devices ?? 0)}
@@ -348,7 +452,6 @@ export default function OverviewPage() {
           tone="good"
           href="/devices"
         />
-
         <StatCard
           label="Open Maintenance"
           value={formatNumber(data?.open_maintenance ?? 0)}
@@ -356,7 +459,6 @@ export default function OverviewPage() {
           tone={data?.open_maintenance ? "warn" : "good"}
           href="/maintenance"
         />
-
         <StatCard
           label="Visitors Today"
           value={formatNumber(data?.visitors_today ?? 0)}
@@ -365,67 +467,163 @@ export default function OverviewPage() {
         />
       </div>
 
-      {/* ✅ COMMUNITY WIDGET */}
-      <div className="glass p-5">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-sm font-medium">Community</div>
-            <div className="text-xs text-zinc-500 mt-1">
-              Estate broadcasts • announcements • live updates
+      {/* ✅ LIVE CAMERAS + COMMUNITY (same row on wide screens) */}
+      <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-2">
+        {/* ✅ LIVE CAMERAS WIDGET */}
+        <div className="glass p-5">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-sm font-medium">Live Cameras</div>
+              <div className="text-xs text-zinc-500 mt-1">
+                HLS stream • facility view • estate security
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => loadCameras(estateId)}
+                disabled={!estateId || cameraLoading}
+              >
+                {cameraLoading ? "Checking..." : "Refresh"}
+              </Button>
+              <Link href="/devices">
+                <Button variant="ghost">Manage Devices</Button>
+              </Link>
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Link href="/community">
-              <Button variant="ghost">Open Community</Button>
-            </Link>
+          {cameraErr && (
+            <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {cameraErr}
+            </div>
+          )}
 
-            {/* ✅ Refresh renamed to New Update */}
-            <Button
-              variant="ghost"
-              onClick={() => loadCommunity(estateId)}
-              disabled={!estateId || communityLoading}
-            >
-              {communityLoading ? "Checking..." : "New Update"}
-            </Button>
-          </div>
+          {!estateId ? (
+            <div className="mt-4 text-sm text-zinc-400">
+              No site linked yet. Create/select a site to load cameras.
+            </div>
+          ) : cameras.length === 0 && !cameraLoading ? (
+            <div className="mt-4 text-sm text-zinc-400">
+              No cameras bound yet. Go to <span className="text-zinc-200">Devices → ONVIF</span>{" "}
+              and add cameras, then bind them.
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Stream */}
+              <div className="lg:col-span-2">
+                {activeHls ? (
+                  <HlsVideo src={activeHls} />
+                ) : (
+                  <div className="rounded-xl border border-white/10 bg-black/30 p-6 text-sm text-zinc-400">
+                    Select a camera to preview.
+                  </div>
+                )}
+
+                {activeCam && (
+                  <div className="mt-3 text-xs text-zinc-500">
+                    Playing:{" "}
+                    <span className="text-zinc-200">
+                      {activeCam.name || activeCam.ip}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Camera list */}
+              <div className="space-y-2">
+                <div className="text-xs text-zinc-500">Cameras ({cameras.length})</div>
+
+                <div className="space-y-2 max-h-[320px] overflow-auto pr-1">
+                  {cameras.map((c) => {
+                    const active = c.id === activeCameraId;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => setActiveCameraId(c.id)}
+                        className={[
+                          "w-full text-left rounded-xl border px-4 py-3 transition",
+                          active
+                            ? "border-emerald-500/30 bg-emerald-500/10"
+                            : "border-white/10 bg-black/20 hover:bg-black/30",
+                        ].join(" ")}
+                      >
+                        <div className="text-sm font-semibold text-white truncate">
+                          {c.name || c.ip}
+                        </div>
+                        <div className="text-[11px] text-zinc-500 mt-1">
+                          {c.ip} • RTSP saved • HLS proxy
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {communityErr && (
-          <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            {communityErr}
-          </div>
-        )}
+        {/* ✅ COMMUNITY WIDGET (your existing one, untouched) */}
+        <div className="glass p-5">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-sm font-medium">Community</div>
+              <div className="text-xs text-zinc-500 mt-1">
+                Estate broadcasts • announcements • live updates
+              </div>
+            </div>
 
-        {!estateId ? (
-          <div className="mt-4 text-sm text-zinc-400">
-            No site linked yet. Select/onboard a site to view community updates.
+            <div className="flex gap-2">
+              <Link href="/community">
+                <Button variant="ghost">Open Community</Button>
+              </Link>
+
+              <Button
+                variant="ghost"
+                onClick={() => loadCommunity(estateId)}
+                disabled={!estateId || communityLoading}
+              >
+                {communityLoading ? "Checking..." : "New Update"}
+              </Button>
+            </div>
           </div>
-        ) : (
-          <div className="mt-4 space-y-2">
-            {latestPosts.length === 0 ? (
-              <div className="text-sm text-zinc-400">No community posts yet.</div>
-            ) : (
-              latestPosts.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">
-                      {p.title || "Untitled"}
+
+          {communityErr && (
+            <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {communityErr}
+            </div>
+          )}
+
+          {!estateId ? (
+            <div className="mt-4 text-sm text-zinc-400">
+              No site linked yet. Select/onboard a site to view community updates.
+            </div>
+          ) : (
+            <div className="mt-4 space-y-2">
+              {latestPosts.length === 0 ? (
+                <div className="text-sm text-zinc-400">No community posts yet.</div>
+              ) : (
+                latestPosts.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-white truncate">
+                        {p.title || "Untitled"}
+                      </div>
+                      <div className="text-xs text-zinc-500">
+                        {when(p.created_at)} • {p.status || "published"}
+                      </div>
                     </div>
-                    <div className="text-xs text-zinc-500">
-                      {when(p.created_at)} • {p.status || "published"}
-                    </div>
+
+                    <div className="text-xs text-zinc-500 shrink-0">Live</div>
                   </div>
-
-                  <div className="text-xs text-zinc-500 shrink-0">Live</div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* SIGNAL PANELS */}
@@ -437,9 +635,7 @@ export default function OverviewPage() {
               <div className="mt-2 text-3xl font-semibold">
                 {formatNumber(data?.alerts ?? 0)}
               </div>
-              <div className="mt-2 text-xs text-zinc-500">
-                Unread notifications
-              </div>
+              <div className="mt-2 text-xs text-zinc-500">Unread notifications</div>
             </div>
             <div className="text-xs text-zinc-500">Trend</div>
           </div>
@@ -454,12 +650,7 @@ export default function OverviewPage() {
                     borderRadius: 12,
                   }}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="y"
-                  strokeWidth={2}
-                  dot={false}
-                />
+                <Line type="monotone" dataKey="y" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -501,10 +692,8 @@ export default function OverviewPage() {
                 {formatMoney(data?.wallet?.balance ?? 0, "NGN")}
               </div>
               <div className="mt-2 text-xs text-zinc-500">
-                Outstanding:{" "}
-                {formatMoney(data?.wallet?.outstanding_dues ?? 0, "NGN")} •
-                Collected:{" "}
-                {formatMoney(data?.wallet?.collected_this_month ?? 0, "NGN")}
+                Outstanding: {formatMoney(data?.wallet?.outstanding_dues ?? 0, "NGN")} •
+                Collected: {formatMoney(data?.wallet?.collected_this_month ?? 0, "NGN")}
               </div>
             </div>
             <div className="text-xs text-zinc-500">Signals</div>
@@ -520,12 +709,7 @@ export default function OverviewPage() {
                     borderRadius: 12,
                   }}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="y"
-                  strokeWidth={2}
-                  dot={false}
-                />
+                <Line type="monotone" dataKey="y" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -551,7 +735,7 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* CREATE ESTATE MODAL */}
+      {/* CREATE ESTATE MODAL (unchanged) */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
           <div
@@ -563,8 +747,7 @@ export default function OverviewPage() {
               <div>
                 <div className="text-lg font-semibold">Create Site</div>
                 <div className="text-sm text-zinc-400 mt-1">
-                  Register the master site. You’ll become the Owner and can invite
-                  managers.
+                  Register the master site. You’ll become the Owner and can invite managers.
                 </div>
               </div>
               <button
@@ -586,18 +769,14 @@ export default function OverviewPage() {
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 placeholder="Site name (e.g. Ochiga Smart Estate)"
                 value={estateForm.name}
-                onChange={(e) =>
-                  setEstateForm((p) => ({ ...p, name: e.target.value }))
-                }
+                onChange={(e) => setEstateForm((p) => ({ ...p, name: e.target.value }))}
               />
 
               <input
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 placeholder="Address (optional)"
                 value={estateForm.address}
-                onChange={(e) =>
-                  setEstateForm((p) => ({ ...p, address: e.target.value }))
-                }
+                onChange={(e) => setEstateForm((p) => ({ ...p, address: e.target.value }))}
               />
 
               <div className="grid grid-cols-2 gap-3">
@@ -605,26 +784,20 @@ export default function OverviewPage() {
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Latitude (optional)"
                   value={estateForm.lat}
-                  onChange={(e) =>
-                    setEstateForm((p) => ({ ...p, lat: e.target.value }))
-                  }
+                  onChange={(e) => setEstateForm((p) => ({ ...p, lat: e.target.value }))}
                 />
                 <input
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Longitude (optional)"
                   value={estateForm.lng}
-                  onChange={(e) =>
-                    setEstateForm((p) => ({ ...p, lng: e.target.value }))
-                  }
+                  onChange={(e) => setEstateForm((p) => ({ ...p, lng: e.target.value }))}
                 />
               </div>
 
               <select
                 className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                 value={estateForm.type}
-                onChange={(e) =>
-                  setEstateForm((p) => ({ ...p, type: e.target.value }))
-                }
+                onChange={(e) => setEstateForm((p) => ({ ...p, type: e.target.value }))}
               >
                 <option value="estate">Estate</option>
                 <option value="facility">Facility</option>
@@ -632,17 +805,10 @@ export default function OverviewPage() {
               </select>
 
               <div className="flex gap-2 mt-2">
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowCreate(false)}
-                  disabled={creating}
-                >
+                <Button variant="ghost" onClick={() => setShowCreate(false)} disabled={creating}>
                   Cancel
                 </Button>
-                <Button
-                  onClick={createEstate}
-                  disabled={!canCreateEstate || creating}
-                >
+                <Button onClick={createEstate} disabled={!canCreateEstate || creating}>
                   {creating ? "Creating..." : "Create Site"}
                 </Button>
               </div>
