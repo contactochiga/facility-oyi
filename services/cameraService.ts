@@ -1,9 +1,5 @@
 import API from "./api";
 
-/* -----------------------------
- * TYPES
- * ----------------------------- */
-
 export type DiscoveredCamera = {
   externalId: string;
   adapter: string;
@@ -26,45 +22,21 @@ export type BoundCamera = {
   created_at: string;
 };
 
-/* -----------------------------
- * CAMERA SERVICE (FACILITY)
- * ----------------------------- */
-
 export const cameraService = {
-  /**
-   * Scan LAN cameras (ONVIF)
-   * POST /facility/cameras/scan
-   */
   async scan(payload: {
     cidr?: string;
     username?: string;
     password?: string;
   }) {
-    const res = await API.post("/facility/cameras/scan", payload);
-    return res.data as {
-      ok: boolean;
-      items: DiscoveredCamera[];
-    };
+    const res = await API.post("/cameras/scan", payload);
+    return res.data;
   },
 
-  /**
-   * List bound cameras by estate
-   * GET /facility/cameras/estate/:estateId
-   */
   async listByEstate(estateId: string) {
-    const res = await API.get(
-      `/facility/cameras/estate/${encodeURIComponent(estateId)}`
-    );
-    return res.data as {
-      ok: boolean;
-      items: BoundCamera[];
-    };
+    const res = await API.get(`/cameras/estate/${estateId}`);
+    return res.data;
   },
 
-  /**
-   * Bind a camera
-   * POST /facility/cameras/bind
-   */
   async bind(payload: {
     estateId?: string;
     name?: string;
@@ -74,22 +46,13 @@ export const cameraService = {
     username?: string;
     password?: string;
   }) {
-    const res = await API.post("/facility/cameras/bind", payload);
-    return res.data as {
-      ok: boolean;
-      camera: BoundCamera;
-    };
+    const res = await API.post("/cameras/bind", payload);
+    return res.data;
   },
 
-  /**
-   * HLS stream URL
-   * GET /facility/cameras/:cameraId/hls.m3u8
-   */
   hlsUrl(cameraId: string) {
     const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-    return `${base}/facility/cameras/${encodeURIComponent(
-      cameraId
-    )}/hls.m3u8`;
+    return `${base}/cameras/${cameraId}/hls.m3u8`;
   },
 };
 
