@@ -1,9 +1,8 @@
-// services/cameraService.ts
 import API from "./api";
 
-/* =====================================================
+/* -----------------------------
  * TYPES
- * ===================================================== */
+ * ----------------------------- */
 
 export type DiscoveredCamera = {
   externalId: string;
@@ -27,14 +26,14 @@ export type BoundCamera = {
   created_at: string;
 };
 
-/* =====================================================
- * SERVICE
- * ===================================================== */
+/* -----------------------------
+ * CAMERA SERVICE (FACILITY)
+ * ----------------------------- */
 
 export const cameraService = {
   /**
-   * 🔍 Scan cameras on LAN (ONVIF)
-   * Backend: POST /facility/cameras/scan
+   * Scan LAN cameras (ONVIF)
+   * POST /facility/cameras/scan
    */
   async scan(payload: {
     cidr?: string;
@@ -42,23 +41,29 @@ export const cameraService = {
     password?: string;
   }) {
     const res = await API.post("/facility/cameras/scan", payload);
-    return res.data as { ok: boolean; items: DiscoveredCamera[] };
+    return res.data as {
+      ok: boolean;
+      items: DiscoveredCamera[];
+    };
   },
 
   /**
-   * 📋 List bound cameras for estate
-   * Backend: GET /facility/cameras/estate/:estateId
+   * List bound cameras by estate
+   * GET /facility/cameras/estate/:estateId
    */
   async listByEstate(estateId: string) {
     const res = await API.get(
       `/facility/cameras/estate/${encodeURIComponent(estateId)}`
     );
-    return res.data as { ok: boolean; items: BoundCamera[] };
+    return res.data as {
+      ok: boolean;
+      items: BoundCamera[];
+    };
   },
 
   /**
-   * 🔗 Bind camera
-   * Backend: POST /facility/cameras/bind
+   * Bind a camera
+   * POST /facility/cameras/bind
    */
   async bind(payload: {
     estateId?: string;
@@ -70,12 +75,14 @@ export const cameraService = {
     password?: string;
   }) {
     const res = await API.post("/facility/cameras/bind", payload);
-    return res.data as { ok: boolean; camera: BoundCamera };
+    return res.data as {
+      ok: boolean;
+      camera: BoundCamera;
+    };
   },
 
   /**
-   * ▶️ HLS stream URL (browser playback)
-   * Backend:
+   * HLS stream URL
    * GET /facility/cameras/:cameraId/hls.m3u8
    */
   hlsUrl(cameraId: string) {
