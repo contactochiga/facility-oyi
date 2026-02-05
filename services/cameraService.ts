@@ -33,9 +33,14 @@ export const cameraService = {
   },
 
   async listByEstate(estateId: string) {
-    const res = await API.get(`/cameras/estate/${estateId}`);
-    return res.data;
-  },
+  const res = await API.get(`/cameras/estate/${encodeURIComponent(estateId)}`);
+  return res.data;
+},
+
+hlsUrl(cameraId: string) {
+  const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+  return `${base}/cameras/${encodeURIComponent(cameraId)}/hls.m3u8`;
+},
 
   async bind(payload: {
     estateId?: string;
