@@ -42,14 +42,16 @@ export default function CameraPlayer({
         setSrc(url);
       } catch (e: any) {
         if (!alive) return;
-        const msg = e?.response?.data?.error || e?.message || "Failed to load stream token";
+        const msg =
+          e?.response?.data?.error ||
+          e?.message ||
+          "Failed to load stream token";
         setErr(String(msg));
+        setSrc("");
       }
     }
 
     refreshTokenAndSrc();
-
-    // token is 2 mins on backend; refresh every 60s to stay safe
     timer = setInterval(refreshTokenAndSrc, 60_000);
 
     return () => {
@@ -63,7 +65,6 @@ export default function CameraPlayer({
     let hls: any;
 
     async function mount() {
-      setErr((prev) => prev); // keep err if any
       const video = videoRef.current;
       if (!video || !src) return;
 
@@ -97,6 +98,9 @@ export default function CameraPlayer({
           enableWorker: true,
           lowLatencyMode: true,
           backBufferLength: 30,
+          xhrSetup: (xhr: XMLHttpRequest) => {
+            xhr.withCredentials = true;
+          },
         });
 
         hls.attachMedia(video);
@@ -139,6 +143,7 @@ export default function CameraPlayer({
         muted={muted}
         playsInline
         poster={poster}
+        crossOrigin="use-credentials"
       />
       {err && (
         <div className="px-3 py-2 text-xs text-red-200 bg-red-500/10 border-t border-red-500/20">
