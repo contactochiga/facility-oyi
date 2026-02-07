@@ -47,10 +47,18 @@ export const cameraService = {
     return res.data as { ok: boolean; camera: BoundCamera };
   },
 
-  // ⚠️ This ONLY builds a URL. It does NOT add auth headers.
-  hlsUrl(cameraId: string) {
+  // ✅ NEW: Get short-lived HLS token (Bearer auth works here)
+  async getHlsToken(cameraId: string) {
+    const res = await API.get(`/cameras/${encodeURIComponent(cameraId)}/hls-token`);
+    return res.data as { ok: boolean; token: string; expires_in: number };
+  },
+
+  // ✅ Build HLS URL with signed query token
+  hlsUrl(cameraId: string, token: string) {
     const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-    return `${base}/cameras/${encodeURIComponent(cameraId)}/hls.m3u8`;
+    return `${base}/cameras/${encodeURIComponent(cameraId)}/hls.m3u8?token=${encodeURIComponent(
+      token
+    )}`;
   },
 };
 
