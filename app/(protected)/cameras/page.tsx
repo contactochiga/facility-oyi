@@ -197,7 +197,7 @@ export default function CamerasPage() {
                 <div className="text-xs text-zinc-500">Live</div>
               </div>
 
-              <CameraPlayer src={cameraService.hlsUrl(c.id)} />
+              <CameraPlayer cameraId={c.id} />
             </div>
           ))}
         </div>
