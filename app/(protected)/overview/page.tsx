@@ -355,7 +355,7 @@ export default function OverviewPage() {
   const latestPosts = (communityItems || []).slice(0, 3);
 
   const activeCam = cameras.find((c: BoundCamera) => c.id === activeCameraId) || null;
-  const activeHls = activeCam ? cameraService.hlsUrl(activeCam.id) : null;
+  const activeHls = activeCam ? activeCam.id : null;
 
   return (
     <div className="space-y-7">
