@@ -25,6 +25,7 @@ import Link from "next/link";
 
 // ✅ Cameras
 import { cameraService, type BoundCamera } from "@/services/cameraService";
+import CameraPlayer from "@/components/cameras/CameraPlayer";
 
 function series(seed = 10) {
   const now = Date.now();
@@ -76,7 +77,7 @@ function when(iso?: string | null) {
 }
 
 // ------------------------------------
-// ✅ Minimal HLS player (no extra UI)
+// ✅ Minimal HLS player (kept as-is)
 // ------------------------------------
 function HlsVideo({ src }: { src: string }) {
   const ref = useRef<HTMLVideoElement | null>(null);
@@ -246,10 +247,7 @@ export default function OverviewPage() {
       if (!activeCameraId && items[0]?.id) setActiveCameraId(items[0].id);
 
       // if selected camera no longer exists, reset
-      if (
-        activeCameraId &&
-        !items.some((c: BoundCamera) => c.id === activeCameraId)
-      ) {
+      if (activeCameraId && !items.some((c: BoundCamera) => c.id === activeCameraId)) {
         setActiveCameraId(items[0]?.id || null);
       }
     } catch (e: any) {
@@ -278,8 +276,7 @@ export default function OverviewPage() {
       const { status, msg } = extractErr(e);
 
       const lower = msg.toLowerCase();
-      const looksLikeNotLinked =
-        lower.includes("estate not linked") || status === 400;
+      const looksLikeNotLinked = lower.includes("estate not linked") || status === 400;
 
       if (looksLikeNotLinked) {
         const eid = await hydrateEstateFromMembership();
@@ -354,7 +351,10 @@ export default function OverviewPage() {
 
   const latestPosts = (communityItems || []).slice(0, 3);
 
-  const activeCam = cameras.find((c: BoundCamera) => c.id === activeCameraId) || null;
+  const activeCam =
+    cameras.find((c: BoundCamera) => c.id === activeCameraId) || null;
+
+  // ✅ FIX: this should be a CAMERA ID (CameraPlayer will fetch token + play)
   const activeHls = activeCam ? activeCam.id : null;
 
   return (
@@ -524,7 +524,8 @@ export default function OverviewPage() {
               {/* Stream */}
               <div className="lg:col-span-2">
                 {activeHls ? (
-                  <HlsVideo src={activeHls} />
+                  // ✅ FIX: Use CameraPlayer so it fetches hls-token + plays
+                  <CameraPlayer cameraId={activeHls} />
                 ) : (
                   <div className="rounded-xl border border-white/10 bg-black/30 p-6 text-sm text-zinc-400">
                     Select a camera to preview.
