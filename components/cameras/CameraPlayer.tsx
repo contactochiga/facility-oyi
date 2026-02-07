@@ -2,22 +2,24 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import cameraService from "@/services/cameraService";
 
 type Props = {
-  src: string;
+  cameraId: string;
   poster?: string;
   muted?: boolean;
   autoPlay?: boolean;
 };
 
 export default function CameraPlayer({
-  src,
+  cameraId,
   poster,
   muted = true,
   autoPlay = true,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [src, setSrc] = useState<string>("");
 
   const isHlsNative = useMemo(() => {
     if (typeof document === "undefined") return false;
@@ -25,19 +27,54 @@ export default function CameraPlayer({
     return v.canPlayType("application/vnd.apple.mpegurl") !== "";
   }, []);
 
+  // ✅ Fetch token + build src, refresh every 60s
+  useEffect(() => {
+    let alive = true;
+    let timer: any = null;
+
+    async function refreshTokenAndSrc() {
+      try {
+        setErr(null);
+        const res = await cameraService.getHlsToken(cameraId);
+        if (!alive) return;
+
+        const url = cameraService.hlsUrl(cameraId, res.token);
+        setSrc(url);
+      } catch (e: any) {
+        if (!alive) return;
+        const msg = e?.response?.data?.error || e?.message || "Failed to load stream token";
+        setErr(String(msg));
+      }
+    }
+
+    refreshTokenAndSrc();
+
+    // token is 2 mins on backend; refresh every 60s to stay safe
+    timer = setInterval(refreshTokenAndSrc, 60_000);
+
+    return () => {
+      alive = false;
+      if (timer) clearInterval(timer);
+    };
+  }, [cameraId]);
+
+  // ✅ Mount HLS playback whenever src changes
   useEffect(() => {
     let hls: any;
 
     async function mount() {
-      setErr(null);
+      setErr((prev) => prev); // keep err if any
       const video = videoRef.current;
-      if (!video) return;
+      if (!video || !src) return;
 
-      video.pause();
-      video.removeAttribute("src");
-      video.load();
+      // reset
+      try {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      } catch {}
 
-      // ✅ Safari / iOS native HLS (cookies will be sent if crossOrigin is set)
+      // ✅ Safari native HLS
       if (isHlsNative) {
         video.src = src;
         try {
@@ -46,6 +83,7 @@ export default function CameraPlayer({
         return;
       }
 
+      // ✅ Non-safari via hls.js
       try {
         const mod = await import("hls.js");
         const Hls = mod.default;
@@ -59,11 +97,6 @@ export default function CameraPlayer({
           enableWorker: true,
           lowLatencyMode: true,
           backBufferLength: 30,
-
-          // ✅ IMPORTANT: send cookies with playlist/segment requests
-          xhrSetup: (xhr: XMLHttpRequest) => {
-            xhr.withCredentials = true;
-          },
         });
 
         hls.attachMedia(video);
@@ -106,11 +139,15 @@ export default function CameraPlayer({
         muted={muted}
         playsInline
         poster={poster}
-        crossOrigin="use-credentials"   // ✅ IMPORTANT
       />
       {err && (
         <div className="px-3 py-2 text-xs text-red-200 bg-red-500/10 border-t border-red-500/20">
           {err}
+        </div>
+      )}
+      {!err && !src && (
+        <div className="px-3 py-2 text-xs text-zinc-300 bg-white/5 border-t border-white/10">
+          Loading stream…
         </div>
       )}
     </div>
