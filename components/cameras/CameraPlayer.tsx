@@ -9,6 +9,10 @@ type Props = {
   poster?: string;
   muted?: boolean;
   autoPlay?: boolean;
+
+  // NEW
+  controls?: boolean;
+  variant?: "hero" | "tile";
 };
 
 export default function CameraPlayer({
@@ -16,6 +20,8 @@ export default function CameraPlayer({
   poster,
   muted = true,
   autoPlay = true,
+  controls = true,
+  variant = "tile",
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -135,21 +141,28 @@ export default function CameraPlayer({
   }, [src, autoPlay, isHlsNative]);
 
   return (
-    <div className="rounded-xl overflow-hidden border border-white/10 bg-black">
+    <div
+      className={[
+        "overflow-hidden border border-white/10 bg-black",
+        variant === "hero" ? "rounded-2xl" : "rounded-xl",
+      ].join(" ")}
+    >
       <video
         ref={videoRef}
-        className="w-full aspect-video bg-black"
-        controls
+        className="w-full aspect-video bg-black object-cover"
+        controls={controls}
         muted={muted}
         playsInline
         poster={poster}
         crossOrigin="use-credentials"
       />
+
       {err && (
         <div className="px-3 py-2 text-xs text-red-200 bg-red-500/10 border-t border-red-500/20">
           {err}
         </div>
       )}
+
       {!err && !src && (
         <div className="px-3 py-2 text-xs text-zinc-300 bg-white/5 border-t border-white/10">
           Loading stream…
