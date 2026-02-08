@@ -77,7 +77,7 @@ function when(iso?: string | null) {
 }
 
 // ------------------------------------
-// ✅ Minimal HLS player (kept as-is)
+// ✅ Minimal HLS player (kept as-is; not used by Live Cameras now)
 // ------------------------------------
 function HlsVideo({ src }: { src: string }) {
   const ref = useRef<HTMLVideoElement | null>(null);
@@ -90,19 +90,16 @@ function HlsVideo({ src }: { src: string }) {
       const video = ref.current;
       if (!video) return;
 
-      // If Safari / iOS supports HLS natively
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
         return;
       }
 
-      // Otherwise use hls.js
       const mod = await import("hls.js");
       if (cancelled) return;
 
       const Hls = mod.default;
       if (!Hls.isSupported()) {
-        // fallback: try set src anyway
         video.src = src;
         return;
       }
@@ -237,8 +234,6 @@ export default function OverviewPage() {
 
     try {
       const res = await cameraService.listByEstate(estate);
-
-      // ✅ TS FIX: force proper typing so `.some()` callback isn't `any`
       const items: BoundCamera[] = Array.isArray(res?.items) ? res.items : [];
 
       setCameras(items);
@@ -247,7 +242,10 @@ export default function OverviewPage() {
       if (!activeCameraId && items[0]?.id) setActiveCameraId(items[0].id);
 
       // if selected camera no longer exists, reset
-      if (activeCameraId && !items.some((c: BoundCamera) => c.id === activeCameraId)) {
+      if (
+        activeCameraId &&
+        !items.some((c: BoundCamera) => c.id === activeCameraId)
+      ) {
         setActiveCameraId(items[0]?.id || null);
       }
     } catch (e: any) {
@@ -354,8 +352,13 @@ export default function OverviewPage() {
   const activeCam =
     cameras.find((c: BoundCamera) => c.id === activeCameraId) || null;
 
-  // ✅ FIX: this should be a CAMERA ID (CameraPlayer will fetch token + play)
-  const activeHls = activeCam ? activeCam.id : null;
+  const activeCamId = activeCam ? activeCam.id : null;
+
+  // tiles: 3 others besides active
+  const tileCams = useMemo(() => {
+    const rest = cameras.filter((c) => c.id !== activeCameraId);
+    return rest.slice(0, 3);
+  }, [cameras, activeCameraId]);
 
   return (
     <div className="space-y-7">
@@ -489,18 +492,9 @@ export default function OverviewPage() {
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                onClick={() => loadCameras(estateId)}
-                disabled={!estateId || cameraLoading}
-              >
-                {cameraLoading ? "Checking..." : "Refresh"}
-              </Button>
-
-              <Link href="/devices">
-                <Button variant="ghost">Manage Devices</Button>
-              </Link>
+            {/* ✅ Removed: Refresh + Manage Devices (you said no need) */}
+            <div className="text-xs text-zinc-500">
+              {cameraLoading ? "Loading…" : cameras.length ? `${cameras.length} camera(s)` : ""}
             </div>
           </div>
 
@@ -516,18 +510,22 @@ export default function OverviewPage() {
             </div>
           ) : cameras.length === 0 && !cameraLoading ? (
             <div className="mt-4 text-sm text-zinc-400">
-              No cameras bound yet. Go to <span className="text-zinc-200">Devices → ONVIF</span>{" "}
-              and add cameras, then bind them.
+              No cameras bound yet. Add cameras in Devices, then bind them.
             </div>
           ) : (
             <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Stream */}
+              {/* HERO */}
               <div className="lg:col-span-2">
-                {activeHls ? (
-                  // ✅ FIX: Use CameraPlayer so it fetches hls-token + plays
-                  <CameraPlayer cameraId={activeHls} />
+                {activeCamId ? (
+                  <CameraPlayer
+                    cameraId={activeCamId}
+                    variant="hero"
+                    controls={true}
+                    muted={true}
+                    autoPlay={true}
+                  />
                 ) : (
-                  <div className="rounded-xl border border-white/10 bg-black/30 p-6 text-sm text-zinc-400">
+                  <div className="rounded-2xl border border-white/10 bg-black/30 p-6 text-sm text-zinc-400">
                     Select a camera to preview.
                   </div>
                 )}
@@ -542,33 +540,48 @@ export default function OverviewPage() {
                 )}
               </div>
 
-              {/* Camera list */}
-              <div className="space-y-2">
-                <div className="text-xs text-zinc-500">Cameras ({cameras.length})</div>
+              {/* TILES */}
+              <div className="space-y-3">
+                <div className="text-xs text-zinc-500">Live feeds</div>
 
-                <div className="space-y-2 max-h-[320px] overflow-auto pr-1">
-                  {cameras.map((c: BoundCamera) => {
-                    const active = c.id === activeCameraId;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => setActiveCameraId(c.id)}
-                        className={[
-                          "w-full text-left rounded-xl border px-4 py-3 transition",
-                          active
-                            ? "border-emerald-500/30 bg-emerald-500/10"
-                            : "border-white/10 bg-black/20 hover:bg-black/30",
-                        ].join(" ")}
-                      >
-                        <div className="text-sm font-semibold text-white truncate">
-                          {c.name || c.ip}
-                        </div>
-                        <div className="text-[11px] text-zinc-500 mt-1">
-                          {c.ip} • RTSP saved • HLS proxy
-                        </div>
-                      </button>
-                    );
-                  })}
+                <div className="space-y-3">
+                  {/* If we have fewer than 2 cams total, show helpful note */}
+                  {cameras.length <= 1 ? (
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
+                      Add more cameras to unlock multi-view tiles.
+                    </div>
+                  ) : (
+                    <>
+                      {tileCams.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => setActiveCameraId(c.id)}
+                          className={[
+                            "w-full text-left rounded-xl border border-white/10 bg-black/20 hover:bg-black/30 transition overflow-hidden",
+                            "focus:outline-none focus:ring-2 focus:ring-white/10",
+                          ].join(" ")}
+                        >
+                          <div className="relative">
+                            <CameraPlayer
+                              cameraId={c.id}
+                              variant="tile"
+                              controls={false}
+                              muted={true}
+                              autoPlay={true}
+                            />
+                            <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
+                              <div className="truncate text-[12px] font-medium text-white/90 bg-black/40 border border-white/10 rounded-lg px-2 py-1">
+                                {c.name || c.ip}
+                              </div>
+                              <div className="text-[11px] text-white/70 bg-black/40 border border-white/10 rounded-lg px-2 py-1">
+                                Tap
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
