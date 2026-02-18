@@ -49,19 +49,10 @@ function StatusDot({ ok }: { ok: boolean | null }) {
   );
 }
 
-function Logo({ size = 18 }: { size?: number }) {
+function Logo({ size = 34 }: { size?: number }) {
   return (
-    <span
-      className="relative inline-block shrink-0"
-      style={{ width: size, height: size }}
-    >
-      <Image
-        src={LOGO_SRC}
-        alt="Oyi"
-        fill
-        priority
-        className="object-contain"
-      />
+    <span className="relative inline-block shrink-0" style={{ width: size, height: size }}>
+      <Image src={LOGO_SRC} alt="Oyi" fill priority className="object-contain" />
     </span>
   );
 }
@@ -90,7 +81,6 @@ function InfraSvg() {
         </filter>
       </defs>
 
-      {/* skyline blocks */}
       <g filter="url(#blur)">
         <path
           d="M80 560V420h70v140H80Z M180 560V360h95v200h-95Z M305 560V310h70v250h-70Z
@@ -100,14 +90,8 @@ function InfraSvg() {
         />
       </g>
 
-      {/* horizon line */}
-      <path
-        d="M40 560H1160"
-        stroke="rgba(255,255,255,0.22)"
-        strokeWidth="2"
-      />
+      <path d="M40 560H1160" stroke="rgba(255,255,255,0.22)" strokeWidth="2" />
 
-      {/* network lines */}
       <path
         d="M120 520 C260 430, 420 610, 560 520 S860 460, 1040 520"
         stroke="rgba(59,130,246,0.45)"
@@ -119,7 +103,6 @@ function InfraSvg() {
         strokeWidth="2"
       />
 
-      {/* nodes */}
       {[
         [120, 520],
         [180, 480],
@@ -202,13 +185,8 @@ function LoginInner() {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
         <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-8">
-          <div className="flex items-center gap-2">
-            <Logo size={22} />
-            <div className="text-xl font-semibold tracking-tight text-white">
-              Oyi Facility
-            </div>
-          </div>
-          <div className="text-white/50 mt-2">Loading…</div>
+          <div className="text-xl font-semibold tracking-tight text-white">Oyi Facility</div>
+          <div className="text-white/50 mt-1">Loading…</div>
         </div>
       </div>
     );
@@ -230,8 +208,8 @@ function LoginInner() {
         {/* LEFT */}
         <div className="lg:col-span-7 px-6 py-10 lg:px-14 lg:py-14 flex items-center">
           <div className="max-w-2xl">
+            {/* ✅ NO LOGO HERE (only status dot + text) */}
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/70">
-              <Logo size={16} />
               <StatusDot ok={backendOk} />
               Facility Control Plane
               <span className="text-white/35">•</span>
@@ -260,9 +238,7 @@ function LoginInner() {
                   className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4"
                 >
                   <div className="text-xs text-white/55">{x.k}</div>
-                  <div className="mt-1 text-sm font-medium text-white/85">
-                    {x.v}
-                  </div>
+                  <div className="mt-1 text-sm font-medium text-white/85">{x.v}</div>
                 </div>
               ))}
             </div>
@@ -275,8 +251,15 @@ function LoginInner() {
 
         {/* RIGHT */}
         <div className="lg:col-span-5 px-6 py-10 lg:px-12 lg:py-14 flex items-center justify-center">
-          <div className="w-full max-w-md">
-            {/* ✅ logo header */}
+          <div className="w-full max-w-md relative">
+            {/* optional: faint logo watermark behind auth */}
+            <div className="pointer-events-none absolute -top-6 -right-4 opacity-[0.08]">
+              <div className="relative" style={{ width: 160, height: 160 }}>
+                <Image src={LOGO_SRC} alt="" fill className="object-contain" />
+              </div>
+            </div>
+
+            {/* ✅ ONLY LOGO LIVES HERE */}
             <div className="flex items-center gap-3">
               <Logo size={34} />
               <div>
@@ -289,9 +272,7 @@ function LoginInner() {
               </div>
             </div>
 
-            <div className="mt-6 text-white text-2xl font-semibold tracking-tight">
-              Sign in
-            </div>
+            <div className="mt-6 text-white text-2xl font-semibold tracking-tight">Sign in</div>
             <div className="mt-1 text-sm text-white/50">
               Operator access for the control plane.
             </div>
@@ -348,20 +329,8 @@ export default function LoginPage() {
       fallback={
         <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
           <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-8">
-            <div className="flex items-center gap-2">
-              <span className="relative inline-block" style={{ width: 22, height: 22 }}>
-                <Image
-                  src={LOGO_SRC}
-                  alt="Oyi"
-                  fill
-                  className="object-contain"
-                />
-              </span>
-              <div className="text-xl font-semibold tracking-tight text-white">
-                Oyi Facility
-              </div>
-            </div>
-            <div className="text-white/50 mt-2">Loading…</div>
+            <div className="text-xl font-semibold tracking-tight text-white">Oyi Facility</div>
+            <div className="text-white/50 mt-1">Loading…</div>
           </div>
         </div>
       }
