@@ -2,6 +2,7 @@
 "use client";
 
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { authService } from "@/services/authService";
@@ -10,6 +11,20 @@ import { useSessionStore } from "@/store/useSessionStore";
 import { setCookie, decodeToken, isExpired } from "@/lib/auth";
 
 type Step = "form" | "otp";
+
+const LOGO_SRC = "/oyi-logo-transparent.png";
+
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function Logo({ size = 34 }: { size?: number }) {
+  return (
+    <span className="relative inline-block shrink-0" style={{ width: size, height: size }}>
+      <Image src={LOGO_SRC} alt="Oyi" fill priority className="object-contain" />
+    </span>
+  );
+}
 
 function getApiBase() {
   return (
@@ -53,6 +68,31 @@ async function verifyOtp(email: string, code: string) {
   return data as { ok?: boolean; otpToken?: string; message?: string };
 }
 
+async function pingBackend() {
+  const API = getApiBase();
+  if (!API) return false;
+
+  try {
+    const res = await fetch(`${API}/health`, { method: "GET", cache: "no-store" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function StatusDot({ ok }: { ok: boolean | null }) {
+  const cls =
+    ok === null ? "bg-zinc-500" : ok ? "bg-emerald-500" : "bg-amber-500";
+  const title = ok === null ? "Checking…" : ok ? "Connected" : "Degraded";
+  return (
+    <span
+      className={cn("h-2 w-2 rounded-full", cls)}
+      title={title}
+      aria-label={title}
+    />
+  );
+}
+
 function formatMMSS(totalSeconds: number) {
   const s = Math.max(0, totalSeconds);
   const m = Math.floor(s / 60);
@@ -94,21 +134,68 @@ function ResendIcon({ className = "" }: { className?: string }) {
   );
 }
 
-function StatusDot({ ok }: { ok: boolean | null }) {
-  const title =
-    ok === null ? "Checking connection" : ok ? "Backend connected" : "Backend offline";
-
-  const cls =
-    ok === null
-      ? "bg-zinc-500"
-      : ok
-      ? "bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.12)]"
-      : "bg-red-400 shadow-[0_0_0_3px_rgba(248,113,113,0.12)]";
-
+/** simple inline svg "city / infra" background */
+function InfraSvg() {
   return (
-    <span className="inline-flex items-center gap-2" title={title} aria-label={title}>
-      <span className={`h-2.5 w-2.5 rounded-full ${cls}`} />
-    </span>
+    <svg
+      className="absolute -right-24 -bottom-20 w-[1200px] max-w-none opacity-[0.22]"
+      viewBox="0 0 1200 700"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="g1" x1="0" y1="0" x2="1200" y2="700">
+          <stop stopColor="rgba(59,130,246,0.55)" />
+          <stop offset="1" stopColor="rgba(14,165,233,0.10)" />
+        </linearGradient>
+        <linearGradient id="g2" x1="0" y1="700" x2="1200" y2="0">
+          <stop stopColor="rgba(99,102,241,0.30)" />
+          <stop offset="1" stopColor="rgba(59,130,246,0.05)" />
+        </linearGradient>
+        <filter id="blur" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6" />
+        </filter>
+      </defs>
+
+      <g filter="url(#blur)">
+        <path
+          d="M80 560V420h70v140H80Z M180 560V360h95v200h-95Z M305 560V310h70v250h-70Z
+             M395 560V280h120v280H395Z M545 560V350h85v210h-85Z M650 560V250h160v310H650Z
+             M835 560V330h95v230h-95Z M950 560V300h140v260H950Z"
+          fill="url(#g1)"
+        />
+      </g>
+
+      <path d="M40 560H1160" stroke="rgba(255,255,255,0.22)" strokeWidth="2" />
+
+      <path
+        d="M120 520 C260 430, 420 610, 560 520 S860 460, 1040 520"
+        stroke="rgba(59,130,246,0.45)"
+        strokeWidth="2"
+      />
+      <path
+        d="M120 520 L180 480 L240 520 L300 480 L360 520 L420 480 L480 520 L540 480 L600 520"
+        stroke="rgba(14,165,233,0.25)"
+        strokeWidth="2"
+      />
+
+      {[
+        [120, 520],
+        [180, 480],
+        [240, 520],
+        [300, 480],
+        [360, 520],
+        [420, 480],
+        [480, 520],
+        [540, 480],
+        [600, 520],
+        [860, 500],
+        [1040, 520],
+      ].map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r="4" fill="url(#g2)" />
+      ))}
+    </svg>
   );
 }
 
@@ -155,7 +242,7 @@ function Otp6({
               disabled={disabled}
               inputMode="numeric"
               maxLength={1}
-              className="h-12 w-full rounded-xl bg-white/5 border border-white/10 text-center text-lg font-semibold outline-none focus:border-white/25"
+              className="h-12 w-full rounded-xl bg-white/5 border border-white/10 text-center text-lg font-semibold outline-none focus:border-white/25 text-white"
               onChange={(e) => {
                 const next = e.target.value.replace(/\D/g, "").slice(0, 1);
                 setAt(i, next);
@@ -206,46 +293,26 @@ function SignupInner() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // single expiry timer
   const [expiresLeft, setExpiresLeft] = useState(0);
 
-  // resend lock (60s)
   const [resendLocked, setResendLocked] = useState(true);
   const resendUnlockRef = useRef<number | null>(null);
 
-  // backend status dot
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
 
   const cleanEmail = email.trim().toLowerCase();
 
-  // backend ping
   useEffect(() => {
-    const API = getApiBase();
-    if (!API) {
-      setBackendOk(false);
-      return;
-    }
-
-    let cancelled = false;
-    setBackendOk(null);
-
+    let alive = true;
     (async () => {
-      try {
-        const res = await fetch(`${API}/health`, { method: "GET" });
-        if (cancelled) return;
-        setBackendOk(res.ok);
-      } catch {
-        if (cancelled) return;
-        setBackendOk(false);
-      }
+      const ok = await pingBackend();
+      if (alive) setBackendOk(ok);
     })();
-
     return () => {
-      cancelled = true;
+      alive = false;
     };
   }, []);
 
-  // expiry tick
   useEffect(() => {
     if (step !== "otp") return;
     const t = window.setInterval(() => {
@@ -325,7 +392,6 @@ function SignupInner() {
         return;
       }
 
-      // ✅ verify and receive otpToken
       const v = await verifyOtp(cleanEmail, code);
       const otpToken = v?.otpToken;
 
@@ -334,7 +400,6 @@ function SignupInner() {
         return;
       }
 
-      // ✅ signup gated by otpToken
       const res = await authService.signup(cleanEmail, password, fullName.trim(), otpToken);
 
       if (res?.error || !res?.token) {
@@ -374,152 +439,236 @@ function SignupInner() {
   if (!mounted) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
-        <div className="glass w-full max-w-md p-8">
-          <div className="text-xl font-semibold tracking-tight">Oyi Facility</div>
-          <div className="muted mt-1">Loading…</div>
+        <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-8">
+          <div className="text-xl font-semibold tracking-tight text-white">Oyi Facility</div>
+          <div className="text-white/50 mt-1">Loading…</div>
         </div>
       </div>
     );
   }
 
-  const subtitle =
-    step === "form"
-      ? "Create your facility control account"
-      : "Enter the verification code we sent";
-
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
-      <div className="glass w-full max-w-md p-8 overflow-hidden">
-        <div className="text-xl font-semibold tracking-tight">Oyi Facility</div>
+    <div className="min-h-screen bg-zinc-950 relative overflow-hidden">
+      {/* BACKGROUND */}
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(1200px_800px_at_20%_15%,rgba(59,130,246,0.26),transparent_60%),radial-gradient(1000px_700px_at_80%_30%,rgba(14,165,233,0.16),transparent_55%),radial-gradient(900px_600px_at_50%_85%,rgba(99,102,241,0.12),transparent_60%)]" />
+        <InfraSvg />
+        <div className="absolute inset-0 opacity-[0.22] [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:46px_46px]" />
+        <div className="absolute inset-0 opacity-[0.10] [background-image:linear-gradient(to_bottom,transparent_0%,rgba(255,255,255,0.04)_50%,transparent_100%)] [background-size:100%_12px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_0%,rgba(0,0,0,0.55)_70%,rgba(0,0,0,0.88)_100%)]" />
+      </div>
 
-        <div className="mt-1 flex items-center justify-between">
-          <div className="muted">{subtitle}</div>
-          <StatusDot ok={backendOk} />
-        </div>
-
-        {/* Slide wrapper */}
-        <div
-          className={`mt-6 flex w-[200%] transition-transform duration-300 ease-out ${
-            step === "otp" ? "-translate-x-1/2" : "translate-x-0"
-          }`}
-        >
-          {/* FORM */}
-          <div className="w-1/2 pr-4">
-            <div className="space-y-3">
-              <Input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Full name"
-                type="text"
-                disabled={loading}
-              />
-              <Input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                type="email"
-                disabled={loading}
-              />
-              <Input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                type="password"
-                disabled={loading}
-              />
+      {/* CONTENT */}
+      <div className="relative z-10 min-h-screen grid grid-cols-1 lg:grid-cols-12">
+        {/* LEFT */}
+        <div className="lg:col-span-7 px-6 py-10 lg:px-14 lg:py-14 flex items-center">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/70">
+              <StatusDot ok={backendOk} />
+              Facility Control Plane
+              <span className="text-white/35">•</span>
+              <span className="text-white/55">command • observe • enforce</span>
             </div>
 
-            {err && (
-              <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                {err}
-              </div>
-            )}
+            <h1 className="mt-5 text-3xl md:text-5xl font-semibold tracking-tight text-white">
+              Operator onboarding.
+            </h1>
 
-            <Button
-              className="mt-5 w-full"
-              onClick={startOtp}
-              disabled={loading || !fullName.trim() || !email.trim() || !password}
-            >
-              {loading ? "Please wait..." : "Continue"}
-            </Button>
+            <p className="mt-4 text-sm md:text-base text-white/60 leading-relaxed">
+              Create a facility operator account to manage devices, access, visitors,
+              work orders, and community operations — with verification built in.
+            </p>
 
-            <div className="mt-6 text-xs text-zinc-500">
-              Already have an account?{" "}
-              <a
-                className="text-zinc-200 underline"
-                href={`/login?next=${encodeURIComponent(next)}`}
-              >
-                Sign in
-              </a>
+            <div className="mt-7 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { k: "Verified operators", v: "Email OTP gate before account creation" },
+                { k: "Secure sessions", v: "Cookie-based operator auth flow" },
+                { k: "Ops-first UI", v: "Designed for real facility operations" },
+                { k: "Fast activation", v: "Create account in under a minute" },
+              ].map((x) => (
+                <div
+                  key={x.k}
+                  className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4"
+                >
+                  <div className="text-xs text-white/55">{x.k}</div>
+                  <div className="mt-1 text-sm font-medium text-white/85">{x.v}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 text-[11px] text-white/45">
+              Operator console • secure cookies • infrastructure-grade workflow
             </div>
           </div>
+        </div>
 
-          {/* OTP */}
-          <div className="w-1/2 pl-4">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-sm text-zinc-300">We sent a 6-digit code to</div>
-              <div className="mt-1 text-sm font-medium text-white break-all underline underline-offset-4">
-                {cleanEmail || "—"}
+        {/* RIGHT */}
+        <div className="lg:col-span-5 px-6 py-10 lg:px-12 lg:py-14 flex items-center justify-center">
+          <div className="w-full max-w-md relative">
+            {/* faint watermark */}
+            <div className="pointer-events-none absolute -top-6 -right-4 opacity-[0.08]">
+              <div className="relative" style={{ width: 160, height: 160 }}>
+                <Image src={LOGO_SRC} alt="" fill className="object-contain" />
               </div>
-
-              <Otp6 value={otp} onChange={setOtp} disabled={loading} />
-
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <div className="text-xs text-zinc-400">
-                  Expires in {formatMMSS(expiresLeft)}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={resendNow}
-                  disabled={loading || resendLocked}
-                  className={`inline-flex items-center gap-2 rounded-lg px-2 py-1 text-xs transition ${
-                    loading || resendLocked
-                      ? "text-zinc-600 cursor-not-allowed"
-                      : "text-zinc-200 hover:bg-white/5"
-                  }`}
-                  aria-disabled={loading || resendLocked}
-                  title={resendLocked ? "You can resend after 1 minute" : "Resend code"}
-                >
-                  <ResendIcon className="opacity-90" />
-                  <span>Resend</span>
-                </button>
-              </div>
-
-              {err && (
-                <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                  {err}
-                </div>
-              )}
-
-              <Button
-                className="mt-5 w-full"
-                onClick={verifyAndCreate}
-                disabled={loading || otp.replace(/\D/g, "").length !== 6}
-              >
-                {loading ? "Verifying..." : "Verify & Create account"}
-              </Button>
-
-              <button
-                type="button"
-                onClick={changeEmail}
-                disabled={loading}
-                className={`mt-3 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium transition ${
-                  loading ? "opacity-50 cursor-not-allowed" : "hover:bg-white/10"
-                }`}
-              >
-                Change email
-              </button>
             </div>
 
-            <div className="mt-6 text-xs text-zinc-500">
-              Already have an account?{" "}
-              <a
-                className="text-zinc-200 underline"
-                href={`/login?next=${encodeURIComponent(next)}`}
-              >
-                Sign in
-              </a>
+            {/* header */}
+            <div className="flex items-center gap-3">
+              <Logo size={34} />
+              <div>
+                <div className="text-white text-lg font-semibold tracking-tight">
+                  Oyi Facility
+                </div>
+                <div className="text-[11px] text-white/45">
+                  operator onboarding • verification
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 text-white text-2xl font-semibold tracking-tight">
+              {step === "form" ? "Create account" : "Verify email"}
+            </div>
+            <div className="mt-1 text-sm text-white/50">
+              {step === "form"
+                ? "Create an operator account for the control plane."
+                : "Enter the 6-digit code sent to your email."}
+            </div>
+
+            {/* slide wrapper (your original mechanic) */}
+            <div
+              className={cn(
+                "mt-6 flex w-[200%] transition-transform duration-300 ease-out",
+                step === "otp" ? "-translate-x-1/2" : "translate-x-0"
+              )}
+            >
+              {/* FORM */}
+              <div className="w-1/2 pr-4">
+                <div className="space-y-3">
+                  <Input
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Full name"
+                    type="text"
+                    disabled={loading}
+                  />
+                  <Input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email"
+                    type="email"
+                    disabled={loading}
+                  />
+                  <Input
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Password"
+                    type="password"
+                    disabled={loading}
+                  />
+                </div>
+
+                {err && (
+                  <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                    {err}
+                  </div>
+                )}
+
+                <Button
+                  className="mt-5 w-full"
+                  onClick={startOtp}
+                  disabled={loading || !fullName.trim() || !email.trim() || !password}
+                >
+                  {loading ? "Please wait..." : "Continue"}
+                </Button>
+
+                <a
+                  className="mt-3 block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center text-sm text-white/80 hover:bg-white/10 transition"
+                  href={`/login?next=${encodeURIComponent(next)}`}
+                >
+                  I already have an account
+                </a>
+
+                <div className="mt-4 text-[11px] text-white/40">
+                  Tip: use a work email for operator accounts.
+                </div>
+              </div>
+
+              {/* OTP */}
+              <div className="w-1/2 pl-4">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm text-white/70">We sent a 6-digit code to</div>
+                  <div className="mt-1 text-sm font-medium text-white break-all underline underline-offset-4">
+                    {cleanEmail || "—"}
+                  </div>
+
+                  <Otp6 value={otp} onChange={setOtp} disabled={loading} />
+
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="text-xs text-white/55">
+                      Expires in {formatMMSS(expiresLeft)}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={resendNow}
+                      disabled={loading || resendLocked}
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-lg px-2 py-1 text-xs transition",
+                        loading || resendLocked
+                          ? "text-white/30 cursor-not-allowed"
+                          : "text-white/80 hover:bg-white/5"
+                      )}
+                      aria-disabled={loading || resendLocked}
+                      title={resendLocked ? "You can resend after 1 minute" : "Resend code"}
+                    >
+                      <ResendIcon className="opacity-90" />
+                      <span>Resend</span>
+                    </button>
+                  </div>
+
+                  {err && (
+                    <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                      {err}
+                    </div>
+                  )}
+
+                  <Button
+                    className="mt-5 w-full"
+                    onClick={verifyAndCreate}
+                    disabled={loading || otp.replace(/\D/g, "").length !== 6}
+                  >
+                    {loading ? "Verifying..." : "Verify & Create account"}
+                  </Button>
+
+                  <button
+                    type="button"
+                    onClick={changeEmail}
+                    disabled={loading}
+                    className={cn(
+                      "mt-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium transition",
+                      loading ? "opacity-50 cursor-not-allowed" : "hover:bg-white/10",
+                      "text-white/85"
+                    )}
+                  >
+                    Change email
+                  </button>
+                </div>
+
+                <a
+                  className="mt-3 block w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-center text-sm text-white/80 hover:bg-black/30 transition"
+                  href={`/login?next=${encodeURIComponent(next)}`}
+                >
+                  Back to sign in
+                </a>
+
+                <div className="mt-4 text-[11px] text-white/40">
+                  If you don’t see the email, check spam/junk folders.
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 text-center text-[11px] text-white/35">
+              Oyi Facility • Infrastructure-grade operations console
             </div>
           </div>
         </div>
@@ -533,9 +682,9 @@ export default function SignupPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
-          <div className="glass w-full max-w-md p-8">
-            <div className="text-xl font-semibold tracking-tight">Oyi Facility</div>
-            <div className="muted mt-1">Loading…</div>
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-8">
+            <div className="text-xl font-semibold tracking-tight text-white">Oyi Facility</div>
+            <div className="text-white/50 mt-1">Loading…</div>
           </div>
         </div>
       }
