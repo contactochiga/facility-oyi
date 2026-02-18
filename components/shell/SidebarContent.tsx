@@ -6,7 +6,7 @@ import {
   LayoutDashboard,
   Cpu,
   Wrench,
-  Users,
+  Shield,
   Wallet,
   MessagesSquare,
   ConciergeBell,
@@ -20,16 +20,17 @@ type Item = {
   href: string;
   label: string;
   icon: any;
-  // optional extra match for nested routes
   startsWith?: string[];
 };
 
 const items: Item[] = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard, startsWith: ["/overview"] },
-  // adjust this href ONLY if your real route differs
   { href: "/devices", label: "Hardware Devices", icon: Cpu, startsWith: ["/devices", "/hardware", "/hardware-devices"] },
   { href: "/maintenance", label: "Maintenance", icon: Wrench, startsWith: ["/maintenance"] },
-  { href: "/visitors", label: "Visitors", icon: Users, startsWith: ["/visitors"] },
+
+  // ✅ renamed (route stays /visitors so nothing breaks)
+  { href: "/visitors", label: "Security", icon: Shield, startsWith: ["/visitors", "/security"] },
+
   { href: "/wallets", label: "Wallets", icon: Wallet, startsWith: ["/wallet", "/wallets"] },
   { href: "/community", label: "Community", icon: MessagesSquare, startsWith: ["/community"] },
   { href: "/facility-services", label: "Facility Services", icon: ConciergeBell, startsWith: ["/facility", "/facility-services"] },
@@ -46,7 +47,6 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
   return (
     <div className="flex h-full flex-col">
-      {/* NAV */}
       <nav className="p-4 space-y-1">
         {items.map((it) => {
           const Icon = it.icon;
@@ -71,13 +71,11 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
         })}
       </nav>
 
-      {/* ✅ Keep bottom space clean (no Admin User footer) */}
+      {/* If you want ZERO bottom card, delete this whole block */}
       <div className="mt-auto p-4">
         <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
           <div className="text-xs text-zinc-400">Signed in</div>
-          <div className="mt-1 text-sm text-zinc-200 truncate">
-            Facility operator
-          </div>
+          <div className="mt-1 text-sm text-zinc-200 truncate">Facility operator</div>
         </div>
       </div>
     </div>
