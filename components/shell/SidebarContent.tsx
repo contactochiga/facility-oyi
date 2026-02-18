@@ -1,215 +1,85 @@
-// components/shell/SidebarContent.tsx
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { jwtDecode } from "jwt-decode";
-import { FiChevronDown, FiChevronUp, FiLogOut } from "react-icons/fi";
-import { MdOutlinePerson, MdSettings } from "react-icons/md";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  Cpu,
+  Wrench,
+  Users,
+  Wallet,
+  MessagesSquare,
+  ConciergeBell,
+} from "lucide-react";
 
-const NAV = [
-  { href: "/overview", label: "Overview" },
-  { href: "/devices", label: "Hardware Devices" },
-  { href: "/maintenance", label: "Maintenance" },
-  { href: "/visitors", label: "Visitors" },
-  { href: "/wallets", label: "Wallets" },
-  { href: "/community", label: "Community" },
-  { href: "/services", label: "Facility Services" },
-];
-
-// --- tiny cookie helpers ---
-function getCookie(name: string) {
-  if (typeof document === "undefined") return null;
-  const m = document.cookie.match(
-    new RegExp(`(?:^|; )${name.replace(/[$()*+.?[\\\]^{|}-]/g, "\\$&")}=([^;]*)`)
-  );
-  return m ? decodeURIComponent(m[1]) : null;
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
 }
 
-function deleteCookie(name: string) {
-  if (typeof document === "undefined") return;
-  document.cookie = `${name}=; Max-Age=0; path=/; SameSite=Lax`;
-}
-
-type Decoded = {
-  email?: string;
-  username?: string;
-  name?: string;
-  role?: string;
-  id?: string;
+type Item = {
+  href: string;
+  label: string;
+  icon: any;
+  // optional extra match for nested routes
+  startsWith?: string[];
 };
+
+const items: Item[] = [
+  { href: "/overview", label: "Overview", icon: LayoutDashboard, startsWith: ["/overview"] },
+  // adjust this href ONLY if your real route differs
+  { href: "/devices", label: "Hardware Devices", icon: Cpu, startsWith: ["/devices", "/hardware", "/hardware-devices"] },
+  { href: "/maintenance", label: "Maintenance", icon: Wrench, startsWith: ["/maintenance"] },
+  { href: "/visitors", label: "Visitors", icon: Users, startsWith: ["/visitors"] },
+  { href: "/wallets", label: "Wallets", icon: Wallet, startsWith: ["/wallet", "/wallets"] },
+  { href: "/community", label: "Community", icon: MessagesSquare, startsWith: ["/community"] },
+  { href: "/facility-services", label: "Facility Services", icon: ConciergeBell, startsWith: ["/facility", "/facility-services"] },
+];
 
 export default function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const router = useRouter();
 
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-  // ✅ Facility-only token selection (prevents consumer "resident" token leaking)
-  const token = useMemo(() => {
-    if (typeof window === "undefined") return null;
-    return (
-      getCookie("oyi_facility_token") ||
-      getCookie("facility_token") ||
-      localStorage.getItem("oyi_facility_token") ||
-      localStorage.getItem("facility_token")
-    );
-  }, []);
-
-  const decoded = useMemo<Decoded | null>(() => {
-    if (!token) return null;
-    try {
-      return jwtDecode<Decoded>(token);
-    } catch {
-      return null;
-    }
-  }, [token]);
-
-  const displayName =
-    decoded?.username ||
-    decoded?.name ||
-    (decoded?.email ? decoded.email.split("@")[0] : null) ||
-    "Operator";
-
-  const displayEmail = decoded?.email || "Account";
-
-  const initials = useMemo(() => {
-    const s = (displayName || "O").trim();
-    return s ? s[0].toUpperCase() : "O";
-  }, [displayName]);
-
-  const closeAll = () => {
-    setProfileOpen(false);
-    setShowLogoutConfirm(false);
-    onNavigate?.();
-  };
-
-  const goToAccount = (tab?: "profile" | "settings") => {
-    closeAll();
-    router.push(tab ? `/account?tab=${tab}` : "/account");
-  };
-
-  const logout = () => {
-    // ✅ clear ONLY facility auth
-    deleteCookie("oyi_facility_token");
-    deleteCookie("facility_token");
-
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("oyi_facility_token");
-      localStorage.removeItem("facility_token");
-      localStorage.removeItem("token");
-    }
-
-    closeAll();
-
-    // ✅ your login route is /login (app/(auth)/login/page.tsx)
-    router.replace("/login");
-  };
+  function isActive(it: Item) {
+    if (pathname === it.href) return true;
+    if (it.startsWith?.some((p) => pathname?.startsWith(p))) return true;
+    return false;
+  }
 
   return (
     <div className="flex h-full flex-col">
       {/* NAV */}
-      <nav className="px-4 pb-6 pt-4 space-y-1">
-        {NAV.map((n) => {
-          const active = pathname === n.href || pathname.startsWith(`${n.href}/`);
+      <nav className="p-4 space-y-1">
+        {items.map((it) => {
+          const Icon = it.icon;
+          const active = isActive(it);
 
           return (
             <Link
-              key={n.href}
-              href={n.href}
+              key={it.href}
+              href={it.href}
               onClick={onNavigate}
-              className={`block rounded-xl px-4 py-3 text-sm transition ${
-                active ? "bg-white/10 text-white" : "text-zinc-300 hover:bg-white/5"
-              }`}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
+                active
+                  ? "bg-blue-600 text-white"
+                  : "text-zinc-400 hover:bg-white/5 hover:text-white"
+              )}
             >
-              {n.label}
+              <Icon size={20} className={cn(active ? "opacity-100" : "opacity-90")} />
+              <span className="text-sm font-medium">{it.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      {/* FOOTER ACCOUNT AREA */}
-      <div className="mt-auto">
-        <div className="px-4 pb-5 border-t border-white/10 bg-black/30">
-          <div className="pt-5 flex items-center gap-2">
-            {/* ✅ Make the left block take remaining space so arrow never shifts */}
-            <button
-              onClick={() => goToAccount("profile")}
-              className="flex items-center gap-3 flex-1 min-w-0"
-            >
-              <div className="w-12 h-12 rounded-full bg-[#E11D2E] flex items-center justify-center text-white font-semibold shrink-0">
-                {initials}
-              </div>
-
-              {/* ✅ Role removed. Name + Email only. */}
-              <div className="text-left min-w-0">
-                <p className="text-white text-sm font-semibold truncate">{displayName}</p>
-                <p className="text-white/50 text-xs truncate">{displayEmail}</p>
-              </div>
-            </button>
-
-            {/* ✅ Arrow pinned right */}
-            <button
-              onClick={() => setProfileOpen((v) => !v)}
-              className="text-white/70 shrink-0 rounded-lg p-2 hover:bg-white/5"
-              aria-label="Toggle account menu"
-            >
-              {profileOpen ? <FiChevronUp /> : <FiChevronDown />}
-            </button>
+      {/* ✅ Keep bottom space clean (no Admin User footer) */}
+      <div className="mt-auto p-4">
+        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+          <div className="text-xs text-zinc-400">Signed in</div>
+          <div className="mt-1 text-sm text-zinc-200 truncate">
+            Facility operator
           </div>
-
-          {profileOpen && (
-            <div className="mt-3 bg-gray-900 border border-white/10 rounded-xl overflow-hidden">
-              <button
-                onClick={() => goToAccount("profile")}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition text-white"
-              >
-                <MdOutlinePerson /> Profile
-              </button>
-
-              <button
-                onClick={() => goToAccount("settings")}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition text-white"
-              >
-                <MdSettings /> Settings
-              </button>
-
-              <button
-                onClick={() => setShowLogoutConfirm(true)}
-                className="w-full flex items-center gap-3 px-4 py-3 text-[#E11D2E] hover:bg-gray-800 transition"
-              >
-                <FiLogOut /> Logout
-              </button>
-            </div>
-          )}
         </div>
       </div>
-
-      {/* LOGOUT CONFIRM */}
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur flex items-center justify-center px-6">
-          <div className="bg-gray-900 p-6 rounded-2xl w-full max-w-sm border border-gray-700">
-            <p className="text-white text-center font-semibold text-lg mb-6">
-              Logout from Facility Control?
-            </p>
-
-            <div className="flex gap-4">
-              <button
-                onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-3 rounded-xl bg-gray-700 text-white"
-              >
-                Cancel
-              </button>
-
-              <button onClick={logout} className="flex-1 py-3 rounded-xl bg-[#E11D2E] text-white">
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
