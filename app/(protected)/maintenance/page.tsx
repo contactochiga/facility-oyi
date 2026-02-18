@@ -1,4 +1,3 @@
-// app/(protected)/maintenance/page.tsx
 "use client";
 
 import Topbar from "@/components/shell/Topbar";
@@ -10,6 +9,13 @@ import {
 } from "@/services/maintenanceService";
 import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import {
+  Wrench,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  Plus,
+} from "lucide-react";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -24,10 +30,14 @@ function safeLower(v: any) {
 
 function statusTone(status: string) {
   const s = safeLower(status);
-  if (s === "resolved" || s === "closed") return "text-emerald-200 bg-emerald-500/10 border-emerald-500/20";
-  if (s === "in_progress" || s === "assigned") return "text-amber-200 bg-amber-500/10 border-amber-500/20";
-  if (s === "open" || s === "new") return "text-sky-200 bg-sky-500/10 border-sky-500/20";
-  if (s === "cancelled") return "text-zinc-200 bg-white/5 border-white/10";
+  if (s === "resolved" || s === "closed")
+    return "text-emerald-200 bg-emerald-500/10 border-emerald-500/20";
+  if (s === "in_progress" || s === "assigned")
+    return "text-sky-200 bg-sky-500/10 border-sky-500/20";
+  if (s === "open" || s === "new")
+    return "text-amber-200 bg-amber-500/10 border-amber-500/20";
+  if (s === "cancelled")
+    return "text-zinc-200 bg-white/5 border-white/10";
   return "text-zinc-200 bg-white/5 border-white/10";
 }
 
@@ -35,7 +45,7 @@ function priorityTone(p: Priority) {
   const v = safeLower(p);
   if (v === "urgent") return "text-red-200 bg-red-500/10 border-red-500/20";
   if (v === "high") return "text-amber-200 bg-amber-500/10 border-amber-500/20";
-  if (v === "medium") return "text-zinc-200 bg-white/5 border-white/10";
+  if (v === "medium") return "text-sky-200 bg-sky-500/10 border-sky-500/20";
   if (v === "low") return "text-emerald-200 bg-emerald-500/10 border-emerald-500/20";
   return "text-zinc-200 bg-white/5 border-white/10";
 }
@@ -54,8 +64,6 @@ function formatAgo(isoLike: any) {
 }
 
 function getLocationLabel(item: any) {
-  // We don't know your exact schema, so we safely stitch the best signal we can.
-  // If you later add `home_name`, `unit`, `block`, `zone`, `room_name`, etc. this will auto-render.
   const parts = [
     item?.zone,
     item?.block,
@@ -72,17 +80,14 @@ function getLocationLabel(item: any) {
 
   if (parts.length) return parts.join(" • ");
 
-  // fallback: if you only have IDs today
   const homeId = item?.home_id ? `Home ${String(item.home_id).slice(0, 6)}…` : "";
   const roomId = item?.room_id ? `Room ${String(item.room_id).slice(0, 6)}…` : "";
   const estateId = item?.estate_id ? `Estate ${String(item.estate_id).slice(0, 6)}…` : "";
-
   const fallback = [homeId, roomId, estateId].filter(Boolean).join(" • ");
   return fallback || "—";
 }
 
 function getRequesterLabel(item: any) {
-  // If you later join and expose resident info, it will show here.
   const name =
     item?.resident_name ||
     item?.resident?.name ||
@@ -101,6 +106,41 @@ function getRequesterLabel(item: any) {
   if (cleanEmail) return cleanEmail;
   if (id) return `Resident ${String(id).slice(0, 6)}…`;
   return "—";
+}
+
+/** UI-only card, local to this page (no new dependency) */
+function MetricCard({
+  title,
+  value,
+  sub,
+  Icon,
+  iconClass,
+}: {
+  title: string;
+  value: string | number;
+  sub?: string;
+  Icon: any;
+  iconClass?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs text-white/50">{title}</div>
+          <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
+          {sub ? <div className="mt-2 text-xs text-white/45">{sub}</div> : null}
+        </div>
+        <div
+          className={cn(
+            "h-10 w-10 rounded-xl border border-white/10 bg-black/20 flex items-center justify-center",
+            iconClass
+          )}
+        >
+          <Icon size={18} />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function MaintenancePage() {
@@ -133,6 +173,7 @@ export default function MaintenancePage() {
       inProg = 0,
       resolved = 0;
     let high = 0;
+    let urgent = 0;
 
     for (const it of items as any[]) {
       const s = safeLower(it?.status);
@@ -141,10 +182,58 @@ export default function MaintenancePage() {
       else if (s === "resolved") resolved += 1;
 
       const p = safeLower(it?.priority);
+      if (p === "urgent") urgent += 1;
       if (p === "high" || p === "urgent") high += 1;
     }
 
-    return { total, open, inProg, resolved, high };
+    // These are “operator-style” KPIs that match your sample UI
+    const pendingTasks = open;
+    const inProgress = inProg;
+    const completedToday = resolved; // keep simple until you have resolved_at per day
+    const criticalIssues = urgent;
+
+    return {
+      total,
+      open,
+      inProg,
+      resolved,
+      high,
+      urgent,
+      pendingTasks,
+      inProgress,
+      completedToday,
+      criticalIssues,
+    };
+  }, [items]);
+
+  const activeTasks = useMemo(() => {
+    const arr = [...(items as any[])];
+    // prioritize urgent/high, then newest
+    arr.sort((a, b) => {
+      const pa = safeLower(a?.priority);
+      const pb = safeLower(b?.priority);
+      const score = (p: string) =>
+        p === "urgent" ? 3 : p === "high" ? 2 : p === "medium" ? 1 : 0;
+      const s = score(pb) - score(pa);
+      if (s !== 0) return s;
+      const ta = new Date(a?.created_at || 0).getTime();
+      const tb = new Date(b?.created_at || 0).getTime();
+      return tb - ta;
+    });
+
+    return arr.slice(0, 5);
+  }, [items]);
+
+  const recentCompletions = useMemo(() => {
+    const resolved = (items as any[]).filter(
+      (x) => safeLower(x?.status) === "resolved" || safeLower(x?.status) === "closed"
+    );
+    resolved.sort((a, b) => {
+      const ta = new Date(a?.updated_at || a?.resolved_at || a?.created_at || 0).getTime();
+      const tb = new Date(b?.updated_at || b?.resolved_at || b?.created_at || 0).getTime();
+      return tb - ta;
+    });
+    return resolved.slice(0, 4);
   }, [items]);
 
   const columns = useMemo<ColumnDef<MaintenanceItem>[]>(
@@ -217,11 +306,7 @@ export default function MaintenancePage() {
         header: "Requester",
         cell: ({ row }) => {
           const it: any = row.original;
-          return (
-            <div className="text-sm text-zinc-300">
-              {getRequesterLabel(it)}
-            </div>
-          );
+          return <div className="text-sm text-zinc-300">{getRequesterLabel(it)}</div>;
         },
       },
       {
@@ -229,10 +314,7 @@ export default function MaintenancePage() {
         header: "",
         cell: ({ row }) => (
           <div className="flex justify-end">
-            <Button
-              variant="ghost"
-              onClick={() => setSelected(row.original)}
-            >
+            <Button variant="ghost" onClick={() => setSelected(row.original)}>
               Open
             </Button>
           </div>
@@ -251,14 +333,23 @@ export default function MaintenancePage() {
 
   const selectedAny: any = selected;
 
+  // Safe placeholder (UI only). When you wire real asset registry, replace this.
+  const equipmentStatus = [
+    { category: "Elevators", total: 16, operational: 15, maintenance: 1, faulty: 0 },
+    { category: "HVAC Units", total: 24, operational: 22, maintenance: 2, faulty: 0 },
+    { category: "Fire Systems", total: 8, operational: 8, maintenance: 0, faulty: 0 },
+    { category: "Water Systems", total: 12, operational: 11, maintenance: 1, faulty: 0 },
+    { category: "Electrical", total: 32, operational: 30, maintenance: 2, faulty: 0 },
+  ];
+
   return (
     <div className="space-y-7">
       <Topbar
-        title="Maintenance Command"
-        subtitle="Work orders • routing • assignments • audit"
+        title="Facility Maintenance"
+        subtitle="Work orders • assignments • status tracking"
       />
 
-      {/* Lane tabs + actions */}
+      {/* Tabs + actions */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           {laneTabs.map((t) => {
@@ -282,121 +373,238 @@ export default function MaintenancePage() {
           })}
         </div>
 
-        <Button variant="ghost" onClick={load} disabled={loading}>
-          {loading ? "Refreshing..." : "Refresh"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => alert("Wire: create maintenance task")}
+          >
+            <span className="inline-flex items-center gap-2">
+              <Plus size={16} />
+              Create Task
+            </span>
+          </Button>
+
+          <Button variant="ghost" onClick={load} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh"}
+          </Button>
+        </div>
       </div>
 
-      {/* Command overview (operator snapshot) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-          <div className="text-xs text-zinc-400">Workload</div>
-          <div className="mt-2 text-2xl font-semibold text-zinc-100">
-            {stats.total} request(s)
-          </div>
-          <div className="mt-2 text-sm text-zinc-400">
-            High priority: <span className="text-zinc-200">{stats.high}</span>
-          </div>
+      {/* Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard
+          title="Pending Tasks"
+          value={stats.pendingTasks}
+          sub={stats.high ? `${stats.high} high priority` : "No high priority"}
+          Icon={Clock}
+          iconClass="text-amber-200"
+        />
+        <MetricCard
+          title="In Progress"
+          value={stats.inProgress}
+          sub={stats.inProgress ? "Active teams working" : "No active work"}
+          Icon={Wrench}
+          iconClass="text-sky-200"
+        />
+        <MetricCard
+          title="Completed"
+          value={stats.resolved}
+          sub="Resolved tickets"
+          Icon={CheckCircle}
+          iconClass="text-emerald-200"
+        />
+        <MetricCard
+          title="Critical Issues"
+          value={stats.criticalIssues}
+          sub={stats.criticalIssues ? "Needs immediate attention" : "No critical issues"}
+          Icon={AlertCircle}
+          iconClass="text-red-200"
+        />
+      </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            {[
-              { k: "Open", v: stats.open },
-              { k: "In Prog", v: stats.inProg },
-              { k: "Resolved", v: stats.resolved },
-            ].map((x) => (
-              <div
-                key={x.k}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-3"
-              >
-                <div className="text-[11px] text-zinc-400">{x.k}</div>
-                <div className="mt-1 text-sm text-zinc-200 font-medium">
-                  {x.v}
-                </div>
+      {/* Main panels */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Active tasks */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-lg font-semibold text-white">
+                Active Maintenance Tasks
               </div>
-            ))}
+              <div className="mt-1 text-sm text-white/50">
+                Live work orders being handled by the facility team.
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              onClick={() => alert("Wire: create maintenance task")}
+            >
+              Create Task
+            </Button>
           </div>
 
-          <div className="mt-4 text-[11px] text-zinc-400">
-            Next: wire “Assignments” + “SLA timers” when you’re ready. This page already has the command layout.
+          <div className="mt-5 space-y-3">
+            {activeTasks.length === 0 ? (
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
+                No tasks in this lane yet.
+              </div>
+            ) : (
+              activeTasks.map((task: any) => {
+                const p = task?.priority ?? "medium";
+                const s = task?.status ?? "open";
+                const id = task?.id ? String(task.id) : "—";
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setSelected(task)}
+                    className="w-full text-left rounded-xl border border-white/10 bg-black/20 hover:bg-black/30 transition p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-white truncate">
+                          {String(task?.title ?? "Maintenance Request")}
+                        </div>
+                        <div className="mt-1 text-xs text-white/45">
+                          ID: {String(id)}
+                          <span className="text-white/20"> • </span>
+                          {getLocationLabel(task)}
+                        </div>
+                      </div>
+
+                      <span
+                        className={cn(
+                          "px-2 py-1 rounded-full border text-xs shrink-0",
+                          priorityTone(p)
+                        )}
+                      >
+                        {String(p)}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={cn(
+                            "px-2 py-1 rounded-full border",
+                            statusTone(s)
+                          )}
+                        >
+                          {String(s)}
+                        </span>
+                        <span className="text-white/45">
+                          Requested {formatAgo(task?.created_at)}
+                        </span>
+                      </div>
+                      <span className="text-white/45">Open</span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
 
-        <div className="lg:col-span-5 rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-          <div className="text-xs text-zinc-400">Operator actions</div>
-          <div className="mt-2 text-base font-semibold text-zinc-100">
-            Response shortcuts
+        {/* Equipment status */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-6">
+          <div className="text-lg font-semibold text-white">Equipment Status</div>
+          <div className="mt-1 text-sm text-white/50">
+            Operational overview (wire to asset registry when ready).
           </div>
 
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {[
-              {
-                title: "Assign technician",
-                desc: "Route ticket to a technician/team",
-                onClick: () => alert("Wire to assignment modal"),
-              },
-              {
-                title: "Broadcast update",
-                desc: "Notify resident about progress",
-                onClick: () => alert("Wire to notifications composer"),
-              },
-              {
-                title: "Escalate to facility",
-                desc: "Raise severity + add supervisor",
-                onClick: () => alert("Wire to escalation flow"),
-              },
-              {
-                title: "Export log",
-                desc: "Download operational report",
-                onClick: () => alert("Wire to export endpoint"),
-              },
-            ].map((x) => (
+          <div className="mt-5 space-y-4">
+            {equipmentStatus.map((eq) => {
+              const opW = (eq.operational / eq.total) * 100;
+              const mW = (eq.maintenance / eq.total) * 100;
+              const fW = (eq.faulty / eq.total) * 100;
+
+              return (
+                <div key={eq.category}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-white/90">
+                      {eq.category}
+                    </span>
+                    <span className="text-sm text-white/45">
+                      {eq.operational}/{eq.total}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-white/10">
+                    <div className="bg-emerald-500" style={{ width: `${opW}%` }} />
+                    <div className="bg-amber-500" style={{ width: `${mW}%` }} />
+                    <div className="bg-red-500" style={{ width: `${fW}%` }} />
+                  </div>
+
+                  <div className="flex items-center gap-4 mt-2 text-xs flex-wrap">
+                    <span className="flex items-center gap-1 text-emerald-300">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      {eq.operational} Operational
+                    </span>
+                    {eq.maintenance > 0 ? (
+                      <span className="flex items-center gap-1 text-amber-300">
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                        {eq.maintenance} Maintenance
+                      </span>
+                    ) : null}
+                    {eq.faulty > 0 ? (
+                      <span className="flex items-center gap-1 text-red-300">
+                        <span className="w-2 h-2 rounded-full bg-red-500" />
+                        {eq.faulty} Faulty
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Recently completed (from real items) */}
+      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-6">
+        <div className="flex items-center gap-2">
+          <CheckCircle className="text-emerald-300" size={18} />
+          <div className="text-lg font-semibold text-white">Recently Completed</div>
+        </div>
+        <div className="mt-1 text-sm text-white/50">
+          Closed work orders — quick audit trail.
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {recentCompletions.length === 0 ? (
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
+              No completed tasks in this lane yet.
+            </div>
+          ) : (
+            recentCompletions.map((it: any) => (
               <button
-                key={x.title}
+                key={String(it?.id ?? Math.random())}
                 type="button"
-                onClick={x.onClick}
-                className="text-left rounded-2xl border border-white/10 bg-black/20 hover:bg-black/30 transition p-4"
+                onClick={() => setSelected(it)}
+                className="text-left rounded-xl border border-white/10 bg-black/20 hover:bg-black/30 transition p-4"
               >
-                <div className="text-sm font-semibold text-zinc-100">
-                  {x.title}
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <CheckCircle className="text-emerald-300" size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-white truncate">
+                      {String(it?.title ?? "Resolved maintenance request")}
+                    </div>
+                    <div className="mt-1 text-xs text-white/45">
+                      {getLocationLabel(it)}
+                      <span className="text-white/20"> • </span>
+                      {formatAgo(it?.updated_at || it?.resolved_at || it?.created_at)}
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-1 text-sm text-zinc-400">{x.desc}</div>
               </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="lg:col-span-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-          <div className="text-xs text-zinc-400">Routing signals</div>
-          <div className="mt-2 text-base font-semibold text-zinc-100">
-            What’s missing now
-          </div>
-
-          <div className="mt-4 space-y-3 text-sm text-zinc-400">
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <div className="text-zinc-200 font-medium">Location (Unit/Zone)</div>
-              <div className="mt-1">
-                Add join/fields so each ticket shows exact apartment/zone.
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <div className="text-zinc-200 font-medium">Assignment</div>
-              <div className="mt-1">
-                assigned_to + technician directory for routing.
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <div className="text-zinc-200 font-medium">SLA</div>
-              <div className="mt-1">
-                timers + escalation thresholds.
-              </div>
-            </div>
-          </div>
+            ))
+          )}
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table (kept exactly) */}
       <DataTable
         data={items}
         columns={columns}
@@ -404,13 +612,10 @@ export default function MaintenancePage() {
         searchKey={"title"}
       />
 
-      {/* Details drawer/modal */}
+      {/* Details modal (kept exactly, just fits new look) */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-          <div
-            className="absolute inset-0 bg-black/70"
-            onClick={() => setSelected(null)}
-          />
+          <div className="absolute inset-0 bg-black/70" onClick={() => setSelected(null)} />
           <div className="relative w-full max-w-3xl rounded-2xl border border-white/10 bg-zinc-950/70 backdrop-blur p-6">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -418,7 +623,8 @@ export default function MaintenancePage() {
                   {String((selectedAny?.title ?? "Maintenance Request") as any)}
                 </div>
                 <div className="mt-1 text-sm text-zinc-400">
-                  From: <span className="text-zinc-200">{getLocationLabel(selectedAny)}</span>
+                  From:{" "}
+                  <span className="text-zinc-200">{getLocationLabel(selectedAny)}</span>
                 </div>
               </div>
 
@@ -468,36 +674,40 @@ export default function MaintenancePage() {
               <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                 <div className="text-xs text-zinc-400">Identifiers</div>
                 <div className="mt-2 text-[12px] text-zinc-300 space-y-1">
-                  <div>ticket_id: <span className="text-zinc-200">{String(selectedAny?.id ?? "-")}</span></div>
-                  <div>estate_id: <span className="text-zinc-200">{String(selectedAny?.estate_id ?? "-")}</span></div>
-                  <div>home_id: <span className="text-zinc-200">{String(selectedAny?.home_id ?? "-")}</span></div>
-                  <div>room_id: <span className="text-zinc-200">{String(selectedAny?.room_id ?? "-")}</span></div>
+                  <div>
+                    ticket_id:{" "}
+                    <span className="text-zinc-200">{String(selectedAny?.id ?? "-")}</span>
+                  </div>
+                  <div>
+                    estate_id:{" "}
+                    <span className="text-zinc-200">{String(selectedAny?.estate_id ?? "-")}</span>
+                  </div>
+                  <div>
+                    home_id:{" "}
+                    <span className="text-zinc-200">{String(selectedAny?.home_id ?? "-")}</span>
+                  </div>
+                  <div>
+                    room_id:{" "}
+                    <span className="text-zinc-200">{String(selectedAny?.room_id ?? "-")}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="mt-5 flex justify-end gap-2 flex-wrap">
-              <Button
-                variant="ghost"
-                onClick={() => alert("Wire: set status = in_progress")}
-              >
+              <Button variant="ghost" onClick={() => alert("Wire: set status = in_progress")}>
                 Mark In Progress
               </Button>
-              <Button
-                variant="ghost"
-                onClick={() => alert("Wire: assign technician")}
-              >
+              <Button variant="ghost" onClick={() => alert("Wire: assign technician")}>
                 Assign
               </Button>
-              <Button
-                onClick={() => alert("Wire: set status = resolved")}
-              >
+              <Button onClick={() => alert("Wire: set status = resolved")}>
                 Resolve
               </Button>
             </div>
 
             <div className="mt-4 text-[11px] text-zinc-500">
-              Note: Once your API returns unit/zone/home names, this modal will immediately show the exact apartment.
+              Note: once your API returns unit/zone/home names + assigned_to, this screen becomes full command-grade.
             </div>
           </div>
         </div>
