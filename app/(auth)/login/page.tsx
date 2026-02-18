@@ -2,6 +2,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { authService } from "@/services/authService";
@@ -12,6 +13,8 @@ import { setCookie, decodeToken, isExpired } from "@/lib/auth";
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
+
+const LOGO_SRC = "/oyi-logo-transparent.png";
 
 function getApiBase() {
   return (
@@ -43,6 +46,23 @@ function StatusDot({ ok }: { ok: boolean | null }) {
       title={title}
       aria-label={title}
     />
+  );
+}
+
+function Logo({ size = 18 }: { size?: number }) {
+  return (
+    <span
+      className="relative inline-block shrink-0"
+      style={{ width: size, height: size }}
+    >
+      <Image
+        src={LOGO_SRC}
+        alt="Oyi"
+        fill
+        priority
+        className="object-contain"
+      />
+    </span>
   );
 }
 
@@ -123,7 +143,6 @@ function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
 
-  // ✅ Hydration guard
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -138,7 +157,6 @@ function LoginInner() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // ✅ connectivity dot (hidden meaning)
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   useEffect(() => {
     let alive = true;
@@ -184,10 +202,13 @@ function LoginInner() {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
         <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-8">
-          <div className="text-xl font-semibold tracking-tight text-white">
-            Oyi Facility
+          <div className="flex items-center gap-2">
+            <Logo size={22} />
+            <div className="text-xl font-semibold tracking-tight text-white">
+              Oyi Facility
+            </div>
           </div>
-          <div className="text-white/50 mt-1">Loading…</div>
+          <div className="text-white/50 mt-2">Loading…</div>
         </div>
       </div>
     );
@@ -197,19 +218,10 @@ function LoginInner() {
     <div className="min-h-screen bg-zinc-950 relative overflow-hidden">
       {/* BACKGROUND */}
       <div className="absolute inset-0">
-        {/* base gradient */}
         <div className="absolute inset-0 bg-[radial-gradient(1200px_800px_at_20%_15%,rgba(59,130,246,0.26),transparent_60%),radial-gradient(1000px_700px_at_80%_30%,rgba(14,165,233,0.16),transparent_55%),radial-gradient(900px_600px_at_50%_85%,rgba(99,102,241,0.12),transparent_60%)]" />
-
-        {/* infra svg */}
         <InfraSvg />
-
-        {/* grid */}
         <div className="absolute inset-0 opacity-[0.22] [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:46px_46px]" />
-
-        {/* scanline */}
         <div className="absolute inset-0 opacity-[0.10] [background-image:linear-gradient(to_bottom,transparent_0%,rgba(255,255,255,0.04)_50%,transparent_100%)] [background-size:100%_12px]" />
-
-        {/* vignette */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_0%,rgba(0,0,0,0.55)_70%,rgba(0,0,0,0.88)_100%)]" />
       </div>
 
@@ -218,8 +230,8 @@ function LoginInner() {
         {/* LEFT */}
         <div className="lg:col-span-7 px-6 py-10 lg:px-14 lg:py-14 flex items-center">
           <div className="max-w-2xl">
-            {/* badge with hidden connectivity dot */}
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/70">
+              <Logo size={16} />
               <StatusDot ok={backendOk} />
               Facility Control Plane
               <span className="text-white/35">•</span>
@@ -236,7 +248,6 @@ function LoginInner() {
               ops, not dashboards that look pretty and do nothing.
             </p>
 
-            {/* feature bullets */}
             <div className="mt-7 grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
                 { k: "Ops visibility", v: "System health + live activity lanes" },
@@ -262,17 +273,29 @@ function LoginInner() {
           </div>
         </div>
 
-        {/* RIGHT: no card, just clean auth block */}
+        {/* RIGHT */}
         <div className="lg:col-span-5 px-6 py-10 lg:px-12 lg:py-14 flex items-center justify-center">
           <div className="w-full max-w-md">
-            <div className="text-white text-2xl font-semibold tracking-tight">
+            {/* ✅ logo header */}
+            <div className="flex items-center gap-3">
+              <Logo size={34} />
+              <div>
+                <div className="text-white text-lg font-semibold tracking-tight">
+                  Oyi Facility
+                </div>
+                <div className="text-[11px] text-white/45">
+                  operator access • control plane
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 text-white text-2xl font-semibold tracking-tight">
               Sign in
             </div>
             <div className="mt-1 text-sm text-white/50">
               Operator access for the control plane.
             </div>
 
-            {/* Inputs */}
             <div className="mt-6 space-y-3">
               <Input
                 value={email}
@@ -294,8 +317,6 @@ function LoginInner() {
               </div>
             )}
 
-            {/* Blue vibe: if your Button uses theme, it will be blue already.
-                If Button is variant-based, set variant="primary" and ensure primary=blue in your UI. */}
             <Button
               className="mt-5 w-full"
               onClick={submit}
@@ -327,10 +348,20 @@ export default function LoginPage() {
       fallback={
         <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-5">
           <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-8">
-            <div className="text-xl font-semibold tracking-tight text-white">
-              Oyi Facility
+            <div className="flex items-center gap-2">
+              <span className="relative inline-block" style={{ width: 22, height: 22 }}>
+                <Image
+                  src={LOGO_SRC}
+                  alt="Oyi"
+                  fill
+                  className="object-contain"
+                />
+              </span>
+              <div className="text-xl font-semibold tracking-tight text-white">
+                Oyi Facility
+              </div>
             </div>
-            <div className="text-white/50 mt-1">Loading…</div>
+            <div className="text-white/50 mt-2">Loading…</div>
           </div>
         </div>
       }
