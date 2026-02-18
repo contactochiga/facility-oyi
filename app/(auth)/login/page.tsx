@@ -26,14 +26,97 @@ async function pingBackend() {
   if (!API) return false;
 
   try {
-    const res = await fetch(`${API}/health`, {
-      method: "GET",
-      cache: "no-store",
-    });
+    const res = await fetch(`${API}/health`, { method: "GET", cache: "no-store" });
     return res.ok;
   } catch {
     return false;
   }
+}
+
+function StatusDot({ ok }: { ok: boolean | null }) {
+  const cls =
+    ok === null ? "bg-zinc-500" : ok ? "bg-emerald-500" : "bg-amber-500";
+  const title = ok === null ? "Checking…" : ok ? "Connected" : "Degraded";
+  return (
+    <span
+      className={cn("h-2 w-2 rounded-full", cls)}
+      title={title}
+      aria-label={title}
+    />
+  );
+}
+
+/** simple inline svg "city / infra" background */
+function InfraSvg() {
+  return (
+    <svg
+      className="absolute -right-24 -bottom-20 w-[1200px] max-w-none opacity-[0.22]"
+      viewBox="0 0 1200 700"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="g1" x1="0" y1="0" x2="1200" y2="700">
+          <stop stopColor="rgba(59,130,246,0.55)" />
+          <stop offset="1" stopColor="rgba(14,165,233,0.10)" />
+        </linearGradient>
+        <linearGradient id="g2" x1="0" y1="700" x2="1200" y2="0">
+          <stop stopColor="rgba(99,102,241,0.30)" />
+          <stop offset="1" stopColor="rgba(59,130,246,0.05)" />
+        </linearGradient>
+        <filter id="blur" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6" />
+        </filter>
+      </defs>
+
+      {/* skyline blocks */}
+      <g filter="url(#blur)">
+        <path
+          d="M80 560V420h70v140H80Z M180 560V360h95v200h-95Z M305 560V310h70v250h-70Z
+             M395 560V280h120v280H395Z M545 560V350h85v210h-85Z M650 560V250h160v310H650Z
+             M835 560V330h95v230h-95Z M950 560V300h140v260H950Z"
+          fill="url(#g1)"
+        />
+      </g>
+
+      {/* horizon line */}
+      <path
+        d="M40 560H1160"
+        stroke="rgba(255,255,255,0.22)"
+        strokeWidth="2"
+      />
+
+      {/* network lines */}
+      <path
+        d="M120 520 C260 430, 420 610, 560 520 S860 460, 1040 520"
+        stroke="rgba(59,130,246,0.45)"
+        strokeWidth="2"
+      />
+      <path
+        d="M120 520 L180 480 L240 520 L300 480 L360 520 L420 480 L480 520 L540 480 L600 520"
+        stroke="rgba(14,165,233,0.25)"
+        strokeWidth="2"
+      />
+
+      {/* nodes */}
+      {[
+        [120, 520],
+        [180, 480],
+        [240, 520],
+        [300, 480],
+        [360, 520],
+        [420, 480],
+        [480, 520],
+        [540, 480],
+        [600, 520],
+        [860, 500],
+        [1040, 520],
+      ].map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r="4" fill="url(#g2)" />
+      ))}
+    </svg>
+  );
 }
 
 function LoginInner() {
@@ -55,7 +138,7 @@ function LoginInner() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // ✅ backend status dot
+  // ✅ connectivity dot (hidden meaning)
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   useEffect(() => {
     let alive = true;
@@ -112,33 +195,32 @@ function LoginInner() {
 
   return (
     <div className="min-h-screen bg-zinc-950 relative overflow-hidden">
-      {/* -----------------------------------
-          BACKGROUND: "arrogant" command vibe
-      ------------------------------------ */}
+      {/* BACKGROUND */}
       <div className="absolute inset-0">
         {/* base gradient */}
-        <div className="absolute inset-0 bg-[radial-gradient(1200px_800px_at_20%_15%,rgba(59,130,246,0.22),transparent_60%),radial-gradient(1000px_700px_at_80%_30%,rgba(56,189,248,0.14),transparent_55%),radial-gradient(900px_600px_at_50%_85%,rgba(99,102,241,0.12),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(1200px_800px_at_20%_15%,rgba(59,130,246,0.26),transparent_60%),radial-gradient(1000px_700px_at_80%_30%,rgba(14,165,233,0.16),transparent_55%),radial-gradient(900px_600px_at_50%_85%,rgba(99,102,241,0.12),transparent_60%)]" />
+
+        {/* infra svg */}
+        <InfraSvg />
 
         {/* grid */}
-        <div className="absolute inset-0 opacity-[0.25] [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:46px_46px]" />
+        <div className="absolute inset-0 opacity-[0.22] [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:46px_46px]" />
 
-        {/* subtle scanline */}
+        {/* scanline */}
         <div className="absolute inset-0 opacity-[0.10] [background-image:linear-gradient(to_bottom,transparent_0%,rgba(255,255,255,0.04)_50%,transparent_100%)] [background-size:100%_12px]" />
 
         {/* vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_0%,rgba(0,0,0,0.55)_70%,rgba(0,0,0,0.85)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_0%,rgba(0,0,0,0.55)_70%,rgba(0,0,0,0.88)_100%)]" />
       </div>
 
-      {/* -----------------------------------
-          LAYOUT
-      ------------------------------------ */}
+      {/* CONTENT */}
       <div className="relative z-10 min-h-screen grid grid-cols-1 lg:grid-cols-12">
-        {/* LEFT: Brand / narrative panel */}
+        {/* LEFT */}
         <div className="lg:col-span-7 px-6 py-10 lg:px-14 lg:py-14 flex items-center">
           <div className="max-w-2xl">
-            {/* top badge */}
+            {/* badge with hidden connectivity dot */}
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/70">
-              <span className="h-2 w-2 rounded-full bg-sky-400" />
+              <StatusDot ok={backendOk} />
               Facility Control Plane
               <span className="text-white/35">•</span>
               <span className="text-white/55">command • observe • enforce</span>
@@ -174,120 +256,63 @@ function LoginInner() {
               ))}
             </div>
 
-            {/* bottom trust line */}
-            <div className="mt-8 flex items-center gap-3 text-[11px] text-white/45">
-              <span className="inline-flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
-                Secure session cookies
-              </span>
-              <span className="text-white/25">•</span>
-              <span className="inline-flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
-                Operator-grade UI
-              </span>
-              <span className="text-white/25">•</span>
-              <span className="inline-flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
-                Live backend checks
-              </span>
+            <div className="mt-8 text-[11px] text-white/45">
+              Operator console • secure cookies • infrastructure-grade workflow
             </div>
           </div>
         </div>
 
-        {/* RIGHT: Auth card */}
+        {/* RIGHT: no card, just clean auth block */}
         <div className="lg:col-span-5 px-6 py-10 lg:px-12 lg:py-14 flex items-center justify-center">
           <div className="w-full max-w-md">
-            {/* Floating card */}
-            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-7 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_25px_80px_-25px_rgba(0,0,0,0.8)]">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-white text-xl font-semibold tracking-tight">
-                    Sign in
-                  </div>
-                  <div className="mt-1 text-sm text-white/50">
-                    Operator access for the control plane.
-                  </div>
-                </div>
-
-                {/* backend status */}
-                <div className="flex items-center gap-2 pt-1">
-                  <span className="text-[11px] text-white/40">Backend</span>
-                  <span
-                    className={cn(
-                      "h-2.5 w-2.5 rounded-full",
-                      backendOk === null
-                        ? "bg-zinc-500"
-                        : backendOk
-                        ? "bg-emerald-500"
-                        : "bg-red-500"
-                    )}
-                    title={
-                      backendOk === null
-                        ? "Checking…"
-                        : backendOk
-                        ? "Connected"
-                        : "Not connected"
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Inputs */}
-              <div className="mt-6 space-y-3">
-                <Input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email"
-                  type="email"
-                />
-                <Input
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                  type="password"
-                />
-              </div>
-
-              {/* Error */}
-              {err && (
-                <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                  {err}
-                </div>
-              )}
-
-              {/* Submit */}
-              <Button
-                className="mt-5 w-full"
-                onClick={submit}
-                disabled={loading || !email || !password}
-              >
-                {loading ? "Signing in..." : "Sign in"}
-              </Button>
-
-              {/* Divider */}
-              <div className="mt-6 flex items-center gap-3">
-                <div className="h-px flex-1 bg-white/10" />
-                <div className="text-[11px] text-white/35">or</div>
-                <div className="h-px flex-1 bg-white/10" />
-              </div>
-
-              {/* Create account */}
-              <a
-                className="mt-4 block w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-center text-sm text-white/80 hover:bg-black/30 transition"
-                href={`/signup?next=${encodeURIComponent(next)}`}
-              >
-                Create an operator account
-              </a>
-
-              {/* micro-footnote */}
-              <div className="mt-4 text-[11px] text-white/40">
-                Tip: use your facility operator credentials. Consumer logins won’t work here.
-              </div>
+            <div className="text-white text-2xl font-semibold tracking-tight">
+              Sign in
+            </div>
+            <div className="mt-1 text-sm text-white/50">
+              Operator access for the control plane.
             </div>
 
-            {/* bottom legal / brand line */}
-            <div className="mt-6 text-center text-[11px] text-white/35">
-              Oyi Facility • Infrastructure-grade operations console
+            {/* Inputs */}
+            <div className="mt-6 space-y-3">
+              <Input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                type="email"
+              />
+              <Input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                type="password"
+              />
+            </div>
+
+            {err && (
+              <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {err}
+              </div>
+            )}
+
+            {/* Blue vibe: if your Button uses theme, it will be blue already.
+                If Button is variant-based, set variant="primary" and ensure primary=blue in your UI. */}
+            <Button
+              className="mt-5 w-full"
+              onClick={submit}
+              disabled={loading || !email || !password}
+            >
+              {loading ? "Signing in..." : "Sign in"}
+            </Button>
+
+            <a
+              className="mt-3 block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center text-sm text-white/80 hover:bg-white/10 transition"
+              href={`/signup?next=${encodeURIComponent(next)}`}
+            >
+              Create an operator account
+            </a>
+
+            <div className="mt-5 text-[11px] text-white/40">
+              Use facility operator credentials. Consumer logins won’t work here.
             </div>
           </div>
         </div>
