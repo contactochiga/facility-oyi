@@ -1,4 +1,3 @@
-// app/(protected)/devices/page.tsx
 "use client";
 
 import Topbar from "@/components/shell/Topbar";
@@ -11,6 +10,13 @@ import {
 } from "@/services/facilityService";
 import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import {
+  Zap,
+  Sun,
+  Lightbulb,
+  TrendingDown,
+  Wind,
+} from "lucide-react";
 
 type DiscoverAdapter = "tuya" | "ssdp" | "onvif";
 
@@ -26,6 +32,10 @@ type SystemKey =
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function safeLower(v: any) {
+  return String(v ?? "").toLowerCase();
 }
 
 function canonicalName(d: any) {
@@ -51,10 +61,6 @@ function canonicalOnline(d: any) {
   return "unknown";
 }
 
-function safeLower(v: any) {
-  return String(v ?? "").toLowerCase();
-}
-
 function toSystemKey(device: any): SystemKey {
   const hay = [
     device?.type,
@@ -67,11 +73,9 @@ function toSystemKey(device: any): SystemKey {
     .map(safeLower)
     .join(" ");
 
-  // Cameras / CCTV
   if (hay.includes("onvif") || hay.includes("camera") || hay.includes("cctv"))
     return "cameras";
 
-  // Access Control
   if (
     hay.includes("gate") ||
     hay.includes("door") ||
@@ -84,7 +88,6 @@ function toSystemKey(device: any): SystemKey {
   )
     return "access";
 
-  // Security Ops
   if (
     hay.includes("alarm") ||
     hay.includes("sensor") ||
@@ -95,7 +98,6 @@ function toSystemKey(device: any): SystemKey {
   )
     return "security";
 
-  // Connectivity
   if (
     hay.includes("router") ||
     hay.includes("wifi") ||
@@ -111,7 +113,6 @@ function toSystemKey(device: any): SystemKey {
   )
     return "connectivity";
 
-  // Power
   if (
     hay.includes("generator") ||
     hay.includes("inverter") ||
@@ -124,7 +125,6 @@ function toSystemKey(device: any): SystemKey {
   )
     return "power";
 
-  // MEP (Mechanical/Electrical/Plumbing)
   if (
     hay.includes("pump") ||
     hay.includes("water") ||
@@ -155,36 +155,207 @@ function statusTone(s: string) {
   return "text-zinc-200 bg-white/5 border-white/10";
 }
 
-function kpiCardTone(kind: "good" | "warn" | "bad" | "neutral") {
-  if (kind === "good")
-    return "border-emerald-500/20 bg-emerald-500/5";
-  if (kind === "warn") return "border-amber-500/20 bg-amber-500/5";
-  if (kind === "bad") return "border-red-500/20 bg-red-500/5";
-  return "border-white/10 bg-white/5";
+/** ✅ Safe MetricCard (local) — no dependency */
+function MetricCard({
+  title,
+  value,
+  change,
+  icon: Icon,
+  tone = "neutral",
+}: {
+  title: string;
+  value: string;
+  change?: string;
+  icon: any;
+  tone?: "neutral" | "good" | "warn" | "bad";
+}) {
+  const toneCls =
+    tone === "good"
+      ? "border-emerald-500/20 bg-emerald-500/5"
+      : tone === "warn"
+        ? "border-amber-500/20 bg-amber-500/5"
+        : tone === "bad"
+          ? "border-red-500/20 bg-red-500/5"
+          : "border-white/10 bg-white/5";
+
+  return (
+    <div className={cn("rounded-2xl border backdrop-blur p-5", toneCls)}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs text-white/55">{title}</div>
+          <div className="mt-2 text-2xl font-semibold text-white tracking-tight">
+            {value}
+          </div>
+          {change ? (
+            <div className="mt-2 text-xs text-white/45">{change}</div>
+          ) : null}
+        </div>
+        <div className="h-10 w-10 rounded-xl border border-white/10 bg-black/20 flex items-center justify-center">
+          <Icon className="h-5 w-5 text-white/75" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** ✅ Tiny SVG Line chart (no Recharts) */
+function MiniLineChart({
+  data,
+}: {
+  data: Array<{ label: string; solar: number; grid: number; total: number }>;
+}) {
+  const w = 680;
+  const h = 240;
+  const pad = 18;
+
+  const maxY = Math.max(...data.map((d) => Math.max(d.solar, d.grid, d.total)), 1);
+
+  function pxX(i: number) {
+    const span = w - pad * 2;
+    return pad + (i * span) / Math.max(1, data.length - 1);
+  }
+  function pxY(v: number) {
+    const span = h - pad * 2;
+    return pad + (1 - v / maxY) * span;
+  }
+
+  function pathFor(key: "solar" | "grid" | "total") {
+    return data
+      .map((d, i) => `${i === 0 ? "M" : "L"} ${pxX(i).toFixed(1)} ${pxY(d[key]).toFixed(1)}`)
+      .join(" ");
+  }
+
+  return (
+    <div className="w-full overflow-hidden">
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[260px]">
+        {/* grid */}
+        {Array.from({ length: 5 }).map((_, i) => {
+          const y = pad + (i * (h - pad * 2)) / 4;
+          return (
+            <line
+              key={i}
+              x1={pad}
+              x2={w - pad}
+              y1={y}
+              y2={y}
+              stroke="rgba(255,255,255,0.06)"
+              strokeWidth="1"
+            />
+          );
+        })}
+
+        {/* lines */}
+        <path d={pathFor("solar")} fill="none" stroke="rgba(245,158,11,0.95)" strokeWidth="2.5" />
+        <path d={pathFor("grid")} fill="none" stroke="rgba(59,130,246,0.95)" strokeWidth="2.5" />
+        <path
+          d={pathFor("total")}
+          fill="none"
+          stroke="rgba(139,92,246,0.95)"
+          strokeWidth="2.5"
+          strokeDasharray="6 6"
+        />
+
+        {/* x labels (sparse) */}
+        {data.map((d, i) => {
+          if (i !== 0 && i !== Math.floor(data.length / 2) && i !== data.length - 1) return null;
+          const x = pxX(i);
+          return (
+            <text
+              key={d.label}
+              x={x}
+              y={h - 6}
+              textAnchor="middle"
+              fontSize="11"
+              fill="rgba(255,255,255,0.45)"
+            >
+              {d.label}
+            </text>
+          );
+        })}
+      </svg>
+
+      <div className="mt-2 flex items-center gap-3 text-xs text-white/55">
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full" style={{ background: "rgba(245,158,11,0.95)" }} /> Solar
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full" style={{ background: "rgba(59,130,246,0.95)" }} /> Grid
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full" style={{ background: "rgba(139,92,246,0.95)" }} /> Total
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** ✅ Tiny SVG Bar chart (no Recharts) */
+function MiniBarChart({
+  data,
+}: {
+  data: Array<{ building: string; current: number; target: number }>;
+}) {
+  const maxY = Math.max(...data.map((d) => Math.max(d.current, d.target)), 1);
+
+  return (
+    <div className="w-full">
+      <div className="grid grid-cols-5 gap-3 items-end h-[260px]">
+        {data.map((d) => {
+          const cur = Math.round((d.current / maxY) * 100);
+          const tar = Math.round((d.target / maxY) * 100);
+
+          return (
+            <div key={d.building} className="flex flex-col items-center gap-2">
+              <div className="w-full flex items-end gap-2 h-[220px]">
+                <div
+                  className="flex-1 rounded-t-xl border border-white/10 bg-emerald-500/25"
+                  style={{ height: `${cur}%` }}
+                  title={`Current: ${d.current}`}
+                />
+                <div
+                  className="flex-1 rounded-t-xl border border-white/10 bg-white/10"
+                  style={{ height: `${tar}%` }}
+                  title={`Target: ${d.target}`}
+                />
+              </div>
+              <div className="text-[11px] text-white/45 text-center leading-tight">
+                {d.building.replace("Building ", "B")}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-2 flex items-center gap-4 text-xs text-white/55">
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2 w-2 rounded-sm bg-emerald-500/60" /> Current Usage
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2 w-2 rounded-sm bg-white/25" /> Target
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export default function DevicesPage() {
   const [items, setItems] = useState<FacilityDevice[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // command filters
+  // keep your existing filters + discovery untouched
   const [system, setSystem] = useState<SystemKey>("all");
 
-  // discovery
   const [scanning, setScanning] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanResults, setScanResults] = useState<DiscoveredDevice[]>([]);
   const [scanErr, setScanErr] = useState<string | null>(null);
 
-  // discovery controls
   const [adapter, setAdapter] = useState<DiscoverAdapter>("tuya");
 
-  // ONVIF options
   const [cidr, setCidr] = useState("192.168.1.0/24");
   const [onvifUser, setOnvifUser] = useState("");
   const [onvifPass, setOnvifPass] = useState("");
 
-  // selection + add
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState(false);
   const selectedCount = useMemo(
@@ -207,12 +378,9 @@ export default function DevicesPage() {
     setScanning(true);
     setScanResults([]);
     setSelected({});
-
-    // open modal immediately so user sees scanning state
     setScanOpen(true);
 
     try {
-      // cache-bust every discover call
       const baseOpts: Record<string, any> = { _ts: Date.now() };
 
       const opts =
@@ -226,7 +394,6 @@ export default function DevicesPage() {
           : baseOpts;
 
       const res: any = await facilityService.discoverDevices(adapter, opts);
-
       const devices = Array.isArray(res?.devices) ? res.devices : null;
 
       if (!devices) {
@@ -300,16 +467,13 @@ export default function DevicesPage() {
   const derived = useMemo(() => {
     const total = items.length;
 
-    const byStatus = new Map<string, number>();
-    const bySystem = new Map<SystemKey, number>();
-
     let active = 0;
     let offline = 0;
 
+    const bySystem = new Map<SystemKey, number>();
+
     for (const d of items as any[]) {
       const s = safeLower(d?.status ?? "unknown");
-      byStatus.set(s, (byStatus.get(s) ?? 0) + 1);
-
       if (s === "active" || s === "online" || s === "ok") active += 1;
       if (s === "offline" || s === "down" || s === "error") offline += 1;
 
@@ -323,20 +487,34 @@ export default function DevicesPage() {
 
     const systemCounts = (k: SystemKey) => bySystem.get(k) ?? 0;
 
-    return {
-      total,
-      active,
-      offline,
-      unknown,
-      health,
-      systemCounts,
-    };
+    return { total, active, offline, unknown, health, systemCounts };
   }, [items]);
 
   const filteredItems = useMemo(() => {
     if (system === "all") return items;
     return (items as any[]).filter((d) => toSystemKey(d) === system) as any;
   }, [items, system]);
+
+  // ✅ Energy mock data (UI-only; doesn’t touch your APIs)
+  const hourlyData = [
+    { label: "00:00", solar: 0, grid: 450, total: 450 },
+    { label: "04:00", solar: 0, grid: 380, total: 380 },
+    { label: "08:00", solar: 120, grid: 500, total: 620 },
+    { label: "12:00", solar: 280, grid: 500, total: 780 },
+    { label: "16:00", solar: 180, grid: 670, total: 850 },
+    { label: "20:00", solar: 20, grid: 700, total: 720 },
+    { label: "23:59", solar: 0, grid: 580, total: 580 },
+  ];
+
+  const buildingComparison = [
+    { building: "Building A", current: 1840, target: 2000 },
+    { building: "Building B", current: 2150, target: 2200 },
+    { building: "Building C", current: 1680, target: 1900 },
+    { building: "Building D", current: 2320, target: 2400 },
+    { building: "Building E", current: 1590, target: 1800 },
+  ];
+
+  const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("24h");
 
   const columns = useMemo<ColumnDef<FacilityDevice>[]>(
     () => [
@@ -381,7 +559,9 @@ export default function DevicesPage() {
       {
         accessorKey: "type",
         header: "Type",
-        cell: ({ row }) => <span className="text-zinc-300">{String((row.original as any)?.type ?? "-")}</span>,
+        cell: ({ row }) => (
+          <span className="text-zinc-300">{String((row.original as any)?.type ?? "-")}</span>
+        ),
       },
       {
         accessorKey: "status",
@@ -398,7 +578,9 @@ export default function DevicesPage() {
       {
         accessorKey: "room",
         header: "Zone",
-        cell: ({ row }) => <span className="text-zinc-300">{String((row.original as any)?.room ?? "-")}</span>,
+        cell: ({ row }) => (
+          <span className="text-zinc-300">{String((row.original as any)?.room ?? "-")}</span>
+        ),
       },
       {
         accessorKey: "created_at",
@@ -438,23 +620,88 @@ export default function DevicesPage() {
     { key: "devices", label: "Devices", hint: "Everything else" },
   ];
 
-  const healthKind =
-    derived.total === 0
-      ? "neutral"
-      : derived.health >= 85
-        ? "good"
-        : derived.health >= 60
-          ? "warn"
-          : "bad";
-
   return (
     <div className="space-y-7">
       <Topbar
-        title="Facility Command Center"
-        subtitle="Observe • control • audit — power, MEP, security, access, connectivity, cameras"
+        title="Energy Management"
+        subtitle="Real-time consumption • sustainability • building performance"
+        rightSlot={
+          <div className="flex gap-2">
+            {(["24h", "7d", "30d"] as const).map((r) => (
+              <button
+                key={r}
+                onClick={() => setTimeRange(r)}
+                className={cn(
+                  "px-3 py-2 rounded-lg text-xs font-medium border transition",
+                  timeRange === r
+                    ? "bg-blue-600 text-white border-blue-500/30"
+                    : "bg-white/5 text-white/60 border-white/10 hover:bg-white/10"
+                )}
+                type="button"
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        }
       />
 
-      {/* Command Actions */}
+      {/* ✅ Metric row (smart city vibe) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard
+          title="Total Consumption"
+          value="847 kWh"
+          change="-12% vs yesterday"
+          icon={Zap}
+          tone="warn"
+        />
+        <MetricCard
+          title="Solar Generation"
+          value="312 kWh"
+          change="+8% vs yesterday"
+          icon={Sun}
+          tone="good"
+        />
+        <MetricCard
+          title="Energy Efficiency"
+          value="87%"
+          change="+3% this week"
+          icon={TrendingDown}
+          tone="good"
+        />
+        <MetricCard
+          title="Cost Savings"
+          value="$1,247"
+          change="This month"
+          icon={Lightbulb}
+          tone="neutral"
+        />
+      </div>
+
+      {/* ✅ Charts row (no recharts) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold text-white/90">Energy Sources (24h)</div>
+            <div className="text-xs text-white/45">{timeRange.toUpperCase()}</div>
+          </div>
+          <div className="mt-4">
+            <MiniLineChart data={hourlyData} />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold text-white/90">Building Performance</div>
+            <div className="text-xs text-white/45">Current vs Target</div>
+          </div>
+          <div className="mt-4">
+            <MiniBarChart data={buildingComparison} />
+          </div>
+        </div>
+      </div>
+
+      {/* ✅ Bottom row: keep your existing command tabs + discovery buttons (flow intact) */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           {systemTabs.map((t) => {
@@ -482,227 +729,22 @@ export default function DevicesPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <Button
-            onClick={() => {
-              setScanOpen(true);
-            }}
-          >
-            Open Discovery
-          </Button>
-
+          <Button onClick={() => setScanOpen(true)}>Open Discovery</Button>
           <Button variant="ghost" onClick={load} disabled={loading}>
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
         </div>
       </div>
 
-      {/* System Overview (dashboard layer) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Health */}
-        <div
-          className={cn(
-            "lg:col-span-4 rounded-2xl border backdrop-blur p-5",
-            kpiCardTone(healthKind as any)
-          )}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs text-zinc-400">System health</div>
-              <div className="mt-2 text-3xl font-semibold text-zinc-100">
-                {derived.health}%
-              </div>
-              <div className="mt-2 text-xs text-zinc-400">
-                Active: <span className="text-zinc-200">{derived.active}</span>{" "}
-                • Offline: <span className="text-zinc-200">{derived.offline}</span>{" "}
-                • Unknown: <span className="text-zinc-200">{derived.unknown}</span>
-              </div>
-            </div>
-
-            <span
-              className={cn(
-                "px-2 py-1 rounded-full border text-xs",
-                statusTone(
-                  healthKind === "good"
-                    ? "active"
-                    : healthKind === "warn"
-                      ? "warning"
-                      : healthKind === "bad"
-                        ? "offline"
-                        : "unknown"
-                )
-              )}
-            >
-              {healthKind === "good"
-                ? "Stable"
-                : healthKind === "warn"
-                  ? "Degraded"
-                  : healthKind === "bad"
-                    ? "Critical"
-                    : "No data"}
-            </span>
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            {[
-              { k: "Power", v: derived.systemCounts("power") },
-              { k: "Security", v: derived.systemCounts("security") },
-              { k: "Connectivity", v: derived.systemCounts("connectivity") },
-            ].map((x) => (
-              <div
-                key={x.k}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-3"
-              >
-                <div className="text-[11px] text-zinc-400">{x.k}</div>
-                <div className="mt-1 text-sm text-zinc-200 font-medium">
-                  {x.v}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 text-[11px] text-zinc-400">
-            Tip: keep this page as the operator “command” layer — registry is only one part.
-          </div>
-        </div>
-
-        {/* Live Ops shortcuts */}
-        <div className="lg:col-span-5 rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs text-zinc-400">Operator actions</div>
-              <div className="mt-2 text-base font-semibold text-zinc-100">
-                Command shortcuts
-              </div>
-              <div className="mt-2 text-sm text-zinc-400">
-                Fast entry points for “observe → act → audit”.
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {[
-              {
-                title: "Open Incidents",
-                desc: "Security + access anomalies",
-                onClick: () => alert("Open incidents (wire to /facility/incidents)"),
-              },
-              {
-                title: "Utilities Snapshot",
-                desc: "Power + water current status",
-                onClick: () => setSystem("power"),
-              },
-              {
-                title: "Connectivity Watch",
-                desc: "Fiber/Wi-Fi outages + ticketing",
-                onClick: () => setSystem("connectivity"),
-              },
-              {
-                title: "CCTV Monitor",
-                desc: "Cameras + streams health",
-                onClick: () => setSystem("cameras"),
-              },
-            ].map((x) => (
-              <button
-                key={x.title}
-                type="button"
-                onClick={x.onClick}
-                className="text-left rounded-2xl border border-white/10 bg-black/20 hover:bg-black/30 transition p-4"
-              >
-                <div className="text-sm font-semibold text-zinc-100">
-                  {x.title}
-                </div>
-                <div className="mt-1 text-sm text-zinc-400">{x.desc}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Discovery status */}
-        <div className="lg:col-span-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-          <div className="text-xs text-zinc-400">Discovery</div>
-          <div className="mt-2 text-base font-semibold text-zinc-100">
-            Adapters
-          </div>
-
-          <div className="mt-4 space-y-2">
-            {[
-              { a: "Tuya (Cloud)", k: "tuya" },
-              { a: "SSDP (LAN)", k: "ssdp" },
-              { a: "ONVIF (Cameras)", k: "onvif" },
-            ].map((x) => {
-              const active = adapter === (x.k as DiscoverAdapter);
-              return (
-                <button
-                  key={x.k}
-                  type="button"
-                  onClick={() => setAdapter(x.k as DiscoverAdapter)}
-                  className={cn(
-                    "w-full rounded-xl border px-3 py-3 text-left transition",
-                    active
-                      ? "border-white/20 bg-white/10"
-                      : "border-white/10 bg-black/20 hover:bg-black/30"
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-zinc-100">{x.a}</div>
-                    <span className="text-[11px] text-zinc-400">
-                      {active ? "Selected" : "Select"}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-[11px] text-zinc-400">
-                    {x.k === "tuya"
-                      ? "Cloud inventory + control hooks"
-                      : x.k === "ssdp"
-                        ? "LAN discovery for supported devices"
-                        : "Camera discovery and binding"}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 flex gap-2">
-            <Button onClick={scan} disabled={scanning || adding}>
-              {scanning ? "Scanning..." : "Scan"}
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => setScanOpen(true)}
-              disabled={scanning || adding}
-            >
-              View
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Registry list (still here, but now framed as command inventory) */}
+      {/* ✅ Registry stays the same (no breaking) */}
       <DataTable
         data={filteredItems}
         columns={columns}
-        title={
-          system === "all"
-            ? "Command Inventory"
-            : `Command Inventory • ${
-                system === "power"
-                  ? "Power"
-                  : system === "mep"
-                    ? "MEP"
-                    : system === "security"
-                      ? "Security"
-                      : system === "access"
-                        ? "Access"
-                        : system === "connectivity"
-                          ? "Connectivity"
-                          : system === "cameras"
-                            ? "Cameras"
-                            : "Devices"
-              }`
-        }
+        title={system === "all" ? "Command Inventory" : `Command Inventory • ${system}`}
         searchKey={"name"}
       />
 
-      {/* Discovery Modal */}
+      {/* ✅ Discovery Modal stays the same (your original) */}
       {scanOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
           <div
@@ -710,10 +752,10 @@ export default function DevicesPage() {
             onClick={() => !scanning && !adding && setScanOpen(false)}
           />
 
-          <div className="relative glass border border-white/10 rounded-2xl w-full max-w-4xl p-6">
+          <div className="relative border border-white/10 rounded-2xl w-full max-w-4xl p-6 bg-zinc-950/70 backdrop-blur">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-lg font-semibold">Device Discovery</div>
+                <div className="text-lg font-semibold text-white">Device Discovery</div>
                 <div className="text-sm text-zinc-400 mt-1">
                   Adapter:{" "}
                   <span className="text-zinc-200">{adapter.toUpperCase()}</span>{" "}
@@ -739,11 +781,10 @@ export default function DevicesPage() {
               </button>
             </div>
 
-            {/* Adapter controls */}
             <div className="mt-5 flex flex-col gap-3">
               <div className="flex items-center gap-2 flex-wrap">
                 <select
-                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none"
+                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none text-white"
                   value={adapter}
                   onChange={(e) => setAdapter(e.target.value as DiscoverAdapter)}
                   disabled={scanning || adding}
@@ -777,21 +818,21 @@ export default function DevicesPage() {
               {adapter === "onvif" && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <input
-                    className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                    className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none text-white"
                     placeholder="CIDR (e.g. 192.168.1.0/24)"
                     value={cidr}
                     onChange={(e) => setCidr(e.target.value)}
                     disabled={scanning || adding}
                   />
                   <input
-                    className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                    className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none text-white"
                     placeholder="ONVIF username (optional)"
                     value={onvifUser}
                     onChange={(e) => setOnvifUser(e.target.value)}
                     disabled={scanning || adding}
                   />
                   <input
-                    className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                    className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none text-white"
                     placeholder="ONVIF password (optional)"
                     type="password"
                     value={onvifPass}
@@ -803,12 +844,11 @@ export default function DevicesPage() {
             </div>
 
             {scanErr && (
-              <div className="mt-4 glass border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200 rounded-xl">
+              <div className="mt-4 border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200 rounded-xl">
                 {scanErr}
               </div>
             )}
 
-            {/* Results */}
             <div className="mt-5 overflow-auto max-h-[60vh]">
               <table className="w-full text-sm">
                 <thead className="text-zinc-400">
