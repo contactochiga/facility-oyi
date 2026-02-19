@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
 import { visitorService, type VisitorItem } from "@/services/visitorService";
 import type { ColumnDef } from "@tanstack/react-table";
+
 import {
   Shield,
   Camera,
@@ -21,6 +22,13 @@ import {
   Ban,
   Users,
 } from "lucide-react";
+
+// ✅ Cameras (REAL)
+import { cameraService, type BoundCamera } from "@/services/cameraService";
+import CameraPlayer from "@/components/cameras/CameraPlayer";
+
+// ✅ Estate id (lightweight) - same logic as your Overview hydration
+import { facilityService } from "@/services/facilityService";
 
 // -------------------------------
 // helpers
@@ -67,16 +75,26 @@ function isExpired(expiresAt?: string | null) {
 function statusTone(status?: string) {
   const s = String(status || "").toLowerCase();
 
-  if (s === "approved") return "text-emerald-200 bg-emerald-500/10 border-emerald-500/20";
-  if (s === "entered") return "text-blue-200 bg-blue-500/10 border-blue-500/20";
-  if (s === "exited") return "text-zinc-200 bg-white/5 border-white/10";
-  if (s === "denied") return "text-red-200 bg-red-500/10 border-red-500/20";
+  if (s === "approved")
+    return "text-emerald-200 bg-emerald-500/10 border-emerald-500/20";
+  if (s === "entered")
+    return "text-blue-200 bg-blue-500/10 border-blue-500/20";
+  if (s === "exited")
+    return "text-zinc-200 bg-white/5 border-white/10";
+  if (s === "denied")
+    return "text-red-200 bg-red-500/10 border-red-500/20";
 
   return "text-amber-200 bg-amber-500/10 border-amber-500/20";
 }
 
+function extractErr(e: any) {
+  const status = e?.response?.status;
+  const msg = e?.response?.data?.error || e?.message || "Request failed";
+  return { status, msg: String(msg) };
+}
+
 // -------------------------------
-// MetricCard (local: prevents dependency break)
+// MetricCard (local)
 // -------------------------------
 function MetricCard({
   title,
@@ -120,21 +138,12 @@ function MetricCard({
 }
 
 // -------------------------------
-// Demo-only (UI parity). Swap later when endpoints exist.
+// Demo-only alerts (kept)
 // -------------------------------
-const cameraFeeds = [
-  { id: "CAM-01", location: "Main Entrance", status: "active", lastEvent: "2 min ago" },
-  { id: "CAM-02", location: "Parking Level 1", status: "active", lastEvent: "5 min ago" },
-  { id: "CAM-03", location: "Lobby Building A", status: "active", lastEvent: "12 min ago" },
-  { id: "CAM-04", location: "Elevator Hall", status: "maintenance", lastEvent: "1 hour ago" },
-  { id: "CAM-05", location: "Emergency Exit", status: "active", lastEvent: "8 min ago" },
-  { id: "CAM-06", location: "Loading Dock", status: "active", lastEvent: "3 min ago" },
-];
-
 const securityAlerts = [
   { time: "14:20", level: "high", message: "Tailgating detected at Main Entrance", status: "investigating" },
   { time: "13:45", level: "medium", message: "Door held open - Building B Floor 2", status: "resolved" },
-  { time: "12:30", level: "low", message: "Camera CAM-04 offline", status: "maintenance" },
+  { time: "12:30", level: "low", message: "Camera offline", status: "maintenance" },
 ];
 
 export default function VisitorsPage() {
@@ -147,13 +156,65 @@ export default function VisitorsPage() {
     "all" | "active" | "pending" | "approved" | "entered" | "exited" | "denied"
   >("all");
 
-  async function load() {
+  // ✅ Estate + Cameras (REAL)
+  const [estateId, setEstateId] = useState<string | null>(null);
+  const [cameras, setCameras] = useState<BoundCamera[]>([]);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraErr, setCameraErr] = useState<string | null>(null);
+  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
+
+  const liveSectionRef = useRef<HTMLDivElement | null>(null);
+
+  async function hydrateEstateFromMembership() {
+    try {
+      const res = await facilityService.myEstates();
+      const first = res?.estates?.[0];
+      if (first?.id) {
+        setEstateId(first.id);
+        return first.id as string;
+      }
+      setEstateId(null);
+      return null;
+    } catch (e: any) {
+      setEstateId(null);
+      return null;
+    }
+  }
+
+  async function loadCameras(eid?: string | null) {
+    const estate = eid || estateId;
+    if (!estate) return;
+
+    setCameraLoading(true);
+    setCameraErr(null);
+
+    try {
+      const res = await cameraService.listByEstate(estate);
+      const list: BoundCamera[] = Array.isArray(res?.items) ? res.items : [];
+
+      setCameras(list);
+
+      if (!activeCameraId && list[0]?.id) setActiveCameraId(list[0].id);
+
+      if (activeCameraId && !list.some((c) => c.id === activeCameraId)) {
+        setActiveCameraId(list[0]?.id || null);
+      }
+    } catch (e: any) {
+      const { status, msg } = extractErr(e);
+      setCameraErr(`${msg}${status ? ` (HTTP ${status})` : ""}`);
+      setCameras([]);
+      setActiveCameraId(null);
+    } finally {
+      setCameraLoading(false);
+    }
+  }
+
+  async function loadVisitors() {
     setLoading(true);
     try {
       const res = todayOnly ? await visitorService.listToday() : await visitorService.list();
       const list = (res || []) as VisitorItem[];
 
-      // UI-only filter (kept)
       const filtered =
         status === "all"
           ? list
@@ -165,13 +226,22 @@ export default function VisitorsPage() {
     }
   }
 
+  async function loadAll() {
+    await loadVisitors();
+
+    // cameras depend on estate id
+    let eid = estateId;
+    if (!eid) eid = await hydrateEstateFromMembership();
+    if (eid) await loadCameras(eid);
+  }
+
   useEffect(() => {
-    load();
+    loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todayOnly, status]);
 
   // -------------------------------
-  // Stats (kept logic)
+  // Stats (kept)
   // -------------------------------
   const stats = useMemo(() => {
     const all = items || [];
@@ -202,7 +272,7 @@ export default function VisitorsPage() {
   }, [items]);
 
   // -------------------------------
-  // Access Logs (derived from YOUR real visitor items)
+  // Access Logs (kept)
   // -------------------------------
   const accessLogs = useMemo(() => {
     const sorted = [...(items as any[])].sort((a, b) => {
@@ -226,7 +296,7 @@ export default function VisitorsPage() {
       return {
         time: timeOnly(v?.created_at),
         user: safeStr(v?.visitor_name),
-        location: safeStr(v?.purpose), // best available field you already show
+        location: safeStr(v?.purpose),
         action,
         type,
       };
@@ -234,7 +304,7 @@ export default function VisitorsPage() {
   }, [items]);
 
   // -------------------------------
-  // Table columns (kept, unchanged logic)
+  // Table columns (kept)
   // -------------------------------
   const columns = useMemo<ColumnDef<VisitorItem>[]>(
     () => [
@@ -331,11 +401,19 @@ export default function VisitorsPage() {
     []
   );
 
-  // UI copies that feel real but still reflect your data
-  const activeCameras = "47/48";
-  const accessPoints = "156";
+  // Derived UI values (now REAL)
+  const activeCameras = cameraLoading ? "…" : `${cameras.length}`;
+  const accessPoints = "156"; // keep demo until endpoint exists
   const activeAlerts = securityAlerts.length;
   const patrols = "12/12";
+
+  const activeCam = cameras.find((c) => c.id === activeCameraId) || null;
+  const activeCamId = activeCam ? activeCam.id : null;
+
+  const tileCams = useMemo(() => {
+    const rest = cameras.filter((c) => c.id !== activeCameraId);
+    return rest.slice(0, 3);
+  }, [cameras, activeCameraId]);
 
   return (
     <div className="space-y-7">
@@ -343,16 +421,16 @@ export default function VisitorsPage() {
         title="Security & Access Control"
         subtitle="Monitor visitor approvals, access codes, entry/exit signals"
         rightSlot={
-          <Button variant="ghost" onClick={load} disabled={loading}>
+          <Button variant="ghost" onClick={loadAll} disabled={loading || cameraLoading}>
             <span className="inline-flex items-center gap-2">
               <RefreshCcw className="h-4 w-4" />
-              {loading ? "Refreshing..." : "Refresh"}
+              {loading || cameraLoading ? "Refreshing..." : "Refresh"}
             </span>
           </Button>
         }
       />
 
-      {/* Filters (kept) */}
+      {/* Filters */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <Button
@@ -394,12 +472,12 @@ export default function VisitorsPage() {
         </div>
       </div>
 
-      {/* Metric row (new standard) */}
+      {/* Metric row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
           title="Active Cameras"
           value={activeCameras}
-          change="1 under maintenance"
+          change={estateId ? "Bound to this site" : "No site linked"}
           trend="neutral"
           icon={Camera}
           iconColor="text-blue-500"
@@ -430,51 +508,164 @@ export default function VisitorsPage() {
         />
       </div>
 
-      {/* Camera Status + Security Alerts */}
+      {/* ✅ LIVE CAMERAS (MOVED FROM OVERVIEW) */}
+      <div ref={liveSectionRef} className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-lg font-semibold flex items-center gap-2">
+              <Camera className="text-blue-500" size={20} />
+              Live Cameras
+            </div>
+            <div className="text-xs text-slate-400 mt-1">
+              HLS stream • facility view • estate security
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={async () => {
+                let eid = estateId;
+                if (!eid) eid = await hydrateEstateFromMembership();
+                if (eid) await loadCameras(eid);
+              }}
+              disabled={!estateId || cameraLoading}
+            >
+              {cameraLoading ? "Loading…" : "Refresh Cameras"}
+            </Button>
+          </div>
+        </div>
+
+        {cameraErr && (
+          <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            {cameraErr}
+          </div>
+        )}
+
+        {!estateId ? (
+          <div className="mt-4 text-sm text-slate-400">
+            No site linked yet. Create/select a site to load cameras.
+          </div>
+        ) : cameras.length === 0 && !cameraLoading ? (
+          <div className="mt-4 text-sm text-slate-400">
+            No cameras bound yet. Bind cameras to this site first.
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* HERO */}
+            <div className="lg:col-span-2">
+              {activeCamId ? (
+                <CameraPlayer
+                  cameraId={activeCamId}
+                  variant="hero"
+                  controls={true}
+                  muted={true}
+                  autoPlay={true}
+                />
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-6 text-sm text-slate-400">
+                  Select a camera to preview.
+                </div>
+              )}
+
+              {activeCam && (
+                <div className="mt-3 text-xs text-slate-400">
+                  Playing:{" "}
+                  <span className="text-white/90">
+                    {activeCam.name || activeCam.ip}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* TILES */}
+            <div className="space-y-3">
+              <div className="text-xs text-slate-400">Live feeds</div>
+
+              <div className="space-y-3">
+                {cameras.length <= 1 ? (
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
+                    Add more cameras to unlock multi-view tiles.
+                  </div>
+                ) : (
+                  <>
+                    {tileCams.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setActiveCameraId(c.id)}
+                        className={[
+                          "w-full text-left rounded-xl border border-white/10 bg-black/20 hover:bg-black/30 transition overflow-hidden",
+                          "focus:outline-none focus:ring-2 focus:ring-white/10",
+                        ].join(" ")}
+                      >
+                        <div className="relative">
+                          <CameraPlayer
+                            cameraId={c.id}
+                            variant="tile"
+                            controls={false}
+                            muted={true}
+                            autoPlay={true}
+                          />
+                          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
+                            <div className="truncate text-[12px] font-medium text-white/90 bg-black/40 border border-white/10 rounded-lg px-2 py-1">
+                              {c.name || c.ip}
+                            </div>
+                            <div className="text-[11px] text-white/70 bg-black/40 border border-white/10 rounded-lg px-2 py-1">
+                              Tap
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Camera Status + Security Alerts (kept) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
           <h3 className="text-lg font-semibold mb-4 flex items-center justify-between">
             <span className="flex items-center gap-2">
               <Camera className="text-blue-500" size={20} />
-              Camera Status
+              Camera Activity
             </span>
             <button
               type="button"
-              onClick={() => alert("Wire: live feeds later")}
+              onClick={() => {
+                liveSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
               className="text-sm text-blue-500 hover:text-blue-400"
             >
-              View All
+              View Live Feeds
             </button>
           </h3>
 
           <div className="space-y-3">
-            {cameraFeeds.map((camera) => (
-              <div key={camera.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "w-2 h-2 rounded-full",
-                      camera.status === "active" ? "bg-green-500" : "bg-yellow-500"
-                    )}
-                  />
-                  <div>
-                    <p className="text-sm font-medium">{camera.id}</p>
-                    <p className="text-xs text-slate-400">{camera.location}</p>
+            {(cameras.length ? cameras.slice(0, 6) : []).map((c) => (
+              <div key={c.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{c.name || c.ip}</p>
+                    <p className="text-xs text-slate-400 truncate">{c.ip}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p
-                    className={cn(
-                      "text-xs font-medium",
-                      camera.status === "active" ? "text-green-500" : "text-yellow-500"
-                    )}
-                  >
-                    {camera.status === "active" ? "Active" : "Maintenance"}
-                  </p>
-                  <p className="text-xs text-slate-400">{camera.lastEvent}</p>
+                  <p className="text-xs font-medium text-green-500">Active</p>
+                  <p className="text-xs text-slate-400">Live</p>
                 </div>
               </div>
             ))}
+
+            {!cameras.length ? (
+              <div className="text-sm text-slate-400">
+                No cameras loaded yet. Link a site and bind cameras.
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -640,7 +831,9 @@ export default function VisitorsPage() {
             </button>
             <button
               type="button"
-              onClick={() => alert("Wire: view live feeds later")}
+              onClick={() => {
+                liveSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
               className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-medium transition-colors"
             >
               View Live Feeds
@@ -659,7 +852,7 @@ export default function VisitorsPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-slate-400">Cameras</span>
-                <span className="text-xs text-green-500 font-medium">98%</span>
+                <span className="text-xs text-green-500 font-medium">OK</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-slate-400">Access Points</span>
@@ -717,8 +910,7 @@ export default function VisitorsPage() {
       </div>
 
       <div className="text-[11px] text-slate-400">
-        Everything above keeps your current API + flow. The camera/alerts are demo UI for now.
-        When you’re ready, we’ll wire cameras + door events to live endpoints.
+        Live Cameras is now wired here (Security). Overview stays lightweight ops summary.
       </div>
     </div>
   );
