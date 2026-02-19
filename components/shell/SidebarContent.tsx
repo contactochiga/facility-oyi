@@ -224,7 +224,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                 type="button"
                 onClick={() => {
                   setOpenAccount(false);
-                  router.push("/settings");
+                  router.push("/account?tab=settings");
                   onNavigate?.();
                 }}
                 className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-white/5"
