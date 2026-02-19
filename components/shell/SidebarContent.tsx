@@ -1,15 +1,16 @@
+// components/shell/SidebarContent.tsx
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Cpu,
+  Zap,
   Wrench,
   Shield,
   Wallet,
   MessagesSquare,
-  ConciergeBell,
+  AlertTriangle,
 } from "lucide-react";
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -25,15 +26,20 @@ type Item = {
 
 const items: Item[] = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard, startsWith: ["/overview"] },
-  { href: "/devices", label: "Hardware Devices", icon: Cpu, startsWith: ["/devices", "/hardware", "/hardware-devices"] },
+
+  // ✅ changed label + icon (route still /devices so nothing breaks)
+  { href: "/devices", label: "Energy", icon: Zap, startsWith: ["/devices", "/hardware", "/hardware-devices"] },
+
   { href: "/maintenance", label: "Maintenance", icon: Wrench, startsWith: ["/maintenance"] },
 
-  // ✅ renamed (route stays /visitors so nothing breaks)
+  // ✅ Security (still /visitors route so nothing breaks)
   { href: "/visitors", label: "Security", icon: Shield, startsWith: ["/visitors", "/security"] },
 
   { href: "/wallets", label: "Wallets", icon: Wallet, startsWith: ["/wallet", "/wallets"] },
   { href: "/community", label: "Community", icon: MessagesSquare, startsWith: ["/community"] },
-  { href: "/facility-services", label: "Facility Services", icon: ConciergeBell, startsWith: ["/facility", "/facility-services"] },
+
+  // ✅ changed label + icon (route still /facility-services so nothing breaks)
+  { href: "/facility-services", label: "Alerts", icon: AlertTriangle, startsWith: ["/facility", "/facility-services", "/alerts"] },
 ];
 
 export default function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
@@ -47,6 +53,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
   return (
     <div className="flex h-full flex-col">
+      {/* NAV */}
       <nav className="p-4 space-y-1">
         {items.map((it) => {
           const Icon = it.icon;
@@ -71,13 +78,11 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
         })}
       </nav>
 
-      {/* If you want ZERO bottom card, delete this whole block */}
-      <div className="mt-auto p-4">
-        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-          <div className="text-xs text-zinc-400">Signed in</div>
-          <div className="mt-1 text-sm text-zinc-200 truncate">Facility operator</div>
-        </div>
-      </div>
+      {/* ✅ IMPORTANT:
+          We are NOT adding any footer card (no Admin User, no Signed-in card).
+          Your existing dropdown account button should remain wherever it currently lives
+          (usually in your Sidebar layout file or another component).
+      */}
     </div>
   );
 }
