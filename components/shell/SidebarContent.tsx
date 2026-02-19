@@ -38,15 +38,14 @@ type Item = {
 const items: Item[] = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard, startsWith: ["/overview"] },
 
-  // ✅ route stays /devices (so nothing breaks), label/icon becomes Energy
+  // route stays /devices (so nothing breaks), label/icon becomes Energy
   { href: "/devices", label: "Energy", icon: Zap, startsWith: ["/devices", "/hardware", "/hardware-devices"] },
 
-  // ✅ route stays /visitors (so nothing breaks), label/icon becomes Security
+  // route stays /visitors (so nothing breaks), label/icon becomes Security
   { href: "/visitors", label: "Security", icon: Shield, startsWith: ["/visitors", "/security"] },
 
   { href: "/maintenance", label: "Maintenance", icon: Wrench, startsWith: ["/maintenance"] },
 
-  // ✅ NEW buttons (you will create these pages)
   { href: "/traffic", label: "Traffic", icon: Car, startsWith: ["/traffic"] },
   { href: "/water", label: "Water", icon: Droplets, startsWith: ["/water"] },
   { href: "/environment", label: "Environment", icon: Wind, startsWith: ["/environment"] },
@@ -55,8 +54,8 @@ const items: Item[] = [
   { href: "/wallets", label: "Wallets", icon: Wallet, startsWith: ["/wallet", "/wallets"] },
   { href: "/community", label: "Community", icon: MessagesSquare, startsWith: ["/community"] },
 
-  // ✅ route stays /facility-services (so nothing breaks), label/icon becomes Alerts
-  { href: "/facility-services", label: "Alerts", icon: AlertTriangle, startsWith: ["/facility", "/facility-services", "/alerts"] },
+  // ✅ FIX: Alerts should go to /alerts
+  { href: "/alerts", label: "Alerts", icon: AlertTriangle, startsWith: ["/alerts"] },
 ];
 
 function getInitials(nameOrEmail?: string) {
@@ -67,7 +66,11 @@ function getInitials(nameOrEmail?: string) {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
-function useOutsideClick(ref: React.RefObject<HTMLElement>, onOutside: () => void, enabled: boolean) {
+function useOutsideClick(
+  ref: React.RefObject<HTMLElement>,
+  onOutside: () => void,
+  enabled: boolean
+) {
   useEffect(() => {
     if (!enabled) return;
 
@@ -90,7 +93,10 @@ function useOutsideClick(ref: React.RefObject<HTMLElement>, onOutside: () => voi
 export default function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useSessionStore();
+
+  // ✅ keep your existing store, but access it safely for logout
+  const session = useSessionStore() as any;
+  const user = session?.user;
 
   const [openAccount, setOpenAccount] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -104,7 +110,6 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   }
 
   const displayName = useMemo(() => {
-    // If you later store full name in session, it will show automatically
     const name = (user as any)?.name || "";
     const email = user?.email || "";
     return String(name || email || "Facility Operator");
@@ -117,6 +122,30 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   }, [user]);
 
   const initials = useMemo(() => getInitials(displayName), [displayName]);
+
+  async function handleLogout() {
+    setOpenAccount(false);
+
+    try {
+      // ✅ Support whatever name you used in the store (logout/signOut/clearSession/etc.)
+      const fn =
+        session?.logout ||
+        session?.signOut ||
+        session?.clearSession ||
+        session?.clear ||
+        session?.reset;
+
+      if (typeof fn === "function") {
+        await fn();
+      } else {
+        // fallback: best-effort clear user if you store it directly
+        if (typeof session?.setUser === "function") session.setUser(null);
+      }
+    } finally {
+      onNavigate?.();
+      router.replace("/login");
+    }
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -159,37 +188,29 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
               "hover:bg-white/10 transition"
             )}
           >
-            {/* Initials bubble */}
             <div className="h-10 w-10 rounded-full bg-blue-600/30 border border-blue-500/30 flex items-center justify-center text-zinc-100 font-semibold">
               {initials}
             </div>
 
-            {/* Name + email */}
             <div className="min-w-0 flex-1 text-left">
-              <div className="text-sm font-semibold text-zinc-100 truncate">
-                {displayName}
-              </div>
-              <div className="text-xs text-zinc-400 truncate">
-                {displaySub}
-              </div>
+              <div className="text-sm font-semibold text-zinc-100 truncate">{displayName}</div>
+              <div className="text-xs text-zinc-400 truncate">{displaySub}</div>
             </div>
 
             <ChevronDown
               size={18}
-              className={cn(
-                "text-zinc-400 transition",
-                openAccount ? "rotate-180" : ""
-              )}
+              className={cn("text-zinc-400 transition", openAccount ? "rotate-180" : "")}
             />
           </button>
 
           {openAccount && (
             <div className="absolute bottom-[calc(100%+10px)] left-0 w-full rounded-xl border border-white/10 bg-zinc-950/90 backdrop-blur p-2 shadow-xl">
+              {/* ✅ Account -> /account */}
               <button
                 type="button"
                 onClick={() => {
                   setOpenAccount(false);
-                  router.push("/account"); // create later if you want
+                  router.push("/account");
                   onNavigate?.();
                 }}
                 className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-white/5"
@@ -198,11 +219,12 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                 Account
               </button>
 
+              {/* ✅ Settings -> /settings */}
               <button
                 type="button"
                 onClick={() => {
                   setOpenAccount(false);
-                  router.push("/settings"); // create later if you want
+                  router.push("/settings");
                   onNavigate?.();
                 }}
                 className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-white/5"
@@ -213,13 +235,10 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
               <div className="my-2 h-px bg-white/10" />
 
+              {/* ✅ Sign out -> real logout + /login */}
               <button
                 type="button"
-                onClick={() => {
-                  setOpenAccount(false);
-                  // wire to your logout action later
-                  alert("Wire logout: clear session + redirect to /login");
-                }}
+                onClick={handleLogout}
                 className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-200 hover:bg-red-500/10"
               >
                 <LogOut size={16} className="text-red-200" />
