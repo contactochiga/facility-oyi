@@ -32,6 +32,11 @@ import {
   Cell,
 } from "recharts";
 
+// ✅ FIX: cn helper (this is what your build is complaining about)
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
 // -------------------------------
 // MetricCard (kept local so nothing breaks)
 // -------------------------------
@@ -129,18 +134,81 @@ const paymentDistribution = [
 ];
 
 const recentTransactions = [
-  { id: "TXN-8847", unit: "Building A - 302", type: "Rent", amount: 2500, status: "completed", date: "2 hours ago" },
-  { id: "TXN-8846", unit: "Building B - 105", type: "Utilities", amount: 156, status: "completed", date: "5 hours ago" },
-  { id: "TXN-8845", unit: "Building C - 408", type: "Service Charge", amount: 180, status: "pending", date: "1 day ago" },
-  { id: "TXN-8844", unit: "Building D - 201", type: "Rent", amount: 2800, status: "completed", date: "1 day ago" },
-  { id: "TXN-8843", unit: "Building A - 507", type: "Parking", amount: 120, status: "failed", date: "2 days ago" },
+  {
+    id: "TXN-8847",
+    unit: "Building A - 302",
+    type: "Rent",
+    amount: 2500,
+    status: "completed",
+    date: "2 hours ago",
+  },
+  {
+    id: "TXN-8846",
+    unit: "Building B - 105",
+    type: "Utilities",
+    amount: 156,
+    status: "completed",
+    date: "5 hours ago",
+  },
+  {
+    id: "TXN-8845",
+    unit: "Building C - 408",
+    type: "Service Charge",
+    amount: 180,
+    status: "pending",
+    date: "1 day ago",
+  },
+  {
+    id: "TXN-8844",
+    unit: "Building D - 201",
+    type: "Rent",
+    amount: 2800,
+    status: "completed",
+    date: "1 day ago",
+  },
+  {
+    id: "TXN-8843",
+    unit: "Building A - 507",
+    type: "Parking",
+    amount: 120,
+    status: "failed",
+    date: "2 days ago",
+  },
 ];
 
 const outstandingBills = [
-  { unit: "Building A - 205", resident: "John Doe", amount: 2680, dueDate: "Feb 15, 2026", daysOverdue: 4, type: "Rent + Utilities" },
-  { unit: "Building C - 312", resident: "Jane Smith", amount: 1850, dueDate: "Feb 10, 2026", daysOverdue: 9, type: "Rent" },
-  { unit: "Building B - 104", resident: "Mike Johnson", amount: 450, dueDate: "Feb 18, 2026", daysOverdue: 1, type: "Service Charge" },
-  { unit: "Building E - 601", resident: "Sarah Wilson", amount: 3200, dueDate: "Feb 12, 2026", daysOverdue: 7, type: "Rent + Services" },
+  {
+    unit: "Building A - 205",
+    resident: "John Doe",
+    amount: 2680,
+    dueDate: "Feb 15, 2026",
+    daysOverdue: 4,
+    type: "Rent + Utilities",
+  },
+  {
+    unit: "Building C - 312",
+    resident: "Jane Smith",
+    amount: 1850,
+    dueDate: "Feb 10, 2026",
+    daysOverdue: 9,
+    type: "Rent",
+  },
+  {
+    unit: "Building B - 104",
+    resident: "Mike Johnson",
+    amount: 450,
+    dueDate: "Feb 18, 2026",
+    daysOverdue: 1,
+    type: "Service Charge",
+  },
+  {
+    unit: "Building E - 601",
+    resident: "Sarah Wilson",
+    amount: 3200,
+    dueDate: "Feb 12, 2026",
+    daysOverdue: 7,
+    type: "Rent + Services",
+  },
 ];
 
 const invoiceTemplates = [
@@ -151,7 +219,9 @@ const invoiceTemplates = [
 ];
 
 export default function WalletsPage() {
-  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "outstanding" | "invoices">("overview");
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "transactions" | "outstanding" | "invoices"
+  >("overview");
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -254,51 +324,66 @@ export default function WalletsPage() {
   const estateCollected = overviewWallet?.collected_this_month ?? 0;
 
   // Keep your DataTable wiring (doesn’t break anything)
-  const columns = useMemo<ColumnDef<WalletActivityRow>[]>(() => [
-    { accessorKey: "type", header: "Type" },
-    {
-      accessorKey: "amount",
-      header: "Amount",
-      cell: ({ row }) => (
-        <span className="font-semibold">
-          {formatMoney(Number(row.original.amount || 0), myWallet.currency || "NGN")}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <span className={`inline-flex text-[11px] px-2 py-1 rounded-full border ${pill(row.original.status)}`}>
-          {String(row.original.status || "pending")}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "reference",
-      header: "Reference",
-      cell: ({ row }) => (
-        <span className="text-white/70 text-xs font-mono">{row.original.reference || "—"}</span>
-      ),
-    },
-    {
-      accessorKey: "created_at",
-      header: "Created",
-      cell: ({ row }) => (
-        <span className="text-white/70 text-xs">{when(row.original.created_at)}</span>
-      ),
-    },
-  ], [myWallet.currency]);
+  const columns = useMemo<ColumnDef<WalletActivityRow>[]>(
+    () => [
+      { accessorKey: "type", header: "Type" },
+      {
+        accessorKey: "amount",
+        header: "Amount",
+        cell: ({ row }) => (
+          <span className="font-semibold">
+            {formatMoney(Number(row.original.amount || 0), myWallet.currency || "NGN")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <span className={`inline-flex text-[11px] px-2 py-1 rounded-full border ${pill(row.original.status)}`}>
+            {String(row.original.status || "pending")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "reference",
+        header: "Reference",
+        cell: ({ row }) => (
+          <span className="text-white/70 text-xs font-mono">{row.original.reference || "—"}</span>
+        ),
+      },
+      {
+        accessorKey: "created_at",
+        header: "Created",
+        cell: ({ row }) => (
+          <span className="text-white/70 text-xs">{when(row.original.created_at)}</span>
+        ),
+      },
+    ],
+    [myWallet.currency]
+  );
 
   // UI metric values: prefer live wallet signals, fallback to demo-like copy
-  const totalRevenueMTD = estateCollected; // this month’s collection is your closest “MTD revenue” signal
-  const collectedToday = 0; // backend doesn’t give daily yet (placeholder)
+  const totalRevenueMTD = estateCollected; // closest “MTD revenue” signal
+  const collectedToday = 0; // backend doesn’t give daily yet
   const outstanding = estateOutstanding;
-  const collectionRate = estateOutstanding > 0 ? Math.max(70, Math.min(99, Math.round((estateCollected / (estateCollected + estateOutstanding)) * 100))) : 94;
+  const collectionRate =
+    estateOutstanding > 0
+      ? Math.max(
+          70,
+          Math.min(
+            99,
+            Math.round((estateCollected / (estateCollected + estateOutstanding)) * 100)
+          )
+        )
+      : 94;
 
   return (
     <div className="space-y-7">
-      <Topbar title="Billing & Finance" subtitle="Manage payments, invoices, and financial operations" />
+      <Topbar
+        title="Billing & Finance"
+        subtitle="Manage payments, invoices, and financial operations"
+      />
 
       {/* Top actions (kept: Manual Debit + Refresh) */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -319,7 +404,7 @@ export default function WalletsPage() {
         </div>
       )}
 
-      {/* Metrics (exact standard vibe) */}
+      {/* Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
           title="Total Revenue (MTD)"
@@ -355,7 +440,7 @@ export default function WalletsPage() {
         />
       </div>
 
-      {/* Tabs (exact standard vibe) */}
+      {/* Tabs */}
       <div className="mb-2">
         <div className="flex gap-2 border-b border-slate-800">
           {(["overview", "transactions", "outstanding", "invoices"] as const).map((tab) => (
@@ -426,10 +511,7 @@ export default function WalletsPage() {
                   {paymentDistribution.map((status, index) => (
                     <div key={index} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: status.color }}
-                        />
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: status.color }} />
                         <span className="text-sm text-slate-300">{status.name}</span>
                       </div>
                       <span className="text-sm font-semibold">{status.value}%</span>
@@ -452,19 +534,12 @@ export default function WalletsPage() {
                   <div key={item.category} className="p-4 bg-slate-800/50 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium">{item.category}</span>
-                      <span className="text-lg font-semibold">
-                        {formatMoney(item.amount || 0, "NGN")}
-                      </span>
+                      <span className="text-lg font-semibold">{formatMoney(item.amount || 0, "NGN")}</span>
                     </div>
                     <div className="w-full bg-slate-700 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full ${item.color}`}
-                        style={{ width: `${item.percentage}%` }}
-                      />
+                      <div className={`h-2 rounded-full ${item.color}`} style={{ width: `${item.percentage}%` }} />
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {item.percentage}% of total revenue
-                    </p>
+                    <p className="text-xs text-slate-400 mt-1">{item.percentage}% of total revenue</p>
                   </div>
                 ))}
               </div>
@@ -612,7 +687,7 @@ export default function WalletsPage() {
             </table>
           </div>
 
-          {/* Keep your REAL table wiring intact (hidden safe lane for when endpoint arrives) */}
+          {/* Keep your REAL table wiring intact */}
           <div className="mt-8">
             <DataTable data={rows} columns={columns} title="Wallet Activity (Backend)" searchKey={"reference"} />
             {!rows.length ? (
@@ -751,13 +826,10 @@ export default function WalletsPage() {
         </div>
       )}
 
-      {/* MANUAL DEBIT MODAL (kept exactly, only styling aligned a bit) */}
+      {/* MANUAL DEBIT MODAL */}
       {showDebit && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
-          <div
-            className="absolute inset-0 bg-black/70"
-            onClick={() => !loading && setShowDebit(false)}
-          />
+          <div className="absolute inset-0 bg-black/70" onClick={() => !loading && setShowDebit(false)} />
           <div className="relative bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-lg p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -766,10 +838,7 @@ export default function WalletsPage() {
                   Use this to test deductions + signals end-to-end.
                 </div>
               </div>
-              <button
-                className="text-slate-400 hover:text-slate-200"
-                onClick={() => !loading && setShowDebit(false)}
-              >
+              <button className="text-slate-400 hover:text-slate-200" onClick={() => !loading && setShowDebit(false)}>
                 ✕
               </button>
             </div>
