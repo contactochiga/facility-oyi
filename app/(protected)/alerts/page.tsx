@@ -468,7 +468,7 @@ export default function AlertsPage() {
                       <button
                         className="px-4 py-2 bg-zinc-900/60 hover:bg-zinc-800 rounded-xl text-xs font-medium transition-colors text-white/90 border border-white/10"
                         onClick={() =>
-                          alert(
+                          window.alert(
                             `Alert details\n\n${alert.title}\n\n${alert.description}\n\nCategory: ${alert.category}\nLocation: ${alert.location}`
                           )
                         }
