@@ -51,7 +51,7 @@ const items: Item[] = [
   { href: "/environment", label: "Environment", icon: Wind, startsWith: ["/environment"] },
   { href: "/occupancy", label: "Occupancy", icon: Users, startsWith: ["/occupancy"] },
 
-  { href: "/wallets", label: "Wallets", icon: Wallet, startsWith: ["/wallet", "/wallets"] },
+  { href: "/wallets", label: "Billing & Finance", icon: Wallet, startsWith: ["/wallet", "/wallets"] },
   { href: "/community", label: "Community", icon: MessagesSquare, startsWith: ["/community"] },
 
   // ✅ FIX: Alerts should go to /alerts
