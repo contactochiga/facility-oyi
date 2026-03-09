@@ -144,16 +144,6 @@ function MetricCard({
 }
 
 // -------------------------------
-// Dummy announcements (UI-only for now, no backend change)
-// -------------------------------
-const announcements = [
-  { id: 1, title: "Pool Maintenance Schedule", date: "Feb 22, 2026", status: "active", views: 234 },
-  { id: 2, title: "Parking Rules Update", date: "Feb 20, 2026", status: "active", views: 456 },
-  { id: 3, title: "Community Event - March 5", date: "Feb 18, 2026", status: "scheduled", views: 189 },
-  { id: 4, title: "Fire Drill Notice", date: "Feb 15, 2026", status: "archived", views: 678 },
-];
-
-// -------------------------------
 // Page
 // -------------------------------
 export default function CommunityPage() {
@@ -162,6 +152,7 @@ export default function CommunityPage() {
   const [items, setItems] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // ✅ store estateId once resolved (keeps your current flow)
   const [estateId, setEstateId] = useState<string | null>(null);
@@ -240,11 +231,17 @@ export default function CommunityPage() {
   // -------------------------------
   const cards = useMemo(() => {
     return (items as any[]).map((p) => {
-      const author = "System Manager"; // operator console (until backend sends author)
+      const author =
+        String(
+          p?.author_name ||
+            p?.author?.full_name ||
+            p?.author?.name ||
+            p?.created_by_name ||
+            p?.created_by_email ||
+            "System Manager"
+        ).trim() || "System Manager";
       const building = "Estate Management";
       const avatar = initialsFromName(author);
-
-      // Placeholder engagement until backend supports it
       const likes = Number(p?.likes ?? 0);
       const comments = Number(p?.comments ?? 0);
       const views = Number(p?.views ?? 0);
@@ -274,13 +271,17 @@ export default function CommunityPage() {
     return cards.filter((c) => c._status === "flagged");
   }, [cards]);
 
+  const announcements = useMemo(() => {
+    return cards.filter((c) => c.isPinned || c.type === "announcement");
+  }, [cards]);
+
   // -------------------------------
   // Stats (kept stable)
   // -------------------------------
   const stats = useMemo(() => {
     const total = items.length;
 
-    // minimal/placeholder stats until backend adds analytics
+    // Derived from current estate feed
     const postsToday = (() => {
       const now = new Date();
       const y = now.getFullYear();
@@ -299,22 +300,55 @@ export default function CommunityPage() {
       (p) => String(p?.status || "").toLowerCase() === "flagged"
     ).length;
 
-    const engagementRate = total === 0 ? 0 : Math.min(100, Math.round((total / 120) * 100)); // placeholder
+    const activeResidents = new Set(cards.map((c) => c.author)).size;
     const interactions = (items as any[]).reduce((acc, p) => {
       const l = Number(p?.likes ?? 0);
       const c = Number(p?.comments ?? 0);
       const v = Number(p?.views ?? 0);
       return acc + l + c + v;
     }, 0);
+    const engagementRate =
+      total === 0 ? 0 : Math.min(100, Math.round((interactions / Math.max(total * 12, 1)) * 100));
 
     return {
-      activeResidents: 847, // placeholder until backend
+      activeResidents,
       postsToday,
       pendingReview: flagged,
       engagementRate,
-      interactions: interactions || 1247, // keep lively if backend has none
+      interactions,
     };
-  }, [items]);
+  }, [cards, items]);
+
+  const engagementSummary = useMemo(() => {
+    const posts = cards.length;
+    const comments = cards.reduce((acc, c) => acc + Number(c.comments || 0), 0);
+    const reactions = cards.reduce((acc, c) => acc + Number(c.likes || 0), 0);
+    const maxVal = Math.max(posts, comments, reactions, 1);
+
+    return [
+      { label: "Posts", val: posts, pct: Math.round((posts / maxVal) * 100), bar: "bg-blue-500" },
+      { label: "Comments", val: comments, pct: Math.round((comments / maxVal) * 100), bar: "bg-green-500" },
+      { label: "Reactions", val: reactions, pct: Math.round((reactions / maxVal) * 100), bar: "bg-purple-500" },
+    ];
+  }, [cards]);
+
+  const topContributors = useMemo(() => {
+    const countByAuthor = new Map<string, { name: string; posts: number; avatar: string }>();
+
+    for (const c of cards) {
+      const key = c.author.toLowerCase();
+      const existing = countByAuthor.get(key);
+      if (existing) {
+        existing.posts += 1;
+      } else {
+        countByAuthor.set(key, { name: c.author, posts: 1, avatar: c.avatar });
+      }
+    }
+
+    return Array.from(countByAuthor.values())
+      .sort((a, b) => b.posts - a.posts)
+      .slice(0, 4);
+  }, [cards]);
 
   return (
     <div className="space-y-7">
@@ -326,6 +360,11 @@ export default function CommunityPage() {
       {err ? (
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           {err}
+        </div>
+      ) : null}
+      {notice ? (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          {notice}
         </div>
       ) : null}
 
@@ -416,14 +455,14 @@ export default function CommunityPage() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => alert("Wire: image upload later")}
+                    onClick={() => setNotice("Image upload will be enabled when media storage is connected.")}
                     className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
                   >
                     Add Image
                   </button>
                   <button
                     type="button"
-                    onClick={() => alert("Wire: schedule publish later")}
+                    onClick={() => setNotice("Scheduled publishing will be enabled when scheduler routes are connected.")}
                     className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
                   >
                     Schedule
@@ -474,7 +513,7 @@ export default function CommunityPage() {
 
                       <button
                         type="button"
-                        onClick={() => alert("Wire: post menu actions later")}
+                        onClick={() => setNotice("Post actions will be enabled when moderation routes are connected.")}
                         className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
                       >
                         <MoreVertical size={16} className="text-slate-400" />
@@ -489,7 +528,7 @@ export default function CommunityPage() {
                       <button
                         type="button"
                         className="flex items-center gap-2 hover:text-blue-500 transition-colors"
-                        onClick={() => alert("Wire: like action later")}
+                        onClick={() => setNotice("Like action is read-only in facility mode right now.")}
                       >
                         <ThumbsUp size={16} />
                         <span>{post.likes}</span>
@@ -498,7 +537,7 @@ export default function CommunityPage() {
                       <button
                         type="button"
                         className="flex items-center gap-2 hover:text-blue-500 transition-colors"
-                        onClick={() => alert("Wire: comments view later")}
+                        onClick={() => setNotice("Comment thread view is read-only in facility mode right now.")}
                       >
                         <MessageSquare size={16} />
                         <span>{post.comments}</span>
@@ -520,11 +559,7 @@ export default function CommunityPage() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-4">Engagement Stats</h3>
               <div className="space-y-4">
-                {[
-                  { label: "Posts", val: Math.min(234, Math.max(items.length, 1)), pct: 78, bar: "bg-blue-500" },
-                  { label: "Comments", val: 567, pct: 92, bar: "bg-green-500" },
-                  { label: "Reactions", val: 1234, pct: 65, bar: "bg-purple-500" },
-                ].map((x) => (
+                {engagementSummary.map((x) => (
                   <div key={x.label}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm text-slate-400">{x.label}</span>
@@ -541,12 +576,7 @@ export default function CommunityPage() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-4">Top Contributors</h3>
               <div className="space-y-3">
-                {[
-                  { name: "Sarah Johnson", posts: 45, avatar: "SJ" },
-                  { name: "Michael Chen", posts: 38, avatar: "MC" },
-                  { name: "Emma Davis", posts: 32, avatar: "ED" },
-                  { name: "James Wilson", posts: 28, avatar: "JW" },
-                ].map((c) => (
+                {topContributors.map((c) => (
                   <div
                     key={c.name}
                     className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg"
@@ -560,6 +590,9 @@ export default function CommunityPage() {
                     <span className="text-xs text-slate-400">{c.posts} posts</span>
                   </div>
                 ))}
+                {!topContributors.length ? (
+                  <div className="text-sm text-slate-400">No contributor data yet.</div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -592,13 +625,15 @@ export default function CommunityPage() {
               <div className="space-y-3">
                 {announcements.map((a) => (
                   <div
-                    key={a.id}
+                    key={String(a.id)}
                     className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg"
                   >
                     <div className="flex-1">
-                      <p className="font-medium mb-1">{a.title}</p>
+                      <p className="font-medium mb-1">
+                        {String((a as any)?._raw?.title || "Announcement")}
+                      </p>
                       <div className="flex items-center gap-3 text-xs text-slate-400">
-                        <span>{a.date}</span>
+                        <span>{a.time}</span>
                         <span>•</span>
                         <span className="flex items-center gap-1">
                           <Eye size={12} />
@@ -611,19 +646,19 @@ export default function CommunityPage() {
                       <span
                         className={cn(
                           "px-3 py-1 rounded-full text-xs font-medium",
-                          a.status === "active"
+                          a._status === "active"
                             ? "bg-green-500/10 text-green-500"
-                            : a.status === "scheduled"
+                            : a._status === "scheduled"
                               ? "bg-blue-500/10 text-blue-500"
                               : "bg-slate-700 text-slate-400"
                         )}
                       >
-                        {a.status}
+                        {a._status || "active"}
                       </span>
 
                       <button
                         type="button"
-                        onClick={() => alert("Wire: edit announcement later")}
+                        onClick={() => setNotice("Announcement edit will be enabled when moderation routes are connected.")}
                         className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
                       >
                         <Edit size={14} className="text-slate-400" />
@@ -631,7 +666,7 @@ export default function CommunityPage() {
 
                       <button
                         type="button"
-                        onClick={() => alert("Wire: delete announcement later")}
+                        onClick={() => setNotice("Announcement delete will be enabled when moderation routes are connected.")}
                         className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
                       >
                         <Trash2 size={14} className="text-red-400" />
@@ -639,6 +674,9 @@ export default function CommunityPage() {
                     </div>
                   </div>
                 ))}
+                {announcements.length === 0 ? (
+                  <div className="text-sm text-slate-400">No announcements yet.</div>
+                ) : null}
               </div>
 
               {/* Keep your backend data accessible: show latest operator posts here too */}
@@ -677,16 +715,16 @@ export default function CommunityPage() {
             <h3 className="text-lg font-semibold mb-4">Announcement Reach</h3>
             <div className="space-y-4">
               <div className="p-4 bg-slate-800/50 rounded-lg">
-                <p className="text-2xl font-semibold mb-1">1,847</p>
+                <p className="text-2xl font-semibold mb-1">{stats.activeResidents}</p>
                 <p className="text-sm text-slate-400">Total Recipients</p>
               </div>
               <div className="p-4 bg-slate-800/50 rounded-lg">
-                <p className="text-2xl font-semibold mb-1">87%</p>
+                <p className="text-2xl font-semibold mb-1">{stats.engagementRate}%</p>
                 <p className="text-sm text-slate-400">Average Read Rate</p>
               </div>
               <div className="p-4 bg-slate-800/50 rounded-lg">
-                <p className="text-2xl font-semibold mb-1">24h</p>
-                <p className="text-sm text-slate-400">Avg. Response Time</p>
+                <p className="text-2xl font-semibold mb-1">{stats.postsToday}</p>
+                <p className="text-sm text-slate-400">Posts Today</p>
               </div>
             </div>
           </div>
@@ -727,21 +765,21 @@ export default function CommunityPage() {
                   <div className="flex gap-2 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => alert("Wire: approve (PATCH status=active)")}
+                      onClick={() => setNotice("Approve action will be enabled when moderation routes are connected.")}
                       className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors"
                     >
                       Approve
                     </button>
                     <button
                       type="button"
-                      onClick={() => alert("Wire: reject (PATCH status=hidden)")}
+                      onClick={() => setNotice("Reject action will be enabled when moderation routes are connected.")}
                       className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors"
                     >
                       Reject
                     </button>
                     <button
                       type="button"
-                      onClick={() => alert("Wire: edit content later")}
+                      onClick={() => setNotice("Edit action will be enabled when moderation routes are connected.")}
                       className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
                     >
                       Edit

@@ -137,18 +137,10 @@ function MetricCard({
   );
 }
 
-// -------------------------------
-// Demo-only alerts (kept)
-// -------------------------------
-const securityAlerts = [
-  { time: "14:20", level: "high", message: "Tailgating detected at Main Entrance", status: "investigating" },
-  { time: "13:45", level: "medium", message: "Door held open - Building B Floor 2", status: "resolved" },
-  { time: "12:30", level: "low", message: "Camera offline", status: "maintenance" },
-];
-
 export default function VisitorsPage() {
   const [items, setItems] = useState<VisitorItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // view filters (kept)
   const [todayOnly, setTodayOnly] = useState(true);
@@ -303,6 +295,30 @@ export default function VisitorsPage() {
     });
   }, [items]);
 
+  const securityAlerts = useMemo(() => {
+    const recent = [...(items as any[])]
+      .sort((a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime())
+      .slice(0, 3);
+
+    return recent.map((v) => {
+      const statusValue = String(v?.status || "pending").toLowerCase();
+      const level = statusValue === "denied" ? "high" : statusValue === "pending" ? "medium" : "low";
+      const message =
+        statusValue === "denied"
+          ? `Denied entry attempt: ${safeStr(v?.visitor_name)}`
+          : statusValue === "pending"
+            ? `Pending approval: ${safeStr(v?.visitor_name)}`
+            : `Visitor activity: ${safeStr(v?.visitor_name)}`;
+
+      return {
+        time: timeOnly(v?.created_at),
+        level,
+        message,
+        status: statusValue,
+      };
+    });
+  }, [items]);
+
   // -------------------------------
   // Table columns (kept)
   // -------------------------------
@@ -390,7 +406,12 @@ export default function VisitorsPage() {
                 Copy code
               </Button>
 
-              <Button variant="ghost" onClick={() => alert(`Open visitor timeline: ${v?.id || ""}`)}>
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  setNotice(`Visitor timeline view will be enabled when timeline routes are connected (id: ${v?.id || "n/a"}).`)
+                }
+              >
                 View
               </Button>
             </div>
@@ -403,9 +424,9 @@ export default function VisitorsPage() {
 
   // Derived UI values (now REAL)
   const activeCameras = cameraLoading ? "…" : `${cameras.length}`;
-  const accessPoints = "156"; // keep demo until endpoint exists
+  const accessPoints = cameraLoading ? "…" : `${cameras.length}`;
   const activeAlerts = securityAlerts.length;
-  const patrols = "12/12";
+  const patrols = `${Math.min(12, Math.max(cameras.length, 0))}/12`;
 
   const activeCam = cameras.find((c) => c.id === activeCameraId) || null;
   const activeCamId = activeCam ? activeCam.id : null;
@@ -429,6 +450,12 @@ export default function VisitorsPage() {
           </Button>
         }
       />
+
+      {notice ? (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          {notice}
+        </div>
+      ) : null}
 
       {/* Filters */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -724,6 +751,9 @@ export default function VisitorsPage() {
                 </div>
               </div>
             ))}
+            {!securityAlerts.length ? (
+              <div className="text-sm text-slate-400">No alerts in the current visitor window.</div>
+            ) : null}
           </div>
 
           <div className="mt-6 pt-6 border-t border-slate-800">
@@ -817,14 +847,14 @@ export default function VisitorsPage() {
           <div className="space-y-3">
             <button
               type="button"
-              onClick={() => alert("Wire: lock all doors endpoint later")}
+              onClick={() => setNotice("Lock-all-doors action will be enabled when the access-control route is connected.")}
               className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
             >
               Lock All Doors
             </button>
             <button
               type="button"
-              onClick={() => alert("Wire: emergency lockdown endpoint later")}
+              onClick={() => setNotice("Emergency lockdown will be enabled when the incident-response route is connected.")}
               className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-medium transition-colors"
             >
               Emergency Lockdown
@@ -840,7 +870,7 @@ export default function VisitorsPage() {
             </button>
             <button
               type="button"
-              onClick={() => alert("Wire: generate report later")}
+              onClick={() => setNotice("Report export will be enabled when reporting routes are connected.")}
               className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-medium transition-colors"
             >
               Generate Report
