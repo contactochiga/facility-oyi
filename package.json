@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 3001",
+    "dev": "NEXT_BUILD_DIR=.next-dev next dev",
     "build": "next build",
-    "start": "next start -p 3001",
+    "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
@@ -22,7 +22,6 @@
     "clsx": "^2.1.1",
     "jwt-decode": "^4.0.0",
     "react-icons": "^5.3.0",
-
     "@vercel/analytics": "^1.5.0",
     "hls.js": "^1.5.17"
   },

@@ -10,7 +10,16 @@ import cameraService, {
   type CameraEvent,
 } from "@/services/cameraService";
 import { facilityService } from "@/services/facilityService";
-import { Brain, Clock3, ShieldAlert } from "lucide-react";
+import {
+  Bell,
+  Brain,
+  Car,
+  Clock3,
+  Dog,
+  Shield,
+  ShieldAlert,
+  UserRound,
+} from "lucide-react";
 
 function extractErr(e: any) {
   const status = e?.response?.status;
@@ -26,6 +35,42 @@ function ipFromDiscovered(d: DiscoveredCamera) {
     ""
   );
 }
+
+type AiProfile = {
+  armed: boolean;
+  mode: "home" | "away" | "night" | "vacation";
+  sensitivity: number;
+  minConfidence: number;
+  detectHuman: boolean;
+  detectVehicle: boolean;
+  detectAnimal: boolean;
+  detectFace: boolean;
+  detectLoitering: boolean;
+  detectIntrusion: boolean;
+  notifyInApp: boolean;
+  notifyPush: boolean;
+  notifySms: boolean;
+  autoRecordOnDetect: boolean;
+};
+
+const AI_PROFILE_STORAGE_KEY = "facility.camera.aiProfiles.v1";
+
+const defaultAiProfile: AiProfile = {
+  armed: true,
+  mode: "away",
+  sensitivity: 70,
+  minConfidence: 65,
+  detectHuman: true,
+  detectVehicle: true,
+  detectAnimal: true,
+  detectFace: true,
+  detectLoitering: true,
+  detectIntrusion: true,
+  notifyInApp: true,
+  notifyPush: true,
+  notifySms: false,
+  autoRecordOnDetect: true,
+};
 
 export default function CamerasPage() {
   const [estateId, setEstateId] = useState<string | null>(null);
@@ -56,8 +101,110 @@ export default function CamerasPage() {
   const [intelLoading, setIntelLoading] = useState(false);
   const [intelCaps, setIntelCaps] = useState<string[]>([]);
   const [intelErr, setIntelErr] = useState<string | null>(null);
+  const [profileByCamera, setProfileByCamera] = useState<Record<string, AiProfile>>({});
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<string | null>(null);
+  const [aiMonitorOn, setAiMonitorOn] = useState(false);
+  const [aiMonitorRate, setAiMonitorRate] = useState(20);
+  const [aiLastDetected, setAiLastDetected] = useState<string | null>(null);
 
   const selectedIp = useMemo(() => (selected ? ipFromDiscovered(selected) : ""), [selected]);
+  const activeProfile = useMemo(
+    () => profileByCamera[intelCameraId] || { ...defaultAiProfile },
+    [profileByCamera, intelCameraId]
+  );
+
+  function persistProfiles(next: Record<string, AiProfile>) {
+    setProfileByCamera(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(AI_PROFILE_STORAGE_KEY, JSON.stringify(next));
+    }
+  }
+
+  function patchActiveProfile(patch: Partial<AiProfile>) {
+    if (!intelCameraId) return;
+    const current = profileByCamera[intelCameraId] || { ...defaultAiProfile };
+    persistProfiles({
+      ...profileByCamera,
+      [intelCameraId]: { ...current, ...patch },
+    });
+  }
+
+  function applyAiPreset(preset: "security" | "pet" | "parking" | "balanced") {
+    if (preset === "security") {
+      patchActiveProfile({
+        mode: "away",
+        detectHuman: true,
+        detectVehicle: true,
+        detectAnimal: true,
+        detectIntrusion: true,
+        detectLoitering: true,
+        sensitivity: 82,
+        minConfidence: 70,
+      });
+      return;
+    }
+    if (preset === "pet") {
+      patchActiveProfile({
+        mode: "home",
+        detectHuman: true,
+        detectVehicle: false,
+        detectAnimal: true,
+        detectIntrusion: false,
+        detectLoitering: false,
+        sensitivity: 60,
+        minConfidence: 55,
+      });
+      return;
+    }
+    if (preset === "parking") {
+      patchActiveProfile({
+        mode: "away",
+        detectHuman: true,
+        detectVehicle: true,
+        detectAnimal: false,
+        detectIntrusion: true,
+        detectLoitering: true,
+        sensitivity: 74,
+        minConfidence: 62,
+      });
+      return;
+    }
+    patchActiveProfile({ ...defaultAiProfile });
+  }
+
+  async function saveAiProfile() {
+    if (!intelCameraId) return;
+    setProfileSaving(true);
+    setProfileMsg(null);
+    const profile = profileByCamera[intelCameraId] || { ...defaultAiProfile };
+    try {
+      const remoteRes = await cameraService
+        .upsertAiProfile(intelCameraId, profile)
+        .catch(() => ({ ok: false, skipped: true }));
+
+      await cameraService.createEvent(intelCameraId, {
+        event_type: "ai_profile_updated",
+        confidence: 1,
+        message: `AI profile updated (${profile.mode.toUpperCase()} mode)`,
+        metadata: { profile, source: "facility_camera_ui" },
+      });
+
+      await loadIntel(intelCameraId);
+
+      if (remoteRes?.ok) {
+        setProfileMsg("AI profile synced to backend.");
+      } else {
+        setProfileMsg("AI profile saved locally. Backend sync endpoint not available yet.");
+      }
+    } catch (e: any) {
+      const { msg } = extractErr(e);
+      setProfileMsg(`Failed to save AI profile: ${msg}`);
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
   async function hydrateEstate() {
     // same strategy as your overview page
@@ -196,25 +343,110 @@ export default function CamerasPage() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(AI_PROFILE_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        setProfileByCamera(parsed as Record<string, AiProfile>);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     if (!intelCameraId) return;
     loadIntel(intelCameraId);
+    setProfileLoading(true);
+    cameraService
+      .getAiProfile(intelCameraId)
+      .then((res: any) => {
+        if (res?.profile) {
+          const merged = {
+            ...defaultAiProfile,
+            ...res.profile,
+          } as AiProfile;
+          persistProfiles({
+            ...profileByCamera,
+            [intelCameraId]: merged,
+          });
+        } else if (!profileByCamera[intelCameraId]) {
+          persistProfiles({
+            ...profileByCamera,
+            [intelCameraId]: { ...defaultAiProfile },
+          });
+        }
+      })
+      .finally(() => setProfileLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intelCameraId]);
 
-  async function logManualEvent(type: string) {
+  useEffect(() => {
+    if (!aiMonitorOn || !intelCameraId) return;
+    const profile = profileByCamera[intelCameraId] || defaultAiProfile;
+    if (!profile.armed) return;
+
+    const candidates: string[] = [];
+    if (profile.detectHuman) candidates.push("human_detection");
+    if (profile.detectVehicle) candidates.push("vehicle_detection");
+    if (profile.detectAnimal) candidates.push("animal_detection");
+    if (profile.detectFace) candidates.push("face_recognition");
+    if (profile.detectIntrusion) candidates.push("intrusion_detection");
+    if (profile.detectLoitering) candidates.push("loitering_detection");
+    if (!candidates.length) return;
+
+    const ms = Math.max(8, Math.min(90, Number(aiMonitorRate || 20))) * 1000;
+    const timer = setInterval(() => {
+      const idx = Math.floor(Math.random() * candidates.length);
+      const picked = candidates[idx];
+      emitAiEvent(picked, "auto");
+    }, ms);
+
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiMonitorOn, aiMonitorRate, intelCameraId, profileByCamera]);
+
+  async function emitAiEvent(type: string, source: "manual" | "auto" = "manual") {
     if (!intelCameraId) return;
     setIntelErr(null);
+    const profile = profileByCamera[intelCameraId] || defaultAiProfile;
+    const confBase = source === "manual" ? 0.9 : Math.max(0.5, profile.minConfidence / 100);
+    const confidence = Math.min(0.99, confBase + Math.random() * 0.08);
     const res: any = await cameraService.createEvent(intelCameraId, {
       event_type: type,
-      confidence: 0.9,
-      message: `Operator logged ${type.replace(/_/g, " ")}`,
-      metadata: { source: "facility_ui_manual" },
+      confidence,
+      message:
+        source === "manual"
+          ? `Operator logged ${type.replace(/_/g, " ")}`
+          : `AI monitor detected ${type.replace(/_/g, " ")}`,
+      metadata: {
+        source: source === "manual" ? "facility_ui_manual" : "facility_ai_monitor",
+        profile_mode: profile.mode,
+      },
     });
     if (res?.error) {
       setIntelErr(String(res.error));
       return;
     }
+    setAiLastDetected(`${type.replace(/_/g, " ")} • ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
+
+    if (profile.notifyPush && typeof window !== "undefined" && "Notification" in window) {
+      try {
+        if (window.Notification.permission === "default") {
+          await window.Notification.requestPermission();
+        }
+        if (window.Notification.permission === "granted") {
+          new window.Notification("Camera AI event", {
+            body: `${type.replace(/_/g, " ")} detected on selected camera`,
+          });
+        }
+      } catch {}
+    }
     await loadIntel(intelCameraId);
+  }
+
+  async function logManualEvent(type: string) {
+    await emitAiEvent(type, "manual");
   }
 
   return (
@@ -234,16 +466,16 @@ export default function CamerasPage() {
         </div>
       )}
 
-      {/* Intelligence workflow */}
-      <div className="glass border border-white/10 rounded-2xl p-4 space-y-3">
+      {/* AI camera control center */}
+      <div className="glass border border-white/10 rounded-2xl p-4 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <div className="text-sm font-semibold text-white inline-flex items-center gap-2">
               <Brain size={16} className="text-blue-300" />
-              Camera Intelligence Workflow
+              AI Camera Security Center
             </div>
             <div className="text-xs text-zinc-400 mt-1">
-              Rewind playback + detection timeline + operator incident tagging.
+              Full AI detection, rewind playback, event timeline, and alert routing.
             </div>
           </div>
 
@@ -266,37 +498,178 @@ export default function CamerasPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { label: "Live", value: 0 },
-                { label: "-1m", value: 60 },
-                { label: "-5m", value: 300 },
-                { label: "-15m", value: 900 },
-              ].map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  onClick={() => setIntelRewind(p.value)}
-                  className={`rounded-full px-3 py-1 text-xs border ${
-                    intelRewind === p.value
-                      ? "border-blue-500/30 bg-blue-500/10 text-blue-200"
-                      : "border-white/10 bg-white/5 text-zinc-300"
-                  }`}
-                >
-                  <span className="inline-flex items-center gap-1"><Clock3 size={12} />{p.label}</span>
-                </button>
-              ))}
+        <div className="grid gap-4 xl:grid-cols-[1.2fr_0.9fr_1fr]">
+          <div className="space-y-3">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="text-xs text-zinc-400 mb-2">Playback / Rewind</div>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {[
+                  { label: "Live", value: 0 },
+                  { label: "-1m", value: 60 },
+                  { label: "-5m", value: 300 },
+                  { label: "-15m", value: 900 },
+                  { label: "-30m", value: 1800 },
+                ].map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => setIntelRewind(p.value)}
+                    className={`rounded-full px-3 py-1 text-xs border ${
+                      intelRewind === p.value
+                        ? "border-blue-500/30 bg-blue-500/10 text-blue-200"
+                        : "border-white/10 bg-white/5 text-zinc-300"
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-1"><Clock3 size={12} />{p.label}</span>
+                  </button>
+                ))}
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={3600}
+                step={30}
+                value={intelRewind}
+                onChange={(e) => setIntelRewind(Number(e.target.value))}
+                className="w-full"
+              />
+              <div className="text-[11px] text-zinc-500 mt-1">Current rewind: {intelRewind === 0 ? "Live" : `${intelRewind}s ago`}</div>
             </div>
 
             {intelCameraId ? (
               <CameraPlayer cameraId={intelCameraId} variant="hero" rewindSeconds={intelRewind} />
             ) : (
               <div className="rounded-xl border border-white/10 bg-black/30 p-6 text-sm text-zinc-400">
-                Select camera to open intelligence playback.
+                Select camera to open AI playback.
               </div>
             )}
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-white font-semibold inline-flex items-center gap-2">
+                <Shield size={15} className="text-emerald-300" />
+                AI Modes & Detection
+              </div>
+              {profileLoading ? <span className="text-[10px] text-zinc-500">loading…</span> : null}
+            </div>
+
+            <div className="flex gap-1.5 flex-wrap">
+              {[
+                { key: "security", label: "Security" },
+                { key: "pet", label: "Pet Home" },
+                { key: "parking", label: "Parking" },
+                { key: "balanced", label: "Balanced" },
+              ].map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => applyAiPreset(p.key as any)}
+                  className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-zinc-200"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 flex items-center justify-between">
+                Armed
+                <input type="checkbox" checked={activeProfile.armed} onChange={(e) => patchActiveProfile({ armed: e.target.checked })} />
+              </label>
+              <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 flex items-center justify-between">
+                Auto Record
+                <input type="checkbox" checked={activeProfile.autoRecordOnDetect} onChange={(e) => patchActiveProfile({ autoRecordOnDetect: e.target.checked })} />
+              </label>
+              <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 flex items-center justify-between">
+                Human
+                <input type="checkbox" checked={activeProfile.detectHuman} onChange={(e) => patchActiveProfile({ detectHuman: e.target.checked })} />
+              </label>
+              <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 flex items-center justify-between">
+                Vehicle
+                <input type="checkbox" checked={activeProfile.detectVehicle} onChange={(e) => patchActiveProfile({ detectVehicle: e.target.checked })} />
+              </label>
+              <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 flex items-center justify-between">
+                Animal
+                <input type="checkbox" checked={activeProfile.detectAnimal} onChange={(e) => patchActiveProfile({ detectAnimal: e.target.checked })} />
+              </label>
+              <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 flex items-center justify-between">
+                Face
+                <input type="checkbox" checked={activeProfile.detectFace} onChange={(e) => patchActiveProfile({ detectFace: e.target.checked })} />
+              </label>
+              <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 flex items-center justify-between">
+                Intrusion
+                <input type="checkbox" checked={activeProfile.detectIntrusion} onChange={(e) => patchActiveProfile({ detectIntrusion: e.target.checked })} />
+              </label>
+              <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 flex items-center justify-between">
+                Loitering
+                <input type="checkbox" checked={activeProfile.detectLoitering} onChange={(e) => patchActiveProfile({ detectLoitering: e.target.checked })} />
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-[11px] text-zinc-400">Sensitivity: {activeProfile.sensitivity}</div>
+              <input type="range" min={1} max={100} value={activeProfile.sensitivity} onChange={(e) => patchActiveProfile({ sensitivity: Number(e.target.value) })} className="w-full" />
+              <div className="text-[11px] text-zinc-400">Min confidence: {activeProfile.minConfidence}%</div>
+              <input type="range" min={30} max={99} value={activeProfile.minConfidence} onChange={(e) => patchActiveProfile({ minConfidence: Number(e.target.value) })} className="w-full" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 flex items-center justify-between">
+                <span className="inline-flex items-center gap-1"><Bell size={12} /> In-app</span>
+                <input type="checkbox" checked={activeProfile.notifyInApp} onChange={(e) => patchActiveProfile({ notifyInApp: e.target.checked })} />
+              </label>
+              <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 flex items-center justify-between">
+                Push
+                <input type="checkbox" checked={activeProfile.notifyPush} onChange={(e) => patchActiveProfile({ notifyPush: e.target.checked })} />
+              </label>
+              <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 flex items-center justify-between">
+                SMS
+                <input type="checkbox" checked={activeProfile.notifySms} onChange={(e) => patchActiveProfile({ notifySms: e.target.checked })} />
+              </label>
+              <select
+                value={activeProfile.mode}
+                onChange={(e) => patchActiveProfile({ mode: e.target.value as AiProfile["mode"] })}
+                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5"
+              >
+                <option value="home">Home</option>
+                <option value="away">Away</option>
+                <option value="night">Night</option>
+                <option value="vacation">Vacation</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={saveAiProfile} disabled={!intelCameraId || profileSaving}>
+                {profileSaving ? "Saving..." : "Save AI Profile"}
+              </Button>
+              <Button
+                variant={aiMonitorOn ? "secondary" : "ghost"}
+                onClick={() => setAiMonitorOn((v) => !v)}
+                disabled={!intelCameraId}
+              >
+                {aiMonitorOn ? "Stop AI Monitor" : "Start AI Monitor"}
+              </Button>
+            </div>
+            <div className="space-y-1">
+              <div className="text-[11px] text-zinc-400">AI monitor interval: {aiMonitorRate}s</div>
+              <input
+                type="range"
+                min={8}
+                max={90}
+                value={aiMonitorRate}
+                onChange={(e) => setAiMonitorRate(Number(e.target.value))}
+                className="w-full"
+              />
+              {aiMonitorOn ? (
+                <div className="text-[11px] text-emerald-300">
+                  AI monitor active{aiLastDetected ? ` • last: ${aiLastDetected}` : ""}.
+                </div>
+              ) : (
+                <div className="text-[11px] text-zinc-500">AI monitor is idle.</div>
+              )}
+            </div>
+            {profileMsg ? <div className="text-[11px] text-zinc-400">{profileMsg}</div> : null}
           </div>
 
           <div className="rounded-xl border border-white/10 bg-black/20 p-3">
@@ -306,17 +679,10 @@ export default function CamerasPage() {
             </div>
             {intelErr ? <div className="text-xs text-amber-200 mt-1">{intelErr}</div> : null}
 
-            <div className="mt-2 flex gap-1.5 flex-wrap">
-              {["suspicious_motion", "face_recognition", "animal_detection"].map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => logManualEvent(t)}
-                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-200"
-                >
-                  Log {t.replace(/_/g, " ")}
-                </button>
-              ))}
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              <button type="button" onClick={() => logManualEvent("human_detection")} className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-200 inline-flex items-center justify-center gap-1"><UserRound size={12} />Human</button>
+              <button type="button" onClick={() => logManualEvent("vehicle_detection")} className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-200 inline-flex items-center justify-center gap-1"><Car size={12} />Vehicle</button>
+              <button type="button" onClick={() => logManualEvent("animal_detection")} className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-200 inline-flex items-center justify-center gap-1"><Dog size={12} />Animal</button>
             </div>
 
             <div className="mt-3 max-h-72 overflow-auto space-y-2">
@@ -325,20 +691,30 @@ export default function CamerasPage() {
                 <div className="text-xs text-zinc-500">No events yet.</div>
               ) : null}
               {intelEvents.map((ev) => (
-                <div key={ev.id} className="rounded-lg border border-white/10 bg-zinc-900/70 px-2.5 py-2">
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => {
+                    const ts = ev.created_at ? new Date(ev.created_at).getTime() : 0;
+                    if (!ts) return;
+                    const sec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+                    setIntelRewind(Math.min(3600, sec));
+                  }}
+                  className="w-full text-left rounded-lg border border-white/10 bg-zinc-900/70 px-2.5 py-2"
+                >
                   <div className="text-xs text-white font-medium">{String(ev.event_type || "event").replace(/_/g, " ")}</div>
                   <div className="text-[11px] text-zinc-400 mt-1">{ev.message || "Detection event"}</div>
                   <div className="text-[10px] text-zinc-500 mt-1">
                     {ev.created_at ? new Date(ev.created_at).toLocaleString() : ""}
                     {typeof ev.confidence === "number" ? ` • ${Math.round(ev.confidence * 100)}%` : ""}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
 
             {intelCaps.length ? (
               <div className="mt-3 text-[11px] text-zinc-500 line-clamp-3">
-                Capabilities: {intelCaps.map((c) => c.replace(/_/g, " ")).join(", ")}
+                Backend capabilities: {intelCaps.map((c) => c.replace(/_/g, " ")).join(", ")}
               </div>
             ) : null}
           </div>

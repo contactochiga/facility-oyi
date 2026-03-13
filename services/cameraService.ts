@@ -34,6 +34,24 @@ export type CameraEvent = {
   created_at?: string | null;
 };
 
+export type CameraAiProfile = {
+  armed?: boolean;
+  mode?: "home" | "away" | "night" | "vacation" | string;
+  sensitivity?: number;
+  minConfidence?: number;
+  detectHuman?: boolean;
+  detectVehicle?: boolean;
+  detectAnimal?: boolean;
+  detectFace?: boolean;
+  detectLoitering?: boolean;
+  detectIntrusion?: boolean;
+  notifyInApp?: boolean;
+  notifyPush?: boolean;
+  notifySms?: boolean;
+  autoRecordOnDetect?: boolean;
+  [key: string]: any;
+};
+
 export const cameraService = {
   async scan(payload: { cidr?: string; username?: string; password?: string }) {
     const res = await API.post("/cameras/scan", payload);
@@ -129,6 +147,32 @@ export const cameraService = {
   async getAnalyticsCapabilities() {
     const res = await API.get("/cameras/analytics/capabilities");
     return res.data as { ok: boolean; capabilities: string[]; note?: string };
+  },
+
+  async getAiProfile(cameraId: string) {
+    try {
+      const res = await API.get(`/cameras/${encodeURIComponent(cameraId)}/ai/profile`);
+      return res.data as { ok: boolean; profile?: CameraAiProfile };
+    } catch (err: any) {
+      const status = Number(err?.response?.status || 0);
+      if ([404, 405, 501].includes(status)) {
+        return { ok: false, profile: undefined } as { ok: boolean; profile?: CameraAiProfile };
+      }
+      throw err;
+    }
+  },
+
+  async upsertAiProfile(cameraId: string, profile: CameraAiProfile) {
+    try {
+      const res = await API.put(`/cameras/${encodeURIComponent(cameraId)}/ai/profile`, profile);
+      return res.data as { ok: boolean; profile?: CameraAiProfile };
+    } catch (err: any) {
+      const status = Number(err?.response?.status || 0);
+      if ([404, 405, 501].includes(status)) {
+        return { ok: false, skipped: true } as { ok: boolean; skipped?: boolean };
+      }
+      throw err;
+    }
   },
 
   // ✅ Build HLS URL with signed query token

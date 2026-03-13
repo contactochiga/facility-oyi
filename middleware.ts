@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PROTECTED = ["/overview", "/devices", "/maintenance", "/visitors", "/alerts"];
+const PROTECTED = [
+  "/overview",
+  "/devices",
+  "/maintenance",
+  "/visitors",
+  "/alerts",
+  "/cameras",
+  "/traffic",
+  "/water",
+  "/environment",
+  "/occupancy",
+  "/wallets",
+  "/community",
+  "/messages",
+  "/homes",
+  "/services",
+  "/account",
+  "/digital-twin",
+];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -20,5 +38,23 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/overview/:path*", "/devices/:path*", "/maintenance/:path*", "/visitors/:path*", "/alerts/:path*"],
+  matcher: [
+    "/overview/:path*",
+    "/devices/:path*",
+    "/maintenance/:path*",
+    "/visitors/:path*",
+    "/alerts/:path*",
+    "/cameras/:path*",
+    "/traffic/:path*",
+    "/water/:path*",
+    "/environment/:path*",
+    "/occupancy/:path*",
+    "/wallets/:path*",
+    "/community/:path*",
+    "/messages/:path*",
+    "/homes/:path*",
+    "/services/:path*",
+    "/account/:path*",
+    "/digital-twin/:path*",
+  ],
 };

@@ -6,6 +6,9 @@ import { Bars3Icon, BellIcon } from "@heroicons/react/24/outline";
 import { useSessionStore } from "@/store/useSessionStore";
 import NotificationsModal from "@/components/notifications/NotificationsModal";
 import { notificationService } from "@/services/notificationService";
+import { messagesService } from "@/services/messagesService";
+import { MessageSquare } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -66,9 +69,11 @@ export default function Topbar({
   rightSlot?: React.ReactNode;
 }) {
   const { user } = useSessionStore();
+  const router = useRouter();
 
   const [openNotif, setOpenNotif] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [messageCount, setMessageCount] = useState(0);
 
   // optional status indicator (doesn't affect anything if API missing)
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
@@ -82,14 +87,32 @@ export default function Topbar({
     }
   }
 
+  async function refreshMessages() {
+    try {
+      const threads = await messagesService.listInbox();
+      const totalUnread = (threads || []).reduce(
+        (sum, t) => sum + Number(t?.unread_count || 0),
+        0
+      );
+      setMessageCount(totalUnread);
+    } catch {
+      setMessageCount(0);
+    }
+  }
+
   useEffect(() => {
     if (!showNotifications) return;
 
     refreshUnread();
+    refreshMessages();
 
     // ✅ light polling (safe): every 25s
-    const t = setInterval(refreshUnread, 25000);
-    return () => clearInterval(t);
+    const t1 = setInterval(refreshUnread, 25000);
+    const t2 = setInterval(refreshMessages, 20000);
+    return () => {
+      clearInterval(t1);
+      clearInterval(t2);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNotifications]);
 
@@ -161,6 +184,20 @@ export default function Topbar({
         {/* Right */}
         <div className="flex items-center gap-2 sm:gap-3">
           {rightSlot ? <div className="flex items-center">{rightSlot}</div> : null}
+
+          <button
+            className="rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10 transition relative"
+            aria-label="Messages"
+            type="button"
+            onClick={() => router.push("/messages")}
+          >
+            <MessageSquare className="h-5 w-5 text-zinc-200" />
+            {messageCount > 0 ? (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[11px] flex items-center justify-center border border-emerald-500/30">
+                {messageCount > 99 ? "99+" : messageCount}
+              </span>
+            ) : null}
+          </button>
 
           {showNotifications ? (
             <button

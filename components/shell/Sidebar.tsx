@@ -13,11 +13,15 @@ function SidebarBrand({ onClick }: { onClick?: () => void }) {
         onClick={onClick}
         className="flex items-center gap-3 group"
       >
-        <div className="relative h-10 w-10 shrink-0 rounded-lg bg-white/5 border border-white/10 overflow-hidden">
+        <div
+          className="shrink-0 rounded-lg bg-white/5 border border-white/10 overflow-hidden"
+          style={{ width: 40, height: 40 }}
+        >
           <Image
             src="/oyi-logo-transparent.png"
             alt="Oyi Facility"
-            fill
+            width={40}
+            height={40}
             className="object-contain p-1.5"
             priority
           />

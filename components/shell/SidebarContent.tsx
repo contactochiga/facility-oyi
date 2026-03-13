@@ -10,12 +10,13 @@ import {
   Wrench,
   Shield,
   Wallet,
-  MessagesSquare,
   AlertTriangle,
   Car,
   Droplets,
   Wind,
   Users,
+  Orbit,
+  Cctv,
   ChevronDown,
   LogOut,
   Settings,
@@ -50,10 +51,11 @@ const items: Item[] = [
   { href: "/water", label: "Water", icon: Droplets, startsWith: ["/water"] },
   { href: "/environment", label: "Environment", icon: Wind, startsWith: ["/environment"] },
   { href: "/occupancy", label: "Occupancy", icon: Users, startsWith: ["/occupancy"] },
+  { href: "/cameras", label: "Cameras", icon: Cctv, startsWith: ["/cameras"] },
+  { href: "/digital-twin", label: "Digital Twin", icon: Orbit, startsWith: ["/digital-twin"] },
 
   { href: "/wallets", label: "Billing & Finance", icon: Wallet, startsWith: ["/wallet", "/wallets"] },
-  { href: "/messages", label: "Messaging", icon: MessagesSquare, startsWith: ["/messages"] },
-  { href: "/community", label: "Community", icon: MessagesSquare, startsWith: ["/community"] },
+  { href: "/community", label: "Community", icon: Users, startsWith: ["/community"] },
 
   // ✅ FIX: Alerts should go to /alerts
   { href: "/alerts", label: "Alerts", icon: AlertTriangle, startsWith: ["/alerts"] },
