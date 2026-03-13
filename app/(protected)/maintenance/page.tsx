@@ -7,6 +7,7 @@ import {
   maintenanceService,
   type MaintenanceItem,
 } from "@/services/maintenanceService";
+import { deviceService, type FacilityDevice } from "@/services/deviceService";
 import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -145,6 +146,7 @@ function MetricCard({
 
 export default function MaintenancePage() {
   const [items, setItems] = useState<MaintenanceItem[]>([]);
+  const [devices, setDevices] = useState<FacilityDevice[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [lane, setLane] = useState<Lane>("open");
@@ -153,10 +155,12 @@ export default function MaintenancePage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await maintenanceService.list(
-        lane === "all" ? undefined : { status: lane }
-      );
+      const [res, dev] = await Promise.all([
+        maintenanceService.list(lane === "all" ? undefined : { status: lane }),
+        deviceService.list(),
+      ]);
       setItems(res || []);
+      setDevices(Array.isArray(dev) ? dev : []);
     } finally {
       setLoading(false);
     }
@@ -186,10 +190,8 @@ export default function MaintenancePage() {
       if (p === "high" || p === "urgent") high += 1;
     }
 
-    // These are “operator-style” KPIs that match your sample UI
     const pendingTasks = open;
     const inProgress = inProg;
-    const completedToday = resolved; // keep simple until you have resolved_at per day
     const criticalIssues = urgent;
 
     return {
@@ -201,7 +203,6 @@ export default function MaintenancePage() {
       urgent,
       pendingTasks,
       inProgress,
-      completedToday,
       criticalIssues,
     };
   }, [items]);
@@ -333,14 +334,34 @@ export default function MaintenancePage() {
 
   const selectedAny: any = selected;
 
-  // Safe placeholder (UI only). When you wire real asset registry, replace this.
-  const equipmentStatus = [
-    { category: "Elevators", total: 16, operational: 15, maintenance: 1, faulty: 0 },
-    { category: "HVAC Units", total: 24, operational: 22, maintenance: 2, faulty: 0 },
-    { category: "Fire Systems", total: 8, operational: 8, maintenance: 0, faulty: 0 },
-    { category: "Water Systems", total: 12, operational: 11, maintenance: 1, faulty: 0 },
-    { category: "Electrical", total: 32, operational: 30, maintenance: 2, faulty: 0 },
-  ];
+  const equipmentStatus = useMemo(() => {
+    const groups = new Map<
+      string,
+      { category: string; total: number; operational: number; maintenance: number; faulty: number }
+    >();
+
+    for (const d of devices as any[]) {
+      const label = String(d?.type || "Devices");
+      const row =
+        groups.get(label) || {
+          category: label,
+          total: 0,
+          operational: 0,
+          maintenance: 0,
+          faulty: 0,
+        };
+
+      row.total += 1;
+      const s = safeLower(d?.status);
+      if (s === "active" || s === "online" || s === "ok") row.operational += 1;
+      else if (s === "offline" || s === "down" || s === "error") row.faulty += 1;
+      else row.maintenance += 1;
+
+      groups.set(label, row);
+    }
+
+    return Array.from(groups.values()).sort((a, b) => b.total - a.total).slice(0, 6);
+  }, [devices]);
 
   return (
     <div className="space-y-7">
@@ -376,11 +397,12 @@ export default function MaintenancePage() {
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
-            onClick={() => alert("Wire: create maintenance task")}
+            onClick={() => {}}
+            disabled
           >
             <span className="inline-flex items-center gap-2">
               <Plus size={16} />
-              Create Task
+              Create Task Soon
             </span>
           </Button>
 
@@ -437,9 +459,10 @@ export default function MaintenancePage() {
             </div>
             <Button
               variant="ghost"
-              onClick={() => alert("Wire: create maintenance task")}
+              onClick={() => {}}
+              disabled
             >
-              Create Task
+              Create Task Soon
             </Button>
           </div>
 
@@ -509,11 +532,15 @@ export default function MaintenancePage() {
         <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-6">
           <div className="text-lg font-semibold text-white">Equipment Status</div>
           <div className="mt-1 text-sm text-white/50">
-            Operational overview (wire to asset registry when ready).
+            Operational overview from live device inventory.
           </div>
 
           <div className="mt-5 space-y-4">
-            {equipmentStatus.map((eq) => {
+            {!equipmentStatus.length ? (
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
+                No equipment data available yet.
+              </div>
+            ) : equipmentStatus.map((eq) => {
               const opW = (eq.operational / eq.total) * 100;
               const mW = (eq.maintenance / eq.total) * 100;
               const fW = (eq.faulty / eq.total) * 100;
@@ -578,7 +605,7 @@ export default function MaintenancePage() {
           ) : (
             recentCompletions.map((it: any) => (
               <button
-                key={String(it?.id ?? Math.random())}
+                key={String(it?.id ?? `${it?.title || "resolved"}-${it?.created_at || ""}`)}
                 type="button"
                 onClick={() => setSelected(it)}
                 className="text-left rounded-xl border border-white/10 bg-black/20 hover:bg-black/30 transition p-4"
@@ -695,19 +722,15 @@ export default function MaintenancePage() {
             </div>
 
             <div className="mt-5 flex justify-end gap-2 flex-wrap">
-              <Button variant="ghost" onClick={() => alert("Wire: set status = in_progress")}>
+              <Button variant="ghost" onClick={() => {}} disabled>
                 Mark In Progress
               </Button>
-              <Button variant="ghost" onClick={() => alert("Wire: assign technician")}>
+              <Button variant="ghost" onClick={() => {}} disabled>
                 Assign
               </Button>
-              <Button onClick={() => alert("Wire: set status = resolved")}>
+              <Button onClick={() => {}} disabled>
                 Resolve
               </Button>
-            </div>
-
-            <div className="mt-4 text-[11px] text-zinc-500">
-              Note: once your API returns unit/zone/home names + assigned_to, this screen becomes full command-grade.
             </div>
           </div>
         </div>
