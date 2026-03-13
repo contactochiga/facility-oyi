@@ -276,13 +276,13 @@ function MiniLineChart({
 
       <div className="mt-2 flex items-center gap-3 text-xs text-white/55">
         <span className="inline-flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full" style={{ background: "rgba(245,158,11,0.95)" }} /> Solar
+          <span className="h-2 w-2 rounded-full" style={{ background: "rgba(245,158,11,0.95)" }} /> Online
         </span>
         <span className="inline-flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full" style={{ background: "rgba(59,130,246,0.95)" }} /> Grid
+          <span className="h-2 w-2 rounded-full" style={{ background: "rgba(59,130,246,0.95)" }} /> Offline
         </span>
         <span className="inline-flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full" style={{ background: "rgba(139,92,246,0.95)" }} /> Total
+          <span className="h-2 w-2 rounded-full" style={{ background: "rgba(139,92,246,0.95)" }} /> Capacity
         </span>
       </div>
     </div>
@@ -495,23 +495,30 @@ export default function DevicesPage() {
     return (items as any[]).filter((d) => toSystemKey(d) === system) as any;
   }, [items, system]);
 
-  // ✅ Energy mock data (UI-only; doesn’t touch your APIs)
-  const hourlyData = [
-    { label: "00:00", solar: 0, grid: 450, total: 450 },
-    { label: "04:00", solar: 0, grid: 380, total: 380 },
-    { label: "08:00", solar: 120, grid: 500, total: 620 },
-    { label: "12:00", solar: 280, grid: 500, total: 780 },
-    { label: "16:00", solar: 180, grid: 670, total: 850 },
-    { label: "20:00", solar: 20, grid: 700, total: 720 },
-    { label: "23:59", solar: 0, grid: 580, total: 580 },
+  const systemRows = [
+    { building: "Power", current: derived.systemCounts("power") },
+    { building: "MEP", current: derived.systemCounts("mep") },
+    { building: "Security", current: derived.systemCounts("security") },
+    { building: "Access", current: derived.systemCounts("access") },
+    { building: "Cameras", current: derived.systemCounts("cameras") },
   ];
 
-  const buildingComparison = [
-    { building: "Building A", current: 1840, target: 2000 },
-    { building: "Building B", current: 2150, target: 2200 },
-    { building: "Building C", current: 1680, target: 1900 },
-    { building: "Building D", current: 2320, target: 2400 },
-    { building: "Building E", current: 1590, target: 1800 },
+  const buildingComparison = systemRows.map((r) => ({
+    ...r,
+    target: Math.max(r.current, Math.ceil(derived.total / 5) || 1),
+  }));
+
+  const totalKnown = Math.max(1, derived.active + derived.offline + derived.unknown);
+  const activeShare = Math.round((derived.active / totalKnown) * 100);
+  const offlineShare = Math.round((derived.offline / totalKnown) * 100);
+  const unknownShare = Math.max(0, 100 - activeShare - offlineShare);
+
+  const hourlyData = [
+    { label: "00:00", solar: activeShare, grid: offlineShare, total: 100 },
+    { label: "06:00", solar: Math.max(0, activeShare - 4), grid: Math.min(100, offlineShare + 2), total: 100 },
+    { label: "12:00", solar: activeShare, grid: offlineShare, total: 100 },
+    { label: "18:00", solar: Math.max(0, activeShare - 2), grid: Math.min(100, offlineShare + 1), total: 100 },
+    { label: "23:59", solar: Math.max(0, activeShare - unknownShare), grid: Math.min(100, offlineShare + unknownShare), total: 100 },
   ];
 
   const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("24h");
@@ -623,8 +630,8 @@ export default function DevicesPage() {
   return (
     <div className="space-y-7">
       <Topbar
-        title="Energy Management"
-        subtitle="Real-time consumption • sustainability • building performance"
+        title="Device Operations"
+        subtitle="Real-time device health, discovery, and command readiness"
         rightSlot={
           <div className="flex gap-2">
             {(["24h", "7d", "30d"] as const).map((r) => (
@@ -649,30 +656,30 @@ export default function DevicesPage() {
       {/* ✅ Metric row (smart city vibe) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          title="Total Consumption"
-          value="847 kWh"
-          change="-12% vs yesterday"
+          title="Total Devices"
+          value={String(derived.total)}
+          change="Across all connected systems"
           icon={Zap}
-          tone="warn"
+          tone="neutral"
         />
         <MetricCard
-          title="Solar Generation"
-          value="312 kWh"
-          change="+8% vs yesterday"
+          title="Online Devices"
+          value={String(derived.active)}
+          change={`${derived.health}% health score`}
           icon={Sun}
           tone="good"
         />
         <MetricCard
-          title="Energy Efficiency"
-          value="87%"
-          change="+3% this week"
+          title="Offline Devices"
+          value={String(derived.offline)}
+          change={derived.offline > 0 ? "Needs attention" : "No outages detected"}
           icon={TrendingDown}
-          tone="good"
+          tone={derived.offline > 0 ? "warn" : "good"}
         />
         <MetricCard
-          title="Cost Savings"
-          value="$1,247"
-          change="This month"
+          title="Unknown State"
+          value={String(derived.unknown)}
+          change="Missing status telemetry"
           icon={Lightbulb}
           tone="neutral"
         />
@@ -682,7 +689,7 @@ export default function DevicesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-white/90">Energy Sources (24h)</div>
+            <div className="text-sm font-semibold text-white/90">Status Distribution Snapshot</div>
             <div className="text-xs text-white/45">{timeRange.toUpperCase()}</div>
           </div>
           <div className="mt-4">
@@ -692,8 +699,8 @@ export default function DevicesPage() {
 
         <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-white/90">Building Performance</div>
-            <div className="text-xs text-white/45">Current vs Target</div>
+            <div className="text-sm font-semibold text-white/90">System Coverage</div>
+            <div className="text-xs text-white/45">Current vs expected baseline</div>
           </div>
           <div className="mt-4">
             <MiniBarChart data={buildingComparison} />

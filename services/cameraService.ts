@@ -65,10 +65,41 @@ export const cameraService = {
   },
 
   async getPlayback(cameraId: string, rewindSeconds = 0) {
-    const res = await API.get(`/cameras/${encodeURIComponent(cameraId)}/playback`, {
-      params: { rewind: Math.max(0, Math.floor(rewindSeconds || 0)) },
-    });
-    return res.data as { ok: boolean; type: "hls"; url: string; rewind: number };
+    const rewind = Math.max(0, Math.floor(rewindSeconds || 0));
+
+    // Preferred route (new backend)
+    try {
+      const res = await API.get(`/cameras/${encodeURIComponent(cameraId)}/playback`, {
+        params: { rewind },
+      });
+      if (res?.data?.url) {
+        return res.data as { ok: boolean; type: "hls"; url: string; rewind: number };
+      }
+    } catch (err: any) {
+      const status = Number(err?.response?.status || 0);
+      // fall through to legacy flow on 404/405/501 or gateway mismatch
+      if (![404, 405, 501, 502].includes(status)) {
+        throw err;
+      }
+    }
+
+    // Legacy fallback (older backend): hls-token + hls.m3u8
+    const tokenRes = await API.get(`/cameras/${encodeURIComponent(cameraId)}/hls-token`);
+    const token = String(tokenRes?.data?.token || "").trim();
+    if (!token) throw new Error("Playback unavailable: missing HLS token.");
+
+    let url = this.hlsUrl(cameraId, token);
+    if (rewind > 0) {
+      const sep = url.includes("?") ? "&" : "?";
+      url = `${url}${sep}rewind=${encodeURIComponent(String(rewind))}`;
+    }
+
+    return { ok: true, type: "hls", url, rewind } as {
+      ok: boolean;
+      type: "hls";
+      url: string;
+      rewind: number;
+    };
   },
 
   async listEvents(cameraId: string, opts?: { limit?: number; sinceMinutes?: number }) {
