@@ -13,6 +13,7 @@ type Props = {
   // NEW
   controls?: boolean;
   variant?: "hero" | "tile";
+  rewindSeconds?: number;
 };
 
 export default function CameraPlayer({
@@ -22,6 +23,7 @@ export default function CameraPlayer({
   autoPlay = true,
   controls = true,
   variant = "tile",
+  rewindSeconds = 0,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export default function CameraPlayer({
     return v.canPlayType("application/vnd.apple.mpegurl") !== "";
   }, []);
 
-  // ✅ Fetch token + build src, refresh every 60s
+  // ✅ Fetch playback URL (live/rewind), refresh every 60s
   useEffect(() => {
     let alive = true;
     let timer: any = null;
@@ -41,17 +43,15 @@ export default function CameraPlayer({
     async function refreshTokenAndSrc() {
       try {
         setErr(null);
-        const res = await cameraService.getHlsToken(cameraId);
+        const res = await cameraService.getPlayback(cameraId, rewindSeconds);
         if (!alive) return;
-
-        const url = cameraService.hlsUrl(cameraId, res.token);
-        setSrc(url);
+        setSrc(String(res?.url || ""));
       } catch (e: any) {
         if (!alive) return;
         const msg =
           e?.response?.data?.error ||
           e?.message ||
-          "Failed to load stream token";
+          "Failed to load stream";
         setErr(String(msg));
         setSrc("");
       }
@@ -64,7 +64,7 @@ export default function CameraPlayer({
       alive = false;
       if (timer) clearInterval(timer);
     };
-  }, [cameraId]);
+  }, [cameraId, rewindSeconds]);
 
   // ✅ Mount HLS playback whenever src changes
   useEffect(() => {

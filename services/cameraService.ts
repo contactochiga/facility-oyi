@@ -23,6 +23,17 @@ export type BoundCamera = {
   created_at: string;
 };
 
+export type CameraEvent = {
+  id: string;
+  camera_id: string;
+  event_type: string;
+  confidence?: number | null;
+  snapshot_url?: string | null;
+  message?: string | null;
+  metadata?: Record<string, any> | null;
+  created_at?: string | null;
+};
+
 export const cameraService = {
   async scan(payload: { cidr?: string; username?: string; password?: string }) {
     const res = await API.post("/cameras/scan", payload);
@@ -51,6 +62,42 @@ export const cameraService = {
   async getHlsToken(cameraId: string) {
     const res = await API.get(`/cameras/${encodeURIComponent(cameraId)}/hls-token`);
     return res.data as { ok: boolean; token: string; expires_in: number };
+  },
+
+  async getPlayback(cameraId: string, rewindSeconds = 0) {
+    const res = await API.get(`/cameras/${encodeURIComponent(cameraId)}/playback`, {
+      params: { rewind: Math.max(0, Math.floor(rewindSeconds || 0)) },
+    });
+    return res.data as { ok: boolean; type: "hls"; url: string; rewind: number };
+  },
+
+  async listEvents(cameraId: string, opts?: { limit?: number; sinceMinutes?: number }) {
+    const res = await API.get(`/cameras/${encodeURIComponent(cameraId)}/events`, {
+      params: {
+        limit: opts?.limit ?? 30,
+        sinceMinutes: opts?.sinceMinutes ?? 24 * 60,
+      },
+    });
+    return res.data as { ok: boolean; events: CameraEvent[]; warning?: string };
+  },
+
+  async createEvent(
+    cameraId: string,
+    payload: {
+      event_type: string;
+      confidence?: number;
+      snapshot_url?: string;
+      message?: string;
+      metadata?: Record<string, any>;
+    }
+  ) {
+    const res = await API.post(`/cameras/${encodeURIComponent(cameraId)}/events`, payload);
+    return res.data as { ok: boolean; event?: CameraEvent; error?: string };
+  },
+
+  async getAnalyticsCapabilities() {
+    const res = await API.get("/cameras/analytics/capabilities");
+    return res.data as { ok: boolean; capabilities: string[]; note?: string };
   },
 
   // ✅ Build HLS URL with signed query token

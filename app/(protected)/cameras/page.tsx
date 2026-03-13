@@ -4,8 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import CameraPlayer from "@/components/cameras/CameraPlayer";
-import cameraService, { type BoundCamera, type DiscoveredCamera } from "@/services/cameraService";
+import cameraService, {
+  type BoundCamera,
+  type DiscoveredCamera,
+  type CameraEvent,
+} from "@/services/cameraService";
 import { facilityService } from "@/services/facilityService";
+import { Brain, Clock3, ShieldAlert } from "lucide-react";
 
 function extractErr(e: any) {
   const status = e?.response?.status;
@@ -44,6 +49,14 @@ export default function CamerasPage() {
   const [bindName, setBindName] = useState("");
   const [selected, setSelected] = useState<DiscoveredCamera | null>(null);
 
+  // camera intelligence workflow
+  const [intelCameraId, setIntelCameraId] = useState<string>("");
+  const [intelRewind, setIntelRewind] = useState(0);
+  const [intelEvents, setIntelEvents] = useState<CameraEvent[]>([]);
+  const [intelLoading, setIntelLoading] = useState(false);
+  const [intelCaps, setIntelCaps] = useState<string[]>([]);
+  const [intelErr, setIntelErr] = useState<string | null>(null);
+
   const selectedIp = useMemo(() => (selected ? ipFromDiscovered(selected) : ""), [selected]);
 
   async function hydrateEstate() {
@@ -81,13 +94,36 @@ export default function CamerasPage() {
       }
 
       const res = await cameraService.listByEstate(eid);
-      setItems(res?.items || []);
+      const next = res?.items || [];
+      setItems(next);
+      if (!intelCameraId && next.length) setIntelCameraId(String(next[0].id));
     } catch (e: any) {
       const { status, msg } = extractErr(e);
       setErr(`${msg}${status ? ` (HTTP ${status})` : ""}`);
       setItems([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadIntel(cameraId: string) {
+    if (!cameraId) return;
+    setIntelLoading(true);
+    setIntelErr(null);
+    try {
+      const [eventsRes, capsRes] = await Promise.all([
+        cameraService.listEvents(cameraId, { limit: 25, sinceMinutes: 24 * 60 }),
+        cameraService.getAnalyticsCapabilities().catch(() => ({ ok: false, capabilities: [] as string[] })),
+      ]);
+      setIntelEvents(eventsRes?.events || []);
+      setIntelCaps(Array.isArray(capsRes?.capabilities) ? capsRes.capabilities : []);
+      if (eventsRes?.warning) setIntelErr(eventsRes.warning);
+    } catch (e: any) {
+      const { msg } = extractErr(e);
+      setIntelErr(msg);
+      setIntelEvents([]);
+    } finally {
+      setIntelLoading(false);
     }
   }
 
@@ -159,6 +195,28 @@ export default function CamerasPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!intelCameraId) return;
+    loadIntel(intelCameraId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intelCameraId]);
+
+  async function logManualEvent(type: string) {
+    if (!intelCameraId) return;
+    setIntelErr(null);
+    const res: any = await cameraService.createEvent(intelCameraId, {
+      event_type: type,
+      confidence: 0.9,
+      message: `Operator logged ${type.replace(/_/g, " ")}`,
+      metadata: { source: "facility_ui_manual" },
+    });
+    if (res?.error) {
+      setIntelErr(String(res.error));
+      return;
+    }
+    await loadIntel(intelCameraId);
+  }
+
   return (
     <div className="space-y-7">
       <Topbar title="Cameras" subtitle="Discovery • binding • live stream" />
@@ -175,6 +233,117 @@ export default function CamerasPage() {
           {err}
         </div>
       )}
+
+      {/* Intelligence workflow */}
+      <div className="glass border border-white/10 rounded-2xl p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-sm font-semibold text-white inline-flex items-center gap-2">
+              <Brain size={16} className="text-blue-300" />
+              Camera Intelligence Workflow
+            </div>
+            <div className="text-xs text-zinc-400 mt-1">
+              Rewind playback + detection timeline + operator incident tagging.
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={intelCameraId}
+              onChange={(e) => setIntelCameraId(e.target.value)}
+              className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm"
+            >
+              {!items.length ? <option value="">No camera</option> : null}
+              {items.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name || c.ip}
+                </option>
+              ))}
+            </select>
+            <Button variant="ghost" onClick={() => intelCameraId && loadIntel(intelCameraId)} disabled={!intelCameraId}>
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { label: "Live", value: 0 },
+                { label: "-1m", value: 60 },
+                { label: "-5m", value: 300 },
+                { label: "-15m", value: 900 },
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setIntelRewind(p.value)}
+                  className={`rounded-full px-3 py-1 text-xs border ${
+                    intelRewind === p.value
+                      ? "border-blue-500/30 bg-blue-500/10 text-blue-200"
+                      : "border-white/10 bg-white/5 text-zinc-300"
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-1"><Clock3 size={12} />{p.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {intelCameraId ? (
+              <CameraPlayer cameraId={intelCameraId} variant="hero" rewindSeconds={intelRewind} />
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-black/30 p-6 text-sm text-zinc-400">
+                Select camera to open intelligence playback.
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+            <div className="text-sm text-white font-semibold inline-flex items-center gap-2">
+              <ShieldAlert size={15} className="text-amber-300" />
+              Detection Timeline
+            </div>
+            {intelErr ? <div className="text-xs text-amber-200 mt-1">{intelErr}</div> : null}
+
+            <div className="mt-2 flex gap-1.5 flex-wrap">
+              {["suspicious_motion", "face_recognition", "animal_detection"].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => logManualEvent(t)}
+                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-200"
+                >
+                  Log {t.replace(/_/g, " ")}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-3 max-h-72 overflow-auto space-y-2">
+              {intelLoading ? <div className="text-xs text-zinc-500">Loading events...</div> : null}
+              {!intelLoading && !intelEvents.length ? (
+                <div className="text-xs text-zinc-500">No events yet.</div>
+              ) : null}
+              {intelEvents.map((ev) => (
+                <div key={ev.id} className="rounded-lg border border-white/10 bg-zinc-900/70 px-2.5 py-2">
+                  <div className="text-xs text-white font-medium">{String(ev.event_type || "event").replace(/_/g, " ")}</div>
+                  <div className="text-[11px] text-zinc-400 mt-1">{ev.message || "Detection event"}</div>
+                  <div className="text-[10px] text-zinc-500 mt-1">
+                    {ev.created_at ? new Date(ev.created_at).toLocaleString() : ""}
+                    {typeof ev.confidence === "number" ? ` • ${Math.round(ev.confidence * 100)}%` : ""}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {intelCaps.length ? (
+              <div className="mt-3 text-[11px] text-zinc-500 line-clamp-3">
+                Capabilities: {intelCaps.map((c) => c.replace(/_/g, " ")).join(", ")}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
 
       {/* Bound cameras */}
       {items.length === 0 ? (

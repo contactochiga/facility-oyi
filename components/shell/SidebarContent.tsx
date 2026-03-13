@@ -52,6 +52,7 @@ const items: Item[] = [
   { href: "/occupancy", label: "Occupancy", icon: Users, startsWith: ["/occupancy"] },
 
   { href: "/wallets", label: "Billing & Finance", icon: Wallet, startsWith: ["/wallet", "/wallets"] },
+  { href: "/messages", label: "Messaging", icon: MessagesSquare, startsWith: ["/messages"] },
   { href: "/community", label: "Community", icon: MessagesSquare, startsWith: ["/community"] },
 
   // ✅ FIX: Alerts should go to /alerts

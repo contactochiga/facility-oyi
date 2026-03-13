@@ -13,6 +13,8 @@ import {
   Filter,
 } from "lucide-react";
 import { notificationService, type AlertItem } from "@/services/notificationService";
+import cameraService, { type CameraEvent } from "@/services/cameraService";
+import { facilityService } from "@/services/facilityService";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -178,6 +180,7 @@ function getStatusTone(status: Status) {
 
 export default function AlertsPage() {
   const [items, setItems] = useState<AlertItem[]>([]);
+  const [cameraEvents, setCameraEvents] = useState<Array<CameraEvent & { camera_name?: string }>>([]);
   const [loading, setLoading] = useState(false);
 
   // UI “workflow” state (does not touch backend yet)
@@ -189,8 +192,32 @@ export default function AlertsPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await notificationService.unread();
+      const [res, overview] = await Promise.all([
+        notificationService.unread(),
+        facilityService.overview().catch(() => null),
+      ]);
       setItems(res || []);
+
+      const estateId = overview?.estate_id;
+      if (estateId) {
+        const cams = await cameraService.listByEstate(estateId).catch(() => ({ items: [] as any[] }));
+        const list = (cams?.items || []).slice(0, 12);
+        const eventJobs = list.map(async (c) => {
+          const out = await cameraService
+            .listEvents(String(c.id), { limit: 10, sinceMinutes: 24 * 60 })
+            .catch(() => ({ events: [] as CameraEvent[] }));
+          return (out?.events || []).map((e) => ({ ...e, camera_name: c.name || c.ip }));
+        });
+        const all = (await Promise.all(eventJobs)).flat();
+        all.sort((a, b) => {
+          const ta = new Date(a.created_at || 0).getTime();
+          const tb = new Date(b.created_at || 0).getTime();
+          return tb - ta;
+        });
+        setCameraEvents(all.slice(0, 80));
+      } else {
+        setCameraEvents([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -201,7 +228,7 @@ export default function AlertsPage() {
   }, []);
 
   const uiAlerts: UiAlert[] = useMemo(() => {
-    return (items || []).map((a: any, idx) => {
+    const notificationAlerts = (items || []).map((a: any, idx) => {
       const id = String(a?.id ?? a?._id ?? a?.uuid ?? idx);
       const title = safeStr(a?.title ?? a?.subject ?? a?.name, "System alert");
       const description = safeStr(a?.message ?? a?.body ?? a?.description, "—");
@@ -238,7 +265,27 @@ export default function AlertsPage() {
         raw: a,
       };
     });
-  }, [items, statusById]);
+
+    const cameraIntelAlerts = (cameraEvents || []).map((ev: any, idx) => {
+      const title = safeStr(ev?.event_type, "camera event").replace(/_/g, " ");
+      const description = safeStr(ev?.message, "Camera detection event");
+      const sev = pickSeverity(title, description, ev);
+      const id = `cam-${String(ev?.id || idx)}`;
+      return {
+        id,
+        severity: sev,
+        category: "Camera Intelligence",
+        title: `Camera: ${title}`,
+        description,
+        location: safeStr(ev?.camera_name, "Camera"),
+        time: timeAgo(ev?.created_at),
+        status: statusById[id] || "active",
+        raw: ev,
+      } as UiAlert;
+    });
+
+    return [...notificationAlerts, ...cameraIntelAlerts];
+  }, [items, cameraEvents, statusById]);
 
   const filteredAlerts = useMemo(() => {
     return uiAlerts.filter((a) => {
