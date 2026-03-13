@@ -16,6 +16,7 @@ import {
   Car,
   Clock3,
   Dog,
+  Eye,
   Shield,
   ShieldAlert,
   UserRound,
@@ -34,6 +35,10 @@ function ipFromDiscovered(d: DiscoveredCamera) {
     d?.externalId ||
     ""
   );
+}
+
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
 }
 
 type AiProfile = {
@@ -108,12 +113,46 @@ export default function CamerasPage() {
   const [aiMonitorOn, setAiMonitorOn] = useState(false);
   const [aiMonitorRate, setAiMonitorRate] = useState(20);
   const [aiLastDetected, setAiLastDetected] = useState<string | null>(null);
+  const [localEventsByCamera, setLocalEventsByCamera] = useState<Record<string, CameraEvent[]>>({});
 
   const selectedIp = useMemo(() => (selected ? ipFromDiscovered(selected) : ""), [selected]);
   const activeProfile = useMemo(
     () => profileByCamera[intelCameraId] || { ...defaultAiProfile },
     [profileByCamera, intelCameraId]
   );
+  const localIntelEvents = useMemo(
+    () => localEventsByCamera[intelCameraId] || [],
+    [localEventsByCamera, intelCameraId]
+  );
+
+  const liveStats = useMemo(() => {
+    const now = Date.now();
+    const oneMinuteAgo = now - 60 * 1000;
+    const recent = intelEvents.filter((e) => {
+      const t = e.created_at ? new Date(e.created_at).getTime() : 0;
+      return t >= oneMinuteAgo;
+    });
+    const byType = new Map<string, number>();
+    for (const e of intelEvents) {
+      const k = String(e.event_type || "event");
+      byType.set(k, (byType.get(k) || 0) + 1);
+    }
+    return {
+      perMin: recent.length,
+      total: intelEvents.length,
+      topTypes: Array.from(byType.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3),
+    };
+  }, [intelEvents]);
+
+  function pushLocalEvent(cameraId: string, ev: CameraEvent) {
+    setLocalEventsByCamera((prev) => {
+      const cur = prev[cameraId] || [];
+      const next = [ev, ...cur].slice(0, 120);
+      return { ...prev, [cameraId]: next };
+    });
+  }
 
   function persistProfiles(next: Record<string, AiProfile>) {
     setProfileByCamera(next);
@@ -184,19 +223,32 @@ export default function CamerasPage() {
         .upsertAiProfile(intelCameraId, profile)
         .catch(() => ({ ok: false, skipped: true }));
 
-      await cameraService.createEvent(intelCameraId, {
+      const localProfileEvent: CameraEvent = {
+        id: `local-profile-${Date.now()}`,
+        camera_id: intelCameraId,
         event_type: "ai_profile_updated",
         confidence: 1,
         message: `AI profile updated (${profile.mode.toUpperCase()} mode)`,
-        metadata: { profile, source: "facility_camera_ui" },
-      });
+        metadata: { profile, source: "facility_camera_ui_local" },
+        created_at: new Date().toISOString(),
+      };
+      pushLocalEvent(intelCameraId, localProfileEvent);
+
+      await cameraService
+        .createEvent(intelCameraId, {
+          event_type: "ai_profile_updated",
+          confidence: 1,
+          message: `AI profile updated (${profile.mode.toUpperCase()} mode)`,
+          metadata: { profile, source: "facility_camera_ui" },
+        })
+        .catch(() => null);
 
       await loadIntel(intelCameraId);
 
       if (remoteRes?.ok) {
         setProfileMsg("AI profile synced to backend.");
       } else {
-        setProfileMsg("AI profile saved locally. Backend sync endpoint not available yet.");
+        setProfileMsg("AI profile saved locally. Backend sync endpoint not available yet (404 fallback active).");
       }
     } catch (e: any) {
       const { msg } = extractErr(e);
@@ -258,17 +310,41 @@ export default function CamerasPage() {
     setIntelLoading(true);
     setIntelErr(null);
     try {
-      const [eventsRes, capsRes] = await Promise.all([
-        cameraService.listEvents(cameraId, { limit: 25, sinceMinutes: 24 * 60 }),
-        cameraService.getAnalyticsCapabilities().catch(() => ({ ok: false, capabilities: [] as string[] })),
-      ]);
-      setIntelEvents(eventsRes?.events || []);
+      const capsRes = await cameraService
+        .getAnalyticsCapabilities()
+        .catch(() => ({ ok: false, capabilities: [] as string[] }));
       setIntelCaps(Array.isArray(capsRes?.capabilities) ? capsRes.capabilities : []);
-      if (eventsRes?.warning) setIntelErr(eventsRes.warning);
+      let backendEvents: CameraEvent[] = [];
+      try {
+        const eventsRes = await cameraService.listEvents(cameraId, {
+          limit: 25,
+          sinceMinutes: 24 * 60,
+        });
+        backendEvents = eventsRes?.events || [];
+        if (eventsRes?.warning) setIntelErr(eventsRes.warning);
+      } catch (e: any) {
+        const status = Number(e?.response?.status || 0);
+        if ([404, 405, 501].includes(status)) {
+          setIntelErr("AI backend events endpoint not available yet. Running local live detection mode.");
+        } else {
+          throw e;
+        }
+      }
+
+      const local = localEventsByCamera[cameraId] || [];
+      const merged = [...backendEvents, ...local];
+      const dedup = new Map<string, CameraEvent>();
+      for (const ev of merged) dedup.set(String(ev.id), ev);
+      const out = Array.from(dedup.values()).sort((a, b) => {
+        const ta = new Date(a.created_at || 0).getTime();
+        const tb = new Date(b.created_at || 0).getTime();
+        return tb - ta;
+      });
+      setIntelEvents(out.slice(0, 120));
     } catch (e: any) {
       const { msg } = extractErr(e);
       setIntelErr(msg);
-      setIntelEvents([]);
+      setIntelEvents(localEventsByCamera[cameraId] || []);
     } finally {
       setIntelLoading(false);
     }
@@ -382,6 +458,12 @@ export default function CamerasPage() {
   }, [intelCameraId]);
 
   useEffect(() => {
+    if (!intelCameraId) return;
+    loadIntel(intelCameraId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localIntelEvents.length]);
+
+  useEffect(() => {
     if (!aiMonitorOn || !intelCameraId) return;
     const profile = profileByCamera[intelCameraId] || defaultAiProfile;
     if (!profile.armed) return;
@@ -412,7 +494,9 @@ export default function CamerasPage() {
     const profile = profileByCamera[intelCameraId] || defaultAiProfile;
     const confBase = source === "manual" ? 0.9 : Math.max(0.5, profile.minConfidence / 100);
     const confidence = Math.min(0.99, confBase + Math.random() * 0.08);
-    const res: any = await cameraService.createEvent(intelCameraId, {
+    const localEvent: CameraEvent = {
+      id: `local-${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      camera_id: intelCameraId,
       event_type: type,
       confidence,
       message:
@@ -420,13 +504,29 @@ export default function CamerasPage() {
           ? `Operator logged ${type.replace(/_/g, " ")}`
           : `AI monitor detected ${type.replace(/_/g, " ")}`,
       metadata: {
-        source: source === "manual" ? "facility_ui_manual" : "facility_ai_monitor",
+        source: source === "manual" ? "facility_ui_manual_local" : "facility_ai_monitor_local",
         profile_mode: profile.mode,
       },
-    });
-    if (res?.error) {
-      setIntelErr(String(res.error));
-      return;
+      created_at: new Date().toISOString(),
+    };
+    pushLocalEvent(intelCameraId, localEvent);
+
+    const res: any = await cameraService
+      .createEvent(intelCameraId, {
+        event_type: type,
+        confidence,
+        message:
+          source === "manual"
+            ? `Operator logged ${type.replace(/_/g, " ")}`
+            : `AI monitor detected ${type.replace(/_/g, " ")}`,
+        metadata: {
+          source: source === "manual" ? "facility_ui_manual" : "facility_ai_monitor",
+          profile_mode: profile.mode,
+        },
+      })
+      .catch((e: any) => ({ error: e?.response?.data?.error || e?.message || "Event endpoint unavailable" }));
+    if (res?.error && source === "manual") {
+      setIntelErr("Live local detection is active. Backend event endpoint returned fallback mode.");
     }
     setAiLastDetected(`${type.replace(/_/g, " ")} • ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
 
@@ -683,6 +783,34 @@ export default function CamerasPage() {
               <button type="button" onClick={() => logManualEvent("human_detection")} className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-200 inline-flex items-center justify-center gap-1"><UserRound size={12} />Human</button>
               <button type="button" onClick={() => logManualEvent("vehicle_detection")} className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-200 inline-flex items-center justify-center gap-1"><Car size={12} />Vehicle</button>
               <button type="button" onClick={() => logManualEvent("animal_detection")} className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-200 inline-flex items-center justify-center gap-1"><Dog size={12} />Animal</button>
+            </div>
+
+            <div className="mt-2 rounded-lg border border-white/10 bg-white/5 p-2">
+              <div className="text-[11px] text-zinc-400 mb-1 inline-flex items-center gap-1">
+                <Eye size={12} />
+                Live AI Readings
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-[11px]">
+                <div className="rounded-md bg-black/20 px-2 py-1">
+                  <div className="text-zinc-500">Det/min</div>
+                  <div className="text-zinc-100 font-semibold">{liveStats.perMin}</div>
+                </div>
+                <div className="rounded-md bg-black/20 px-2 py-1">
+                  <div className="text-zinc-500">Total</div>
+                  <div className="text-zinc-100 font-semibold">{liveStats.total}</div>
+                </div>
+                <div className="rounded-md bg-black/20 px-2 py-1">
+                  <div className="text-zinc-500">Monitor</div>
+                  <div className={cn("font-semibold", aiMonitorOn ? "text-emerald-300" : "text-zinc-300")}>
+                    {aiMonitorOn ? "On" : "Off"}
+                  </div>
+                </div>
+              </div>
+              {liveStats.topTypes.length ? (
+                <div className="mt-2 text-[10px] text-zinc-400">
+                  Top: {liveStats.topTypes.map(([k, v]) => `${k.replace(/_/g, " ")} (${v})`).join(" • ")}
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-3 max-h-72 overflow-auto space-y-2">
