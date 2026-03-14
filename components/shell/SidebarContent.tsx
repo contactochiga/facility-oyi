@@ -21,6 +21,7 @@ import {
   LogOut,
   Settings,
   User as UserIcon,
+  ShieldCheck,
 } from "lucide-react";
 
 import { useSessionStore } from "@/store/useSessionStore";
@@ -125,6 +126,22 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   }, [user]);
 
   const initials = useMemo(() => getInitials(displayName), [displayName]);
+  const isAdmin = String((user as any)?.role || "").toLowerCase() === "admin";
+  const navItems = useMemo(
+    () =>
+      isAdmin
+        ? [
+            ...items,
+            {
+              href: "/super-admin",
+              label: "Super Admin",
+              icon: ShieldCheck,
+              startsWith: ["/super-admin"],
+            } as Item,
+          ]
+        : items,
+    [isAdmin]
+  );
 
   async function handleLogout() {
     setOpenAccount(false);
@@ -154,7 +171,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
     <div className="flex h-full flex-col">
       {/* NAV */}
       <nav className="p-4 space-y-1">
-        {items.map((it) => {
+        {navItems.map((it) => {
           const Icon = it.icon;
           const active = isActive(it);
 

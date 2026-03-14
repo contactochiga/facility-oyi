@@ -18,6 +18,7 @@ const PROTECTED = [
   "/services",
   "/account",
   "/digital-twin",
+  "/super-admin",
 ];
 
 export function middleware(req: NextRequest) {
@@ -56,5 +57,6 @@ export const config = {
     "/services/:path*",
     "/account/:path*",
     "/digital-twin/:path*",
+    "/super-admin/:path*",
   ],
 };
