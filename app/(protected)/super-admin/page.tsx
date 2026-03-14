@@ -37,7 +37,9 @@ const EMPTY_OVERVIEW: SuperAdminOverview = {
 
 export default function SuperAdminPage() {
   const { user } = useSessionStore();
-  const isAdmin = String(user?.role || "").toLowerCase() === "admin";
+  const role = String(user?.role || "").toLowerCase();
+  const isSuperReader = role === "admin" || role === "system_admin" || role === "auditor";
+  const canMutate = role === "admin" || role === "system_admin";
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -47,19 +49,24 @@ export default function SuperAdminPage() {
   const [devices, setDevices] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [selectedEstate, setSelectedEstate] = useState<any | null>(null);
+  const [selectedEstateSummary, setSelectedEstateSummary] = useState<any | null>(null);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
 
   async function loadAll() {
-    if (!isAdmin) return;
+    if (!isSuperReader) return;
     setLoading(true);
     setErr(null);
     try {
-      const [o, e, h, d, t, a] = await Promise.all([
+      const [o, e, h, d, t, a, l] = await Promise.all([
         superAdminService.overview(),
         superAdminService.estates(30),
         superAdminService.homes(40),
         superAdminService.devices(40),
         superAdminService.transactions(40),
         superAdminService.activities(60),
+        superAdminService.auditLogs(60),
       ]);
       setOverview(o?.metrics || EMPTY_OVERVIEW);
       setEstates(e?.items || []);
@@ -67,6 +74,7 @@ export default function SuperAdminPage() {
       setDevices(d?.items || []);
       setTransactions(t?.items || []);
       setActivities(a?.items || []);
+      setAuditLogs(l?.items || []);
     } catch (e: any) {
       setErr(String(e?.response?.data?.error || e?.message || "Failed to load super admin command center"));
     } finally {
@@ -77,7 +85,62 @@ export default function SuperAdminPage() {
   useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
+  }, [isSuperReader]);
+
+  async function loadEstateSummary(estateId: string) {
+    try {
+      const out = await superAdminService.estateSummary(estateId);
+      setSelectedEstateSummary(out || null);
+    } catch {
+      setSelectedEstateSummary(null);
+    }
+  }
+
+  async function toggleEstateStatus(estate: any) {
+    if (!canMutate) return;
+    const nextStatus = String(estate?.status || "active") === "suspended" ? "active" : "suspended";
+    const key = `estate:${estate.id}`;
+    setActionBusy(key);
+    try {
+      await superAdminService.setEstateStatus(String(estate.id), nextStatus as "active" | "suspended");
+      await loadAll();
+      if (selectedEstate?.id === estate.id) await loadEstateSummary(String(estate.id));
+    } catch (e: any) {
+      setErr(String(e?.response?.data?.error || e?.message || "Failed estate status update"));
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  async function toggleDeviceDisabled(device: any) {
+    if (!canMutate) return;
+    const disabled = !Boolean(device?.is_managed_disabled);
+    const key = `device:${device.id}`;
+    setActionBusy(key);
+    try {
+      await superAdminService.setDeviceDisabled(String(device.id), disabled);
+      await loadAll();
+    } catch (e: any) {
+      setErr(String(e?.response?.data?.error || e?.message || "Failed device action"));
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  async function toggleWalletFrozen(tx: any) {
+    if (!canMutate || !tx?.wallet_id) return;
+    const frozen = !Boolean(tx?.wallet_frozen || false);
+    const key = `wallet:${tx.wallet_id}`;
+    setActionBusy(key);
+    try {
+      await superAdminService.setWalletFrozen(String(tx.wallet_id), frozen);
+      await loadAll();
+    } catch (e: any) {
+      setErr(String(e?.response?.data?.error || e?.message || "Failed wallet action"));
+    } finally {
+      setActionBusy(null);
+    }
+  }
 
   const cards = useMemo(
     () => [
@@ -93,12 +156,12 @@ export default function SuperAdminPage() {
     [overview]
   );
 
-  if (!isAdmin) {
+  if (!isSuperReader) {
     return (
       <div className="space-y-6">
         <Topbar title="Super Admin" subtitle="Global command center" />
         <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-5 text-red-200 text-sm">
-          This area is restricted to admin accounts.
+          This area is restricted to super-admin accounts.
         </div>
       </div>
     );
@@ -142,6 +205,31 @@ export default function SuperAdminPage() {
                 <div className="text-xs text-zinc-400 mt-1">
                   Homes: {e.homes || 0} • Devices: {e.devices || 0} • Users: {e.users || 0}
                 </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setSelectedEstate(e);
+                      await loadEstateSummary(String(e.id));
+                    }}
+                    className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-200 hover:bg-white/10"
+                  >
+                    Drill down
+                  </button>
+                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] border", String(e?.status || "active") === "suspended" ? "border-red-500/30 text-red-200 bg-red-500/10" : "border-emerald-500/30 text-emerald-200 bg-emerald-500/10")}>
+                    {String(e?.status || "active")}
+                  </span>
+                  {canMutate ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleEstateStatus(e)}
+                      disabled={actionBusy === `estate:${e.id}`}
+                      className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-200 hover:bg-white/10 disabled:opacity-50"
+                    >
+                      {actionBusy === `estate:${e.id}` ? "..." : String(e?.status || "active") === "suspended" ? "Activate" : "Suspend"}
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ))}
             {!estates.length ? <div className="text-xs text-zinc-500">No estates</div> : null}
@@ -164,6 +252,23 @@ export default function SuperAdminPage() {
           </div>
         </section>
       </div>
+
+      {selectedEstate ? (
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="text-sm font-semibold text-zinc-100 mb-2">Estate Drill-down: {selectedEstate.name}</div>
+          {selectedEstateSummary ? (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-zinc-200">Homes: {selectedEstateSummary?.metrics?.homes ?? 0}</div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-zinc-200">Users: {selectedEstateSummary?.metrics?.users ?? 0}</div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-zinc-200">Devices: {selectedEstateSummary?.metrics?.devices ?? 0}</div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-zinc-200">Wallet Tx: {selectedEstateSummary?.metrics?.walletTransactions ?? 0}</div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-zinc-200">Maintenance: {selectedEstateSummary?.metrics?.maintenanceRequests ?? 0}</div>
+            </div>
+          ) : (
+            <div className="text-xs text-zinc-500">Loading summary...</div>
+          )}
+        </section>
+      ) : null}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -190,6 +295,16 @@ export default function SuperAdminPage() {
                 <div className="text-[11px] text-zinc-400">
                   {d.adapter || "—"} • {d.status || "unknown"} • {d.bind_state || "—"}
                 </div>
+                {canMutate ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleDeviceDisabled(d)}
+                    disabled={actionBusy === `device:${d.id}`}
+                    className="mt-1 rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-200 hover:bg-white/10 disabled:opacity-50"
+                  >
+                    {actionBusy === `device:${d.id}` ? "..." : d?.is_managed_disabled ? "Enable" : "Disable"}
+                  </button>
+                ) : null}
               </div>
             ))}
             {!devices.length ? <div className="text-xs text-zinc-500">No devices</div> : null}
@@ -208,12 +323,37 @@ export default function SuperAdminPage() {
                   {t.currency || "NGN"} {Number(t.amount || 0).toLocaleString()}
                 </div>
                 <div className="text-[10px] text-zinc-400">{t.user_email || "—"} • {when(t.created_at)}</div>
+                {canMutate ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleWalletFrozen(t)}
+                    disabled={!t.wallet_id || actionBusy === `wallet:${t.wallet_id}`}
+                    className="mt-1 rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-200 hover:bg-white/10 disabled:opacity-50"
+                  >
+                    {actionBusy === `wallet:${t.wallet_id}` ? "..." : t?.wallet_frozen ? "Unfreeze wallet" : "Freeze wallet"}
+                  </button>
+                ) : null}
               </div>
             ))}
             {!transactions.length ? <div className="text-xs text-zinc-500">No transactions</div> : null}
           </div>
         </section>
       </div>
+
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="text-sm font-semibold text-zinc-100 mb-3">Audit Logs</div>
+        <div className="space-y-2 max-h-72 overflow-auto">
+          {auditLogs.map((l: any) => (
+            <div key={l.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
+              <div className="text-xs text-zinc-100">{l.action}</div>
+              <div className="text-[11px] text-zinc-400">
+                {l.target_type}:{l.target_id} • actor:{l.actor_role || "n/a"} • {when(l.created_at)}
+              </div>
+            </div>
+          ))}
+          {!auditLogs.length ? <div className="text-xs text-zinc-500">No audit logs</div> : null}
+        </div>
+      </section>
     </div>
   );
 }
