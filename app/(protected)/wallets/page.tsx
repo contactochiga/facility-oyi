@@ -58,6 +58,14 @@ type WalletActivityRow = {
   status: string;
   reference?: string | null;
   created_at?: string | null;
+  service_title?: string | null;
+  user_name?: string | null;
+  user_email?: string | null;
+  home_name?: string | null;
+  home_label?: string | null;
+  token_code?: string | null;
+  bundle_name?: string | null;
+  period_label?: string | null;
 };
 
 function when(iso?: string | null) {
@@ -128,8 +136,13 @@ export default function WalletsPage() {
         });
       }
 
-      // Backend activity endpoint is not available yet.
-      setRows([]);
+      const estateId = String((ov as any)?.estate?.id || (ov as any)?.estate_id || "").trim();
+      if (estateId) {
+        const tx = await facilityService.listEstateServicePayments(estateId, 80);
+        setRows(Array.isArray(tx?.payments) ? tx.payments : []);
+      } else {
+        setRows([]);
+      }
     } catch (e: any) {
       setErr(e?.response?.data?.error || e?.message || "Failed to load billing and finance");
     } finally {
@@ -203,6 +216,18 @@ export default function WalletsPage() {
     () => [
       { accessorKey: "type", header: "Type" },
       {
+        accessorKey: "service_title",
+        header: "Service",
+        cell: ({ row }) => (
+          <div>
+            <div className="text-sm text-white">{row.original.service_title || row.original.type}</div>
+            <div className="text-[11px] text-white/50">
+              {row.original.user_name || row.original.user_email || "-"}
+            </div>
+          </div>
+        ),
+      },
+      {
         accessorKey: "amount",
         header: "Amount",
         cell: ({ row }) => (
@@ -223,12 +248,27 @@ export default function WalletsPage() {
       {
         accessorKey: "reference",
         header: "Reference",
-        cell: ({ row }) => <span className="text-white/70 text-xs font-mono">{row.original.reference || "-"}</span>,
+        cell: ({ row }) => (
+          <div className="text-xs text-white/70">
+            <div className="font-mono">{row.original.reference || "-"}</div>
+            {row.original.token_code ? <div className="text-emerald-300">Token: {row.original.token_code}</div> : null}
+          </div>
+        ),
       },
       {
         accessorKey: "created_at",
         header: "Created",
         cell: ({ row }) => <span className="text-white/70 text-xs">{when(row.original.created_at)}</span>,
+      },
+      {
+        accessorKey: "home_name",
+        header: "Home",
+        cell: ({ row }) => (
+          <div className="text-xs text-white/70">
+            <div>{row.original.home_name || "-"}</div>
+            {row.original.home_label ? <div className="text-white/45">{row.original.home_label}</div> : null}
+          </div>
+        ),
       },
     ],
     [myWallet.currency]
@@ -341,7 +381,7 @@ export default function WalletsPage() {
             <div className="mt-6 pt-6 border-t border-slate-800">
               <h4 className="text-sm font-semibold mb-2">Finance Feed Status</h4>
               <p className="text-sm text-slate-400">
-                Detailed transaction feed and invoice templates will appear here as soon as backend endpoints are enabled.
+                Resident wallet-funded service payments now appear here with unit, resident, and receipt context.
               </p>
             </div>
           </div>
@@ -352,7 +392,7 @@ export default function WalletsPage() {
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
           <h3 className="text-lg font-semibold mb-4">Wallet Activity</h3>
           <DataTable data={rows} columns={columns} title="Backend Wallet Activity" searchKey={"reference"} />
-          {!rows.length ? <div className="mt-3 text-sm text-slate-400">No wallet activity available yet.</div> : null}
+          {!rows.length ? <div className="mt-3 text-sm text-slate-400">No service payment activity available yet.</div> : null}
         </div>
       )}
 

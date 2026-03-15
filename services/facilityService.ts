@@ -21,6 +21,26 @@ export type HomesResponse<T = any> = {
   homes: T[];
 };
 
+export type EstateServicePaymentRow = {
+  id: string;
+  amount: number;
+  reference: string;
+  status: string;
+  created_at?: string | null;
+  type: string;
+  service_key?: string | null;
+  service_title?: string | null;
+  account_ref?: string | null;
+  token_code?: string | null;
+  bundle_name?: string | null;
+  period_label?: string | null;
+  user_email?: string | null;
+  user_name?: string | null;
+  home_id?: string | null;
+  home_name?: string | null;
+  home_label?: string | null;
+};
+
 export type RoomsResponse<T = any> = {
   rooms: T[];
 };
@@ -271,6 +291,13 @@ export const facilityService = {
     }
   ): Promise<{ message: string; home: any }> {
     const res = await API.patch(`/facility/homes/${homeId}`, payload);
+    return res.data;
+  },
+
+  async listEstateServicePayments(estateId?: string, limit = 80): Promise<{ payments: EstateServicePaymentRow[] }> {
+    const res = await API.get("/services/estate/payments", {
+      params: { estate_id: estateId, limit },
+    });
     return res.data;
   },
 
