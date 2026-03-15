@@ -23,8 +23,8 @@ type ServiceRow = {
 const SERVICES: ServiceRow[] = [
   {
     key: "utility_token",
-    title: "Electricity Tokens",
-    desc: "Issue utility tokens paid from resident wallet balance.",
+    title: "Electricity Metering",
+    desc: "Set price per kWh and issue prepaid utility tokens from resident wallet balance.",
     suggested: 5000,
     accountLabel: "Electricity Meter",
     accountHint: "Linked from the home electricity meter",
@@ -32,8 +32,8 @@ const SERVICES: ServiceRow[] = [
   },
   {
     key: "internet_service",
-    title: "Internet Service",
-    desc: "Charge internet package renewals via wallet.",
+    title: "Fiber Internet Service",
+    desc: "Set bundle pricing and charge internet package renewals via wallet.",
     suggested: 10000,
     accountLabel: "Internet ID",
     accountHint: "Linked from the home internet account",
@@ -51,8 +51,8 @@ const SERVICES: ServiceRow[] = [
   {
     key: "service_charge",
     title: "Service Charge",
-    desc: "Collect estate service charge from wallets.",
-    suggested: 25000,
+    desc: "Set the fixed monthly service charge collected from resident wallets.",
+    suggested: 500000,
     accountLabel: "Home Account",
     accountHint: "Uses the linked home record",
     icon: Building2,
@@ -67,6 +67,36 @@ const SERVICES: ServiceRow[] = [
     icon: Layers3,
   },
 ];
+
+function pricingGuide(key: ServiceKey) {
+  switch (key) {
+    case "utility_token":
+      return {
+        label: "Metered billing",
+        note: "Set unit cost as the estate electricity rate per kWh. Example: 300 NGN / kWh. Resident receipts and token generation will use this.",
+      };
+    case "internet_service":
+      return {
+        label: "Bundle / fixed pricing",
+        note: "Use suggested amount for the main plan and unit name for the plan type. Consumer app currently exposes preset bundle purchases from this service.",
+      };
+    case "fiber_internet":
+      return {
+        label: "Secondary fiber plan",
+        note: "Keep this disabled unless you need a second separate internet billing stream.",
+      };
+    case "service_charge":
+      return {
+        label: "Fixed recurring charge",
+        note: "Use a flat monthly amount. Suggested amount should be the monthly service charge billed to each linked home.",
+      };
+    default:
+      return {
+        label: "Partner / external service",
+        note: "Use this for vendor-driven services such as gas refill or special facility fees that are charged through your estate operations flow.",
+      };
+  }
+}
 
 type ServiceConfigDraft = {
   title: string;
@@ -394,6 +424,16 @@ export default function FacilityServicesPage() {
     <div className="space-y-7">
       <Topbar title="Services & Wallet Ops" subtitle="Billing workflow • service charges • utility operations" />
 
+      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Access</div>
+        <div className="mt-2 text-sm text-white">
+          Sidebar {"->"} <span className="text-blue-300">Billing & Finance</span> {"->"} <span className="text-blue-300">Services & Wallet Ops</span>
+        </div>
+        <div className="mt-2 text-xs text-zinc-400">
+          This is the page where you set estate service prices, meter billing rules, bundle pricing, and resident payment availability.
+        </div>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         <div className="glass border border-white/10 rounded-2xl p-4">
           <div className="text-xs text-zinc-400">Operator Wallet</div>
@@ -463,6 +503,11 @@ export default function FacilityServicesPage() {
             </div>
           </div>
 
+          <div className="mt-4 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-blue-200">{pricingGuide(activeKey).label}</div>
+            <div className="mt-2 text-sm text-white">{pricingGuide(activeKey).note}</div>
+          </div>
+
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div className="rounded-xl border border-white/10 bg-black/20 p-3">
               <div className="text-[11px] text-zinc-500">Display Title</div>
@@ -473,7 +518,7 @@ export default function FacilityServicesPage() {
               />
             </div>
             <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <div className="text-[11px] text-zinc-500">Suggested Amount</div>
+              <div className="text-[11px] text-zinc-500">Displayed Amount / Default Charge</div>
               <input
                 value={activeDraft.suggested_amount}
                 onChange={(e) => setDraftField(activeKey, "suggested_amount", e.target.value)}
@@ -506,22 +551,22 @@ export default function FacilityServicesPage() {
               />
             </div>
             <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <div className="text-[11px] text-zinc-500">Unit Cost</div>
+              <div className="text-[11px] text-zinc-500">Unit Cost / Tariff</div>
               <input
                 value={activeDraft.unit_cost}
                 onChange={(e) => setDraftField(activeKey, "unit_cost", e.target.value)}
                 inputMode="decimal"
                 className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
-                placeholder="e.g. 68.5"
+                placeholder={activeKey === "utility_token" ? "e.g. 300" : "e.g. 11500"}
               />
             </div>
             <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <div className="text-[11px] text-zinc-500">Unit Name</div>
+              <div className="text-[11px] text-zinc-500">Unit Name / Measure</div>
               <input
                 value={activeDraft.unit_name}
                 onChange={(e) => setDraftField(activeKey, "unit_name", e.target.value)}
                 className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
-                placeholder="kWh / month / bundle"
+                placeholder={activeKey === "utility_token" ? "kWh" : activeKey === "internet_service" ? "bundle" : "month"}
               />
             </div>
             <div className="rounded-xl border border-white/10 bg-black/20 p-3">
@@ -573,7 +618,7 @@ export default function FacilityServicesPage() {
 
           <div className="mt-4 flex gap-2 flex-wrap">
             <Button variant="ghost" onClick={saveConfig} disabled={configBusy}>
-              {configBusy ? "Saving..." : "Save Billing Config"}
+              {configBusy ? "Saving..." : "Save Pricing & Billing"}
             </Button>
             <Button onClick={debitForService} disabled={busy}>
               <span className="inline-flex items-center gap-2"><CreditCard size={14} />Process Service Debit</span>
