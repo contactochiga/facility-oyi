@@ -1,7 +1,7 @@
 // app/(protected)/community/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Topbar from "@/components/shell/Topbar";
 import {
   communityService,
@@ -17,6 +17,8 @@ import {
   Pin,
   Trash2,
   Edit,
+  ImagePlus,
+  CalendarClock,
 } from "lucide-react";
 
 // -------------------------------
@@ -160,6 +162,42 @@ export default function CommunityPage() {
   // composer (matches your existing create flow, but UI looks like your new standard)
   const [newPost, setNewPost] = useState("");
   const [creating, setCreating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [scheduledFor, setScheduledFor] = useState<string>("");
+  const [mediaItems, setMediaItems] = useState<Array<{ url: string; mediaType: "image" | "video" }>>([]);
+
+  async function toBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Failed to read media file"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function onPickMedia(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    try {
+      const uploaded: Array<{ url: string; mediaType: "image" | "video" }> = [];
+      for (const file of Array.from(fileList).slice(0, 3)) {
+        const base64 = await toBase64(file);
+        const mediaType = file.type.startsWith("video/") ? "video" : "image";
+        const res = await communityService.uploadMedia({
+          base64,
+          mime: file.type,
+          filename: file.name,
+          mediaType,
+        });
+        if (res?.url) uploaded.push({ url: res.url, mediaType });
+      }
+      if (uploaded.length) {
+        setMediaItems((prev) => [...prev, ...uploaded].slice(0, 6));
+        setNotice(`${uploaded.length} media file(s) uploaded.`);
+      }
+    } catch (e: any) {
+      setErr(e?.message || "Media upload failed");
+    }
+  }
 
   async function resolveEstate() {
     const overview = await api<{ estate_id: string }>("/facility/overview");
@@ -214,15 +252,63 @@ export default function CommunityPage() {
         estateId: eid,
         title,
         content: content || null,
+        media: mediaItems.length ? mediaItems : null,
       });
 
+      if (scheduledFor) {
+        await communityService.updatePost(String(created.id), {
+          status: "scheduled",
+        });
+      }
+
       // optimistic insert (kept)
-      setItems((prev) => [created, ...prev]);
+      setItems((prev) => [{ ...created, status: scheduledFor ? "scheduled" : created.status }, ...prev]);
       setNewPost("");
+      setMediaItems([]);
+      setScheduledFor("");
     } catch (e: any) {
       setErr(e?.message || "Failed to publish announcement");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function moderatePost(postId: string, status: "active" | "flagged" | "denied" | "scheduled") {
+    try {
+      const updated = await communityService.updatePost(postId, { status });
+      setItems((prev) => prev.map((x) => (String(x.id) === String(postId) ? { ...x, ...updated } : x)));
+      setNotice(`Post updated: ${status}`);
+    } catch (e: any) {
+      setErr(e?.message || "Failed to update moderation status");
+    }
+  }
+
+  async function editPost(postId: string, currentTitle?: string, currentContent?: string) {
+    const nextTitle = window.prompt("Edit post title", String(currentTitle || "").trim() || "Announcement");
+    if (nextTitle === null) return;
+    const nextContent = window.prompt("Edit post content", String(currentContent || "").trim());
+    if (nextContent === null) return;
+    try {
+      const updated = await communityService.updatePost(postId, {
+        title: nextTitle.trim(),
+        content: nextContent.trim(),
+      });
+      setItems((prev) => prev.map((x) => (String(x.id) === String(postId) ? { ...x, ...updated } : x)));
+      setNotice("Post updated.");
+    } catch (e: any) {
+      setErr(e?.message || "Failed to edit post");
+    }
+  }
+
+  async function removePost(postId: string) {
+    const yes = window.confirm("Delete this post? This action cannot be undone.");
+    if (!yes) return;
+    try {
+      await communityService.deletePost(postId);
+      setItems((prev) => prev.filter((x) => String(x.id) !== String(postId)));
+      setNotice("Post deleted.");
+    } catch (e: any) {
+      setErr(e?.message || "Failed to delete post");
     }
   }
 
@@ -444,6 +530,14 @@ export default function CommunityPage() {
             {/* Create Announcement (keeps your createPost flow, UI matches sample) */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-4">Create Announcement</h3>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={(e) => onPickMedia(e.target.files)}
+              />
               <textarea
                 value={newPost}
                 onChange={(e) => setNewPost(e.target.value)}
@@ -451,21 +545,65 @@ export default function CommunityPage() {
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg p-4 text-sm resize-none focus:outline-none focus:border-blue-500 mb-4"
                 rows={3}
               />
+              {mediaItems.length ? (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {mediaItems.map((m, idx) => (
+                    <span
+                      key={`${m.url}-${idx}`}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs text-slate-300"
+                    >
+                      {m.mediaType}
+                      <button
+                        type="button"
+                        className="text-slate-400 hover:text-white"
+                        onClick={() =>
+                          setMediaItems((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {scheduledFor ? (
+                <div className="mb-3 text-xs text-blue-300">
+                  Scheduled publish: {new Date(scheduledFor).toLocaleString()}
+                </div>
+              ) : null}
               <div className="flex items-center justify-between">
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setNotice("Image upload will be enabled when media storage is connected.")}
+                    onClick={() => fileInputRef.current?.click()}
                     className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
                   >
-                    Add Image
+                    <span className="inline-flex items-center gap-2">
+                      <ImagePlus size={14} />
+                      Add Media
+                    </span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setNotice("Scheduled publishing will be enabled when scheduler routes are connected.")}
+                    onClick={() => {
+                      const now = new Date();
+                      now.setMinutes(now.getMinutes() + 10);
+                      const isoLocal = now.toISOString().slice(0, 16);
+                      const picked = window.prompt("Schedule date-time (YYYY-MM-DDTHH:mm)", scheduledFor || isoLocal);
+                      if (picked === null) return;
+                      const stamp = new Date(picked).getTime();
+                      if (Number.isNaN(stamp)) {
+                        setErr("Invalid schedule date-time format.");
+                        return;
+                      }
+                      setScheduledFor(new Date(stamp).toISOString());
+                    }}
                     className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
                   >
-                    Schedule
+                    <span className="inline-flex items-center gap-2">
+                      <CalendarClock size={14} />
+                      Schedule
+                    </span>
                   </button>
                 </div>
                 <button
@@ -513,7 +651,23 @@ export default function CommunityPage() {
 
                       <button
                         type="button"
-                        onClick={() => setNotice("Post actions will be enabled when moderation routes are connected.")}
+                        onClick={async () => {
+                          const id = String(post.id);
+                          const raw = (post as any)?._raw || {};
+                          const action = window.prompt(
+                            "Action: pin | flag | approve | edit | delete",
+                            "pin"
+                          );
+                          if (!action) return;
+                          const a = action.toLowerCase().trim();
+                          if (a === "pin") return void (await moderatePost(id, "scheduled"));
+                          if (a === "flag") return void (await moderatePost(id, "flagged"));
+                          if (a === "approve") return void (await moderatePost(id, "active"));
+                          if (a === "delete") return void (await removePost(id));
+                          if (a === "edit")
+                            return void (await editPost(id, raw?.title, raw?.content ?? raw?.body));
+                          setNotice("Unknown action.");
+                        }}
                         className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
                       >
                         <MoreVertical size={16} className="text-slate-400" />
@@ -528,7 +682,7 @@ export default function CommunityPage() {
                       <button
                         type="button"
                         className="flex items-center gap-2 hover:text-blue-500 transition-colors"
-                        onClick={() => setNotice("Like action is read-only in facility mode right now.")}
+                        onClick={() => setNotice("Engagement metrics sync from resident app interactions.")}
                       >
                         <ThumbsUp size={16} />
                         <span>{post.likes}</span>
@@ -537,7 +691,7 @@ export default function CommunityPage() {
                       <button
                         type="button"
                         className="flex items-center gap-2 hover:text-blue-500 transition-colors"
-                        onClick={() => setNotice("Comment thread view is read-only in facility mode right now.")}
+                        onClick={() => setNotice("Open resident app to review full comment threads.")}
                       >
                         <MessageSquare size={16} />
                         <span>{post.comments}</span>
@@ -658,7 +812,13 @@ export default function CommunityPage() {
 
                       <button
                         type="button"
-                        onClick={() => setNotice("Announcement edit will be enabled when moderation routes are connected.")}
+                        onClick={() =>
+                          editPost(
+                            String(a.id),
+                            String((a as any)?._raw?.title || "Announcement"),
+                            String((a as any)?._raw?.content ?? (a as any)?._raw?.body ?? "")
+                          )
+                        }
                         className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
                       >
                         <Edit size={14} className="text-slate-400" />
@@ -666,7 +826,7 @@ export default function CommunityPage() {
 
                       <button
                         type="button"
-                        onClick={() => setNotice("Announcement delete will be enabled when moderation routes are connected.")}
+                        onClick={() => removePost(String(a.id))}
                         className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
                       >
                         <Trash2 size={14} className="text-red-400" />
@@ -765,21 +925,27 @@ export default function CommunityPage() {
                   <div className="flex gap-2 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => setNotice("Approve action will be enabled when moderation routes are connected.")}
+                      onClick={() => moderatePost(String(post.id), "active")}
                       className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors"
                     >
                       Approve
                     </button>
                     <button
                       type="button"
-                      onClick={() => setNotice("Reject action will be enabled when moderation routes are connected.")}
+                      onClick={() => moderatePost(String(post.id), "denied")}
                       className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors"
                     >
                       Reject
                     </button>
                     <button
                       type="button"
-                      onClick={() => setNotice("Edit action will be enabled when moderation routes are connected.")}
+                      onClick={() =>
+                        editPost(
+                          String(post.id),
+                          String((post as any)?._raw?.title || "Announcement"),
+                          String((post as any)?._raw?.content ?? (post as any)?._raw?.body ?? "")
+                        )
+                      }
                       className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
                     >
                       Edit
