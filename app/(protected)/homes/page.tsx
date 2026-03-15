@@ -61,6 +61,7 @@ export default function HomesPage() {
   const [homes, setHomes] = useState<HomeRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Expand → rooms cache
   const [openHomeId, setOpenHomeId] = useState<string | null>(null);
@@ -147,9 +148,10 @@ export default function HomesPage() {
   async function createHome() {
     if (!estateId) return;
     setErr(null);
+    setNotice(null);
     setLoading(true);
     try {
-      await facilityService.createHome({
+      const res = await facilityService.createHome({
         estate_id: estateId,
         name: form.name.trim(),
         unit: form.unit.trim() || undefined,
@@ -162,6 +164,10 @@ export default function HomesPage() {
         type: "home",
       });
 
+      if (res?.home?.id) {
+        setHomes((prev) => [res.home as HomeRow, ...prev]);
+      }
+
       setShowAdd(false);
       setForm({
         name: "",
@@ -173,6 +179,7 @@ export default function HomesPage() {
         internet_id: "",
         gate_code: "",
       });
+      setNotice("Home created successfully.");
 
       await load();
     } catch (e: any) {
@@ -185,9 +192,10 @@ export default function HomesPage() {
   async function saveHomeEdit() {
     if (!editHomeId) return;
     setErr(null);
+    setNotice(null);
     setLoading(true);
     try {
-      await facilityService.updateHome(editHomeId, {
+      const res = await facilityService.updateHome(editHomeId, {
         name: form.name.trim() || undefined,
         unit: form.unit.trim() || undefined,
         block: form.block.trim() || undefined,
@@ -197,6 +205,12 @@ export default function HomesPage() {
         internet_id: form.internet_id.trim() || undefined,
         gate_code: form.gate_code.trim() || undefined,
       });
+
+      if (res?.home?.id) {
+        setHomes((prev) =>
+          prev.map((home) => (home.id === res.home.id ? ({ ...home, ...(res.home as HomeRow) }) : home))
+        );
+      }
 
       setShowAdd(false);
       setEditHomeId(null);
@@ -210,6 +224,7 @@ export default function HomesPage() {
         internet_id: "",
         gate_code: "",
       });
+      setNotice("Home details updated successfully.");
       await load();
     } catch (e: any) {
       setErr(e?.response?.data?.error || "Failed to update home");
@@ -346,6 +361,12 @@ export default function HomesPage() {
       {err && (
         <div className="glass border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-200">
           {err}
+        </div>
+      )}
+
+      {notice && (
+        <div className="glass border border-emerald-500/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-200">
+          {notice}
         </div>
       )}
 
