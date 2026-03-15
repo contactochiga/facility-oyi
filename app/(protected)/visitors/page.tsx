@@ -408,9 +408,25 @@ export default function VisitorsPage() {
 
               <Button
                 variant="ghost"
-                onClick={() =>
-                  setNotice(`Visitor timeline view will be enabled when timeline routes are connected (id: ${v?.id || "n/a"}).`)
-                }
+                onClick={async () => {
+                  const id = String(v?.id || "").trim();
+                  if (!id) return;
+                  const res = await visitorService.timeline(id);
+                  if ((res as any)?.error) {
+                    setNotice(String((res as any).error));
+                    return;
+                  }
+                  const timeline = Array.isArray((res as any)?.timeline) ? (res as any).timeline : [];
+                  if (!timeline.length) {
+                    setNotice(`No timeline events yet for ${safeStr(v?.visitor_name)}.`);
+                    return;
+                  }
+                  const summary = timeline
+                    .slice(0, 6)
+                    .map((e: any) => `${fmtStatus(e?.type)} @ ${when(e?.at)}`)
+                    .join(" • ");
+                  setNotice(`${safeStr(v?.visitor_name)} timeline: ${summary}`);
+                }}
               >
                 View
               </Button>
@@ -847,14 +863,28 @@ export default function VisitorsPage() {
           <div className="space-y-3">
             <button
               type="button"
-              onClick={() => setNotice("Lock-all-doors action will be enabled when the access-control route is connected.")}
+              onClick={async () => {
+                const res = await visitorService.lockdown("partial");
+                if ((res as any)?.error) {
+                  setNotice(String((res as any).error));
+                  return;
+                }
+                setNotice(`Lockdown activated (${String((res as any)?.mode || "partial")}). Ops notified: ${Number((res as any)?.recipients || 0)}.`);
+              }}
               className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
             >
               Lock All Doors
             </button>
             <button
               type="button"
-              onClick={() => setNotice("Emergency lockdown will be enabled when the incident-response route is connected.")}
+              onClick={async () => {
+                const res = await visitorService.lockdown("emergency");
+                if ((res as any)?.error) {
+                  setNotice(String((res as any).error));
+                  return;
+                }
+                setNotice(`Emergency lockdown activated. Ops notified: ${Number((res as any)?.recipients || 0)}.`);
+              }}
               className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-medium transition-colors"
             >
               Emergency Lockdown
@@ -870,7 +900,14 @@ export default function VisitorsPage() {
             </button>
             <button
               type="button"
-              onClick={() => setNotice("Report export will be enabled when reporting routes are connected.")}
+              onClick={async () => {
+                const res = await visitorService.exportReport({ today: todayOnly, format: "csv" });
+                if ((res as any)?.error) {
+                  setNotice(String((res as any).error));
+                  return;
+                }
+                setNotice("Visitor report export started.");
+              }}
               className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-medium transition-colors"
             >
               Generate Report

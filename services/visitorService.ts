@@ -30,6 +30,12 @@ export type VisitorItem = {
   full_name: string;
 };
 
+export type VisitorTimelineEvent = {
+  at: string;
+  type: string;
+  note: string;
+};
+
 function pickError(err: any, fallback: string) {
   return (
     err?.response?.data?.error ||
@@ -111,6 +117,80 @@ export const visitorService = {
       return res.data as { ok?: boolean; visitor?: any; error?: string };
     } catch (err: any) {
       return { error: pickError(err, "Failed to update visitor") };
+    }
+  },
+
+  /**
+   * FACILITY: GET /facility/visitors/:id/timeline
+   */
+  async timeline(id: string) {
+    try {
+      const res = await API.get(`/facility/visitors/${id}/timeline`);
+      return res.data as {
+        ok?: boolean;
+        visitor?: any;
+        timeline?: VisitorTimelineEvent[];
+        error?: string;
+      };
+    } catch (err: any) {
+      return { error: pickError(err, "Failed to load visitor timeline") };
+    }
+  },
+
+  /**
+   * FACILITY: POST /facility/visitors/actions/lockdown { mode }
+   */
+  async lockdown(mode: "partial" | "emergency" = "partial") {
+    try {
+      const res = await API.post("/facility/visitors/actions/lockdown", { mode });
+      return res.data as {
+        ok?: boolean;
+        mode?: string;
+        activated_at?: string;
+        recipients?: number;
+        error?: string;
+      };
+    } catch (err: any) {
+      return { error: pickError(err, "Failed to activate lockdown") };
+    }
+  },
+
+  /**
+   * FACILITY: GET /facility/visitors/reports/export
+   */
+  async exportReport(params?: { today?: boolean; format?: "json" | "csv" }) {
+    const format = params?.format || "json";
+    try {
+      if (format === "csv") {
+        const res = await API.get("/facility/visitors/reports/export", {
+          params: { today: params?.today, format: "csv" },
+          responseType: "blob",
+        });
+        const blob = new Blob([res.data], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `visitor-report-${params?.today ? "today" : "all"}.csv`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+        return { ok: true };
+      }
+
+      const res = await API.get("/facility/visitors/reports/export", {
+        params: { today: params?.today, format: "json" },
+      });
+      return res.data as {
+        ok?: boolean;
+        scope?: string;
+        summary?: Record<string, number>;
+        visitors?: any[];
+        generated_at?: string;
+        error?: string;
+      };
+    } catch (err: any) {
+      return { error: pickError(err, "Failed to export visitor report") };
     }
   },
 };
