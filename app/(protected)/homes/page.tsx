@@ -2,10 +2,13 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
+import { MetricCard } from "@/components/MetricCard";
 import { facilityService } from "@/services/facilityService";
+import { ArrowLeft, Building2, KeyRound, Pencil, Router, Users, Waves } from "lucide-react";
 
 type HomeRow = {
   id: string;
@@ -66,6 +69,7 @@ export default function HomesPage() {
 
   // Add modal
   const [showAdd, setShowAdd] = useState(false);
+  const [editHomeId, setEditHomeId] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     unit: "",
@@ -77,6 +81,18 @@ export default function HomesPage() {
     gate_code: "",
   });
   const canSubmit = useMemo(() => form.name.trim().length > 0, [form.name]);
+  const editingHome = useMemo(() => homes.find((h) => h.id === editHomeId) || null, [homes, editHomeId]);
+  const summary = useMemo(() => {
+    const withPower = homes.filter((h) => String(h.electricity_meter || "").trim()).length;
+    const withWater = homes.filter((h) => String(h.water_meter || "").trim()).length;
+    const withInternet = homes.filter((h) => String(h.internet_id || "").trim()).length;
+    return {
+      total: homes.length,
+      withPower,
+      withWater,
+      withInternet,
+    };
+  }, [homes]);
 
   async function bootstrapEstate() {
     const res = await facilityService.myEstates(); // { estates: [...] }
@@ -139,6 +155,10 @@ export default function HomesPage() {
         unit: form.unit.trim() || undefined,
         block: form.block.trim() || undefined,
         description: form.description.trim() || undefined,
+        electricity_meter: form.electricity_meter.trim() || undefined,
+        water_meter: form.water_meter.trim() || undefined,
+        internet_id: form.internet_id.trim() || undefined,
+        gate_code: form.gate_code.trim() || undefined,
         type: "home",
       });
 
@@ -162,6 +182,72 @@ export default function HomesPage() {
     }
   }
 
+  async function saveHomeEdit() {
+    if (!editHomeId) return;
+    setErr(null);
+    setLoading(true);
+    try {
+      await facilityService.updateHome(editHomeId, {
+        name: form.name.trim() || undefined,
+        unit: form.unit.trim() || undefined,
+        block: form.block.trim() || undefined,
+        description: form.description.trim() || undefined,
+        electricity_meter: form.electricity_meter.trim() || undefined,
+        water_meter: form.water_meter.trim() || undefined,
+        internet_id: form.internet_id.trim() || undefined,
+        gate_code: form.gate_code.trim() || undefined,
+      });
+
+      setShowAdd(false);
+      setEditHomeId(null);
+      setForm({
+        name: "",
+        unit: "",
+        block: "",
+        description: "",
+        electricity_meter: "",
+        water_meter: "",
+        internet_id: "",
+        gate_code: "",
+      });
+      await load();
+    } catch (e: any) {
+      setErr(e?.response?.data?.error || "Failed to update home");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openCreate() {
+    setEditHomeId(null);
+    setForm({
+      name: "",
+      unit: "",
+      block: "",
+      description: "",
+      electricity_meter: "",
+      water_meter: "",
+      internet_id: "",
+      gate_code: "",
+    });
+    setShowAdd(true);
+  }
+
+  function openEdit(home: HomeRow) {
+    setEditHomeId(home.id);
+    setForm({
+      name: String(home.name || ""),
+      unit: String(home.unit || ""),
+      block: String(home.block || ""),
+      description: String(home.description || ""),
+      electricity_meter: String(home.electricity_meter || ""),
+      water_meter: String(home.water_meter || ""),
+      internet_id: String(home.internet_id || ""),
+      gate_code: String(home.gate_code || ""),
+    });
+    setShowAdd(true);
+  }
+
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,20 +258,89 @@ export default function HomesPage() {
       <Topbar
         title="Homes"
         subtitle="Units under management • meters • rooms • memberships"
+        rightSlot={
+          <Link
+            href="/overview"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200 hover:bg-white/10 transition"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Overview
+          </Link>
+        }
       />
 
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="muted">
-          {estateId ? `Estate: ${estateId}` : "Estate: —"}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <MetricCard title="Homes" value={String(summary.total)} change="Registered units" trend="neutral" icon={Building2} iconColor="text-blue-400" />
+        <MetricCard title="Electricity Linked" value={String(summary.withPower)} change="Homes with meter IDs" trend="neutral" icon={KeyRound} iconColor="text-amber-400" />
+        <MetricCard title="Water Linked" value={String(summary.withWater)} change="Homes with water meters" trend="neutral" icon={Waves} iconColor="text-cyan-400" />
+        <MetricCard title="Internet Linked" value={String(summary.withInternet)} change="Homes with service IDs" trend="neutral" icon={Router} iconColor="text-emerald-400" />
+      </div>
+
+      <div className="glass border border-white/10 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Estate Context</div>
+          <div className="text-sm text-zinc-100 mt-1">
+            {estateId ? "Linked to current estate operations context" : "No estate linked"}
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={load} disabled={loading}>
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
-          <Button onClick={() => setShowAdd(true)} disabled={!estateId}>
+          <Button onClick={openCreate} disabled={!estateId}>
             Add Home
           </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {homes.slice(0, 4).map((home) => (
+          <div key={`${home.id}:overview`} className="glass border border-white/10 rounded-2xl p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-base font-semibold text-white truncate">{home.name}</div>
+                <div className="mt-1 text-xs text-zinc-500 truncate">
+                  {[home.block, home.unit].filter(Boolean).join(" / ") || "No block or unit assigned"}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => openEdit(home)}
+                className="rounded-xl border border-white/10 bg-white/5 p-2 text-zinc-200 hover:bg-white/10 transition"
+                aria-label={`Edit ${home.name}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <Field label="Electricity" value={home.electricity_meter} />
+              <Field label="Water" value={home.water_meter} />
+              <Field label="Internet" value={home.internet_id} />
+              <Field label="Gate Code" value={home.gate_code} />
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                href={`/homes/${home.id}/rooms?estateId=${encodeURIComponent(estateId || "")}`}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-100 hover:bg-white/10 transition"
+              >
+                <Building2 className="h-4 w-4" />
+                Manage Rooms
+              </Link>
+              <Link
+                href={`/homes/${home.id}/users?estateId=${encodeURIComponent(estateId || "")}`}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-100 hover:bg-white/10 transition"
+              >
+                <Users className="h-4 w-4" />
+                Manage Users
+              </Link>
+              <Button variant="ghost" onClick={() => toggleHome(home.id)}>
+                {openHomeId === home.id ? "Collapse" : "Open Details"}
+              </Button>
+            </div>
+          </div>
+        ))}
       </div>
 
       {err && (
@@ -199,7 +354,7 @@ export default function HomesPage() {
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
           <div className="text-sm font-medium">Homes ({homes.length})</div>
           <div className="text-xs text-zinc-500">
-            Tap a row to expand rooms + meters
+            Open a home to manage meters, rooms, and users
           </div>
         </div>
 
@@ -228,10 +383,9 @@ export default function HomesPage() {
                   .join(" • ");
 
                 return (
-                  <>
+                  <Fragment key={h.id}>
                     <tr
-                      key={h.id}
-                      className="border-b border-white/10 hover:bg-white/5 cursor-pointer"
+                      className={`border-b border-white/10 cursor-pointer transition ${expanded ? "bg-white/[0.06]" : "hover:bg-white/5"}`}
                       onClick={() => toggleHome(h.id)}
                     >
                       <td className="px-5 py-4">
@@ -247,12 +401,12 @@ export default function HomesPage() {
                     </tr>
 
                     {expanded && (
-                      <tr className="border-b border-white/10 bg-white/[0.02]">
+                      <tr className="border-b border-white/10 bg-white/[0.03]">
                         <td colSpan={5} className="px-5 py-5">
                           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                             {/* Home Details */}
                             <div className="space-y-3">
-                              <div className="text-sm font-medium">Home Details</div>
+                              <div className="text-sm font-medium text-zinc-100">Home Details</div>
                               <div className="grid grid-cols-2 gap-3">
                                 <Field label="Electricity Meter" value={h.electricity_meter} />
                                 <Field label="Water Meter" value={h.water_meter} />
@@ -264,7 +418,7 @@ export default function HomesPage() {
                             {/* Rooms */}
                             <div className="space-y-3 lg:col-span-2">
                               <div className="flex items-center justify-between">
-                                <div className="text-sm font-medium">
+                                <div className="text-sm font-medium text-zinc-100">
                                   Rooms ({rLoading ? "…" : rooms.length})
                                 </div>
 
@@ -301,6 +455,15 @@ export default function HomesPage() {
                                   >
                                     Manage Users
                                   </a>
+                                  <Button
+                                    variant="ghost"
+                                    onClick={(e: any) => {
+                                      e.stopPropagation();
+                                      openEdit(h);
+                                    }}
+                                  >
+                                    Edit Home
+                                  </Button>
                                 </div>
                               </div>
 
@@ -332,17 +495,15 @@ export default function HomesPage() {
                                 )}
                               </div>
 
-                              <div className="text-xs text-zinc-500 mt-2">
-                                Home users are managed in{" "}
-                                <span className="text-zinc-300">Manage Users</span>. Residents will later
-                                manage visitors/staff inside the consumer app.
+                              <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-xs text-zinc-400">
+                                Use <span className="text-zinc-200">Manage Users</span> to invite residents, update access roles, and disable or remove memberships without leaving the home context.
                               </div>
                             </div>
                           </div>
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
 
@@ -363,12 +524,14 @@ export default function HomesPage() {
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-black/70" onClick={() => setShowAdd(false)} />
-          <div className="relative glass border border-white/10 rounded-2xl w-full max-w-xl p-6">
+          <div className="relative glass border border-white/10 rounded-2xl w-full max-w-2xl p-6">
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-lg font-semibold">Add Home</div>
+                <div className="text-lg font-semibold">{editingHome ? "Edit Home" : "Add Home"}</div>
                 <div className="text-sm text-zinc-400 mt-1">
-                  Register a home/unit under this estate.
+                  {editingHome
+                    ? "Update utility identifiers, gate details, and the home metadata."
+                    : "Register a unit and pre-link its utility/service identifiers."}
                 </div>
               </div>
               <button className="text-zinc-400 hover:text-zinc-200" onClick={() => setShowAdd(false)}>
@@ -436,17 +599,23 @@ export default function HomesPage() {
                 />
               </div>
 
-              <div className="flex gap-2 mt-2">
-                <Button variant="ghost" onClick={() => setShowAdd(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={createHome} disabled={!canSubmit || loading}>
-                  {loading ? "Saving..." : "Create Home"}
-                </Button>
+              <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-zinc-400">
+                These identifiers feed the consumer app directly. Keep meters and internet IDs accurate here so resident services remain active and bill correctly.
               </div>
 
-              <div className="text-xs text-zinc-500 mt-2">
-                Devices can be attached later per room/home (optional).
+              <div className="flex gap-2 mt-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowAdd(false);
+                    setEditHomeId(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={editingHome ? saveHomeEdit : createHome} disabled={!canSubmit || loading}>
+                  {loading ? "Saving..." : editingHome ? "Save Changes" : "Create Home"}
+                </Button>
               </div>
             </div>
           </div>

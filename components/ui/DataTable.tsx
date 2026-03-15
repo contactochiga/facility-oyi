@@ -39,9 +39,19 @@ export function DataTable<T>({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     globalFilterFn: (row, _columnId, filterValue) => {
-      if (!searchKey) return true;
-      const v = String((row.original as any)[searchKey] ?? "").toLowerCase();
-      return v.includes(String(filterValue ?? "").toLowerCase());
+      const needle = String(filterValue ?? "").toLowerCase().trim();
+      if (!needle) return true;
+
+      const haystacks: string[] = [];
+      if (searchKey) {
+        haystacks.push(String((row.original as any)[searchKey] ?? ""));
+      }
+
+      try {
+        haystacks.push(JSON.stringify(row.original));
+      } catch {}
+
+      return haystacks.some((v) => v.toLowerCase().includes(needle));
     },
   });
 

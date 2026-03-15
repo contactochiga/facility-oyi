@@ -7,9 +7,13 @@
     "dev": "NEXT_BUILD_DIR=.next-dev next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "cap:add:ios": "npx cap add ios",
+    "cap:sync:ios": "npx cap sync ios",
+    "cap:open:ios": "npx cap open ios"
   },
   "dependencies": {
+    "@capacitor/core": "^6.1.0",
     "next": "15.5.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -26,6 +30,8 @@
     "hls.js": "^1.5.17"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.1.0",
+    "@capacitor/ios": "^6.1.0",
     "@types/node": "^20.11.30",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",

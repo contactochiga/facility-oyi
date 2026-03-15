@@ -88,12 +88,13 @@ export default function OccupancyPage() {
   }, [visitors]);
 
   const buildingOccupancy = useMemo(() => {
-    const byHome = new Map<string, { building: string; current: number; capacity: number; percentage: number }>();
+    const byHome = new Map<string, { id: string; building: string; current: number; capacity: number; percentage: number }>();
 
     for (const h of homes) {
       const id = String(h?.id || "");
       if (!id) continue;
       byHome.set(id, {
+        id,
         building: String(h?.name || h?.unit || "Home"),
         current: 0,
         capacity: 10,
@@ -174,7 +175,7 @@ export default function OccupancyPage() {
               const label = b.percentage > 90 ? "Near Capacity" : b.percentage > 75 ? "High" : "Normal";
               const labelTone = b.percentage > 90 ? "text-red-300" : b.percentage > 75 ? "text-amber-300" : "text-emerald-300";
               return (
-                <div key={b.building} className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <div key={b.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-zinc-100">{b.building}</span>
                     <span className="text-sm"><span className="font-semibold text-zinc-100">{b.current}</span><span className="text-zinc-400"> / {b.capacity}</span></span>

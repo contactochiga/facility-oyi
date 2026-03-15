@@ -150,6 +150,9 @@ export type UpdateHomeUserPayload = {
   role?: string;
   status?: string;
   permissions?: Record<string, any>;
+  full_name?: string;
+  username?: string;
+  email?: string;
 };
 
 // ---------------------------
@@ -248,6 +251,26 @@ export const facilityService = {
     lng?: number;
   }): Promise<{ message: string; home: any }> {
     const res = await API.post("/facility/homes", payload);
+    return res.data;
+  },
+
+  async updateHome(
+    homeId: string,
+    payload: {
+      name?: string;
+      unit?: string;
+      block?: string;
+      description?: string;
+      resident_id?: string | null;
+      electricity_meter?: string;
+      water_meter?: string;
+      internet_id?: string;
+      gate_code?: string;
+      lat?: number;
+      lng?: number;
+    }
+  ): Promise<{ message: string; home: any }> {
+    const res = await API.patch(`/facility/homes/${homeId}`, payload);
     return res.data;
   },
 

@@ -3,14 +3,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
+import { MetricCard } from "@/components/MetricCard";
 import facilityService from "@/services/facilityService";
 import type { HomeMembershipRow } from "@/services/facilityService";
 import type { ColumnDef } from "@tanstack/react-table";
+import { ArrowLeft, Pencil, ShieldCheck, UserCheck, UserPlus, UserX } from "lucide-react";
 
 function pill(status?: string) {
   const s = (status || "unknown").toLowerCase();
@@ -42,6 +45,7 @@ export default function HomeUsersPage() {
     inviteUrl?: string;
     qrDataUrl?: string;
   } | null>(null);
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -72,6 +76,7 @@ export default function HomeUsersPage() {
         inviteUrl: res?.inviteUrl,
         qrDataUrl: res?.qrDataUrl,
       });
+      setInviteNotice("Invite created. Share the link or QR and refresh once the resident accepts.");
 
       // Membership will remain "invited" until user accepts (then becomes active)
       await load();
@@ -116,7 +121,8 @@ export default function HomeUsersPage() {
     () => [
       {
         header: "User",
-        accessorFn: (r) => r.users?.email || r.users?.full_name || r.users?.username || r.users?.id,
+        accessorFn: (r) =>
+          `${r.users?.full_name || ""} ${r.users?.username || ""} ${r.users?.email || ""} ${r.role || ""} ${r.status || ""}`,
         cell: ({ row }) => {
           const u = row.original.users;
           return (
@@ -166,6 +172,26 @@ export default function HomeUsersPage() {
                 Role
               </Button>
 
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  const fullName = prompt("Full name", m.users?.full_name || "");
+                  if (fullName === null) return;
+                  const username = prompt("Username", m.users?.username || "");
+                  if (username === null) return;
+                  const email = prompt("Email", m.users?.email || "");
+                  if (email === null) return;
+                  setMembership(m.id, {
+                    full_name: fullName,
+                    username,
+                    email,
+                  });
+                }}
+                disabled={loading}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+
               <Button variant="ghost" onClick={() => removeMembership(m.id)} disabled={loading}>
                 Remove
               </Button>
@@ -177,14 +203,45 @@ export default function HomeUsersPage() {
     [loading]
   );
 
+  const stats = useMemo(() => {
+    const active = items.filter((x) => String(x.status).toLowerCase() === "active").length;
+    const invited = items.filter((x) => String(x.status).toLowerCase() === "invited").length;
+    const disabled = items.filter((x) => String(x.status).toLowerCase() === "disabled").length;
+    const owners = items.filter((x) => String(x.role).toLowerCase() === "owner").length;
+    return { active, invited, disabled, owners };
+  }, [items]);
+
   return (
     <div className="space-y-7">
       <Topbar
         title="Home Users"
         subtitle="Private membership • owner-controlled access • onboarding via invites"
+        rightSlot={
+          <Link
+            href="/homes"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200 hover:bg-white/10 transition"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Homes
+          </Link>
+        }
       />
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <MetricCard title="Active" value={String(stats.active)} change="Users with live access" trend="neutral" icon={UserCheck} iconColor="text-emerald-400" />
+        <MetricCard title="Invited" value={String(stats.invited)} change="Awaiting acceptance" trend="neutral" icon={UserPlus} iconColor="text-amber-400" />
+        <MetricCard title="Disabled" value={String(stats.disabled)} change="Memberships paused" trend="neutral" icon={UserX} iconColor="text-rose-400" />
+        <MetricCard title="Owners" value={String(stats.owners)} change="Protected role count" trend="neutral" icon={ShieldCheck} iconColor="text-blue-400" />
+      </div>
+
+      <div className="glass border border-white/10 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Membership Controls</div>
+          <div className="text-sm text-zinc-100 mt-1">
+            Invite residents, review pending access, and manage owner/member status for this home.
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2">
         <Button variant="ghost" onClick={load} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh"}
         </Button>
@@ -196,14 +253,17 @@ export default function HomeUsersPage() {
         >
           Invite User
         </Button>
+        </div>
       </div>
 
-      <DataTable data={items} columns={columns} title="Home Members" searchKey={"role"} />
+      <div className="glass border border-white/10 rounded-2xl p-2">
+        <DataTable data={items} columns={columns} title="Home Members" />
+      </div>
 
       {/* Invite Modal */}
       {showInvite && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-zinc-950 p-6">
+          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-950 p-6">
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-lg font-semibold text-white">Invite to Home</div>
@@ -211,7 +271,7 @@ export default function HomeUsersPage() {
                   Home: <span className="text-zinc-200">{homeId}</span>
                 </div>
                 <div className="text-xs text-zinc-500 mt-1">
-                  This creates an invite link/QR. User accepts in consumer app → membership becomes active.
+                  This creates an invite link and QR. Once the resident accepts in the consumer app, access becomes active here.
                 </div>
               </div>
               <button className="text-zinc-400 hover:text-white" onClick={() => setShowInvite(false)}>
@@ -238,6 +298,16 @@ export default function HomeUsersPage() {
                 <option value="home_admin">home_admin</option>
               </select>
 
+              <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-zinc-400">
+                `resident` is the normal live-in user, `home_member` is a standard shared-access user, and `home_admin` maps to owner-level control for the home.
+              </div>
+
+              {inviteNotice ? (
+                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs text-cyan-100">
+                  {inviteNotice}
+                </div>
+              ) : null}
+
               {inviteResult?.inviteUrl && (
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 space-y-2">
                   <div className="text-sm text-emerald-200 font-medium">Invite created</div>
@@ -261,7 +331,7 @@ export default function HomeUsersPage() {
                   )}
 
                   <div className="text-xs text-zinc-400">
-                    After they accept in the consumer app, refresh this page and their status becomes <b>active</b>.
+                    Share the link or QR with the resident. After acceptance, refresh this page and their status becomes <b>active</b>.
                   </div>
                 </div>
               )}

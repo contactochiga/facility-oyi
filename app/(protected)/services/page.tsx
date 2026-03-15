@@ -6,16 +6,17 @@ import Button from "@/components/ui/Button";
 import { useSessionStore } from "@/store/useSessionStore";
 import { walletsService } from "@/services/walletsService";
 import { facilityService } from "@/services/facilityService";
+import serviceConfigService, { type ServiceConfig, type ServiceKey } from "@/services/serviceConfigService";
 import { formatMoney } from "@/lib/format";
-import { CreditCard, Wallet, Zap, Wifi, Globe, Building2 } from "lucide-react";
+import { CreditCard, Wallet, Zap, Wifi, Globe, Building2, Layers3 } from "lucide-react";
 
-type ServiceKey = "utility_token" | "internet_service" | "fiber_internet" | "service_charge";
 type ServiceRow = {
   key: ServiceKey;
   title: string;
   desc: string;
-  reason: string;
   suggested: number;
+  accountLabel: string;
+  accountHint: string;
   icon: any;
 };
 
@@ -24,35 +25,60 @@ const SERVICES: ServiceRow[] = [
     key: "utility_token",
     title: "Electricity Tokens",
     desc: "Issue utility tokens paid from resident wallet balance.",
-    reason: "utility_token_purchase",
     suggested: 5000,
+    accountLabel: "Electricity Meter",
+    accountHint: "Linked from the home electricity meter",
     icon: Zap,
   },
   {
     key: "internet_service",
     title: "Internet Service",
     desc: "Charge internet package renewals via wallet.",
-    reason: "internet_service_payment",
     suggested: 10000,
+    accountLabel: "Internet ID",
+    accountHint: "Linked from the home internet account",
     icon: Wifi,
   },
   {
     key: "fiber_internet",
     title: "Fiber Internet",
     desc: "Process fiber broadband dues and renewals.",
-    reason: "fiber_internet_payment",
     suggested: 15000,
+    accountLabel: "Fiber Account",
+    accountHint: "Uses the same home internet identifier",
     icon: Globe,
   },
   {
     key: "service_charge",
     title: "Service Charge",
     desc: "Collect estate service charge from wallets.",
-    reason: "estate_service_charge",
     suggested: 25000,
+    accountLabel: "Home Account",
+    accountHint: "Uses the linked home record",
     icon: Building2,
   },
+  {
+    key: "other_facility_fees",
+    title: "Other Facility Fees",
+    desc: "One-off charges, levies, and special estate fees.",
+    suggested: 5000,
+    accountLabel: "Home Account",
+    accountHint: "Uses the linked home record",
+    icon: Layers3,
+  },
 ];
+
+type ServiceConfigDraft = {
+  title: string;
+  description: string;
+  suggested_amount: string;
+  account_label: string;
+  account_hint: string;
+  active: boolean;
+  unit_cost: string;
+  unit_name: string;
+  billing_mode: "wallet_only" | "metered" | "fixed";
+};
 
 type OpEntry = {
   id: string;
@@ -77,6 +103,7 @@ export default function FacilityServicesPage() {
     internet_service: "10000",
     fiber_internet: "15000",
     service_charge: "25000",
+    other_facility_fees: "5000",
   });
 
   const [walletBalance, setWalletBalance] = useState(0);
@@ -90,9 +117,44 @@ export default function FacilityServicesPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [configs, setConfigs] = useState<Partial<Record<ServiceKey, ServiceConfig>>>({});
+  const [configFallback, setConfigFallback] = useState(false);
+  const [configBusy, setConfigBusy] = useState(false);
+  const [configDrafts, setConfigDrafts] = useState<Partial<Record<ServiceKey, ServiceConfigDraft>>>({});
 
   const active = useMemo(() => SERVICES.find((s) => s.key === activeKey)!, [activeKey]);
   const activeAmount = parseNum(amounts[activeKey]);
+  const estateId = String((user as any)?.estate_id || "").trim();
+
+  function mergedConfig(service: ServiceRow) {
+    const cfg = configs[service.key];
+    return {
+      ...service,
+      title: cfg?.title || service.title,
+      desc: cfg?.description || service.desc,
+      suggested: Number(cfg?.suggested_amount ?? service.suggested),
+      accountLabel: cfg?.account_label || service.accountLabel,
+      accountHint: cfg?.account_hint || service.accountHint,
+      active: cfg?.active ?? true,
+      currency: cfg?.currency || currency,
+      unitCost: cfg?.unit_cost ?? null,
+      unitName: cfg?.unit_name || null,
+      billingMode: cfg?.billing_mode || "wallet_only",
+    };
+  }
+
+  const activeConfig = useMemo(() => mergedConfig(active), [active, configs, currency]);
+  const activeDraft = configDrafts[activeKey] || {
+    title: activeConfig.title,
+    description: activeConfig.desc,
+    suggested_amount: String(activeConfig.suggested),
+    account_label: activeConfig.accountLabel,
+    account_hint: activeConfig.accountHint,
+    active: activeConfig.active,
+    unit_cost: activeConfig.unitCost == null ? "" : String(activeConfig.unitCost),
+    unit_name: activeConfig.unitName || "",
+    billing_mode: activeConfig.billingMode,
+  };
 
   useEffect(() => {
     try {
@@ -138,8 +200,99 @@ export default function FacilityServicesPage() {
     loadWallets();
   }, []);
 
+  useEffect(() => {
+    const run = async () => {
+      if (!estateId) return;
+      const res: any = await serviceConfigService.list(estateId);
+      if (res?.error) {
+        setErr(String(res.error));
+        return;
+      }
+      const mapped = Object.fromEntries((res.configs || []).map((cfg: ServiceConfig) => [cfg.service_key, cfg])) as Partial<
+        Record<ServiceKey, ServiceConfig>
+      >;
+      setConfigs(mapped);
+      setConfigFallback(Boolean(res.using_fallback));
+      setAmounts((prev) => {
+        const next = { ...prev };
+        for (const service of SERVICES) {
+          const cfg = mapped[service.key];
+          next[service.key] = String(Number(cfg?.suggested_amount ?? service.suggested));
+        }
+        return next;
+      });
+    };
+    void run();
+  }, [estateId]);
+
   function setAmount(k: ServiceKey, v: string) {
     setAmounts((p) => ({ ...p, [k]: v }));
+  }
+
+  function setDraftField(key: ServiceKey, field: keyof ServiceConfigDraft, value: string | boolean) {
+    setConfigDrafts((prev) => ({
+      ...prev,
+      [key]: {
+        title: prev[key]?.title ?? mergedConfig(SERVICES.find((s) => s.key === key)!).title,
+        description: prev[key]?.description ?? mergedConfig(SERVICES.find((s) => s.key === key)!).desc,
+        suggested_amount:
+          prev[key]?.suggested_amount ?? String(mergedConfig(SERVICES.find((s) => s.key === key)!).suggested),
+        account_label: prev[key]?.account_label ?? mergedConfig(SERVICES.find((s) => s.key === key)!).accountLabel,
+        account_hint: prev[key]?.account_hint ?? mergedConfig(SERVICES.find((s) => s.key === key)!).accountHint,
+        active: prev[key]?.active ?? mergedConfig(SERVICES.find((s) => s.key === key)!).active,
+        unit_cost:
+          prev[key]?.unit_cost ??
+          (mergedConfig(SERVICES.find((s) => s.key === key)!).unitCost == null
+            ? ""
+            : String(mergedConfig(SERVICES.find((s) => s.key === key)!).unitCost)),
+        unit_name: prev[key]?.unit_name ?? (mergedConfig(SERVICES.find((s) => s.key === key)!).unitName || ""),
+        billing_mode: prev[key]?.billing_mode ?? mergedConfig(SERVICES.find((s) => s.key === key)!).billingMode,
+        [field]: value,
+      },
+    }));
+  }
+
+  async function saveConfig() {
+    if (!estateId) {
+      setErr("No estate is linked to this operator session.");
+      return;
+    }
+
+    const amount = parseNum(activeDraft.suggested_amount);
+    if (amount < 0) {
+      setErr("Suggested amount must be zero or greater.");
+      return;
+    }
+
+    setConfigBusy(true);
+    setErr(null);
+    setNotice(null);
+    const res: any = await serviceConfigService.save(activeKey, {
+      estate_id: estateId,
+      title: activeDraft.title.trim(),
+      description: activeDraft.description.trim(),
+      suggested_amount: amount,
+      account_label: activeDraft.account_label.trim(),
+      account_hint: activeDraft.account_hint.trim(),
+      active: Boolean(activeDraft.active),
+      currency,
+      unit_cost: activeDraft.unit_cost === "" ? null : parseNum(activeDraft.unit_cost),
+      unit_name: activeDraft.unit_name.trim() || null,
+      billing_mode: activeDraft.billing_mode,
+    });
+    setConfigBusy(false);
+
+    if (res?.error) {
+      setErr(String(res.error));
+      return;
+    }
+
+    const cfg = res?.config as ServiceConfig;
+    setConfigs((prev) => ({ ...prev, [activeKey]: cfg }));
+    setAmounts((prev) => ({ ...prev, [activeKey]: String(Number(cfg?.suggested_amount || 0)) }));
+    setConfigDrafts((prev) => ({ ...prev, [activeKey]: undefined }));
+    setConfigFallback(false);
+    setNotice(`${cfg.title} configuration saved.`);
   }
 
   async function debitForService() {
@@ -150,7 +303,7 @@ export default function FacilityServicesPage() {
     setBusy(true);
     setErr(null);
     setNotice(null);
-    const res = await walletsService.debit(activeAmount, active.reason);
+    const res = await walletsService.debit(activeAmount, `service_payment:${active.key}`);
     setBusy(false);
     if (res?.error) {
       setErr(res.error);
@@ -263,11 +416,17 @@ export default function FacilityServicesPage() {
       {notice ? (
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{notice}</div>
       ) : null}
+      {configFallback ? (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          Service configuration is still using backend defaults. Save estate billing config after creating the `estate_service_configs` table.
+        </div>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[330px_1fr]">
         <div className="glass border border-white/10 rounded-2xl p-3 space-y-2">
           {SERVICES.map((s) => {
-            const Icon = s.icon;
+            const view = mergedConfig(s);
+            const Icon = view.icon;
             return (
               <button
                 key={s.key}
@@ -280,9 +439,13 @@ export default function FacilityServicesPage() {
               >
                 <div className="flex items-center gap-2">
                   <Icon size={16} className="text-blue-300" />
-                  <div className="text-sm text-white font-semibold">{s.title}</div>
+                  <div className="text-sm text-white font-semibold">{view.title}</div>
                 </div>
-                <div className="mt-1 text-xs text-zinc-400">{s.desc}</div>
+                <div className="mt-1 text-xs text-zinc-400">{view.desc}</div>
+                <div className="mt-2 flex items-center justify-between text-[11px]">
+                  <span className="text-zinc-500">{formatMoney(view.suggested, view.currency)}</span>
+                  <span className={view.active ? "text-emerald-300" : "text-zinc-500"}>{view.active ? "Active" : "Disabled"}</span>
+                </div>
               </button>
             );
           })}
@@ -291,26 +454,117 @@ export default function FacilityServicesPage() {
         <div className="glass border border-white/10 rounded-2xl p-4">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <div className="text-sm text-white font-semibold">{active.title}</div>
-              <div className="text-xs text-zinc-400 mt-1">{active.desc}</div>
+              <div className="text-sm text-white font-semibold">{activeConfig.title}</div>
+              <div className="text-xs text-zinc-400 mt-1">{activeConfig.desc}</div>
             </div>
             <div className="inline-flex items-center gap-2 text-xs text-zinc-400">
               <Wallet size={14} />
-              wallet-linked
+              {activeConfig.active ? "wallet-linked" : "disabled"}
             </div>
           </div>
 
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] text-zinc-500">Display Title</div>
+              <input
+                value={activeDraft.title}
+                onChange={(e) => setDraftField(activeKey, "title", e.target.value)}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
+              />
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] text-zinc-500">Suggested Amount</div>
+              <input
+                value={activeDraft.suggested_amount}
+                onChange={(e) => setDraftField(activeKey, "suggested_amount", e.target.value)}
+                inputMode="numeric"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
+              />
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3 md:col-span-2">
+              <div className="text-[11px] text-zinc-500">Resident Description</div>
+              <input
+                value={activeDraft.description}
+                onChange={(e) => setDraftField(activeKey, "description", e.target.value)}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
+              />
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] text-zinc-500">Account Label</div>
+              <input
+                value={activeDraft.account_label}
+                onChange={(e) => setDraftField(activeKey, "account_label", e.target.value)}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
+              />
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] text-zinc-500">Account Hint</div>
+              <input
+                value={activeDraft.account_hint}
+                onChange={(e) => setDraftField(activeKey, "account_hint", e.target.value)}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
+              />
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] text-zinc-500">Unit Cost</div>
+              <input
+                value={activeDraft.unit_cost}
+                onChange={(e) => setDraftField(activeKey, "unit_cost", e.target.value)}
+                inputMode="decimal"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
+                placeholder="e.g. 68.5"
+              />
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] text-zinc-500">Unit Name</div>
+              <input
+                value={activeDraft.unit_name}
+                onChange={(e) => setDraftField(activeKey, "unit_name", e.target.value)}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
+                placeholder="kWh / month / bundle"
+              />
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="text-[11px] text-zinc-500">Billing Mode</div>
+              <select
+                value={activeDraft.billing_mode}
+                onChange={(e) => setDraftField(activeKey, "billing_mode", e.target.value)}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
+              >
+                <option value="wallet_only">Wallet Only</option>
+                <option value="fixed">Fixed Charge</option>
+                <option value="metered">Metered</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+            <div>
+              <div className="text-sm text-white">Resident access</div>
+              <div className="text-[11px] text-zinc-500">Disable this to hide payment from linked resident accounts.</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDraftField(activeKey, "active", !activeDraft.active)}
+              className={`rounded-full px-3 py-1 text-xs ${
+                activeDraft.active ? "bg-emerald-500/15 text-emerald-200" : "bg-zinc-700 text-zinc-300"
+              }`}
+            >
+              {activeDraft.active ? "Active" : "Disabled"}
+            </button>
+          </div>
+
           <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 flex items-center gap-2">
-            <span className="text-xs text-zinc-400">{currency}</span>
+            <span className="text-xs text-zinc-400">{activeConfig.currency}</span>
             <input
               value={amounts[activeKey]}
               onChange={(e) => setAmount(activeKey, e.target.value)}
-              placeholder={String(active.suggested)}
+              placeholder={String(activeConfig.suggested)}
               inputMode="numeric"
               className="flex-1 bg-transparent text-sm text-white outline-none"
             />
             <button
-              onClick={() => setAmount(activeKey, String(active.suggested))}
+              onClick={() => setAmount(activeKey, String(activeConfig.suggested))}
               className="text-xs text-zinc-400 hover:text-zinc-200"
             >
               Reset
@@ -318,6 +572,9 @@ export default function FacilityServicesPage() {
           </div>
 
           <div className="mt-4 flex gap-2 flex-wrap">
+            <Button variant="ghost" onClick={saveConfig} disabled={configBusy}>
+              {configBusy ? "Saving..." : "Save Billing Config"}
+            </Button>
             <Button onClick={debitForService} disabled={busy}>
               <span className="inline-flex items-center gap-2"><CreditCard size={14} />Process Service Debit</span>
             </Button>
@@ -359,4 +616,3 @@ export default function FacilityServicesPage() {
     </div>
   );
 }
-
