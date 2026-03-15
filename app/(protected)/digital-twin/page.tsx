@@ -37,6 +37,14 @@ function cn(...classes: Array<string | false | null | undefined>) {
 
 type TwinMode = "2d" | "3d" | "ops";
 type LayerKey = "devices" | "cameras" | "visitors" | "maintenance" | "utilities";
+type FloorBand = {
+  id: string;
+  label: string;
+  devices: any[];
+  cameras: any[];
+  maintenance: any[];
+  visitors: any[];
+};
 
 function formatAgo(iso?: string | null) {
   if (!iso) return "-";
@@ -57,6 +65,7 @@ export default function DigitalTwinPage() {
   const [err, setErr] = useState<string | null>(null);
   const [mode, setMode] = useState<TwinMode>("3d");
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const [activeFloorId, setActiveFloorId] = useState<string | null>(null);
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
     devices: true,
     cameras: true,
@@ -64,6 +73,9 @@ export default function DigitalTwinPage() {
     maintenance: true,
     utilities: true,
   });
+  const [yaw, setYaw] = useState(24);
+  const [tilt, setTilt] = useState(58);
+  const [zoom, setZoom] = useState(100);
 
   async function load() {
     setLoading(true);
@@ -186,6 +198,57 @@ export default function DigitalTwinPage() {
   const selectedZone = useMemo(
     () => twinZones.find((z) => z.id === selectedZoneId) || twinZones[0] || null,
     [twinZones, selectedZoneId]
+  );
+
+  const selectedFloors = useMemo<FloorBand[]>(() => {
+    if (!selectedZone) return [];
+    const segments = [
+      {
+        id: "upper",
+        label: "Upper Deck",
+        devices: selectedZone.devices.filter((_: any, idx: number) => idx % 3 === 0),
+        cameras: selectedZone.cameras.filter((_: any, idx: number) => idx % 2 === 0),
+        maintenance: selectedZone.maintenance.filter((_: any, idx: number) => idx % 2 === 0),
+        visitors: selectedZone.visitors.filter((_: any, idx: number) => idx % 2 === 0),
+      },
+      {
+        id: "mid",
+        label: "Core Level",
+        devices: selectedZone.devices.filter((_: any, idx: number) => idx % 3 === 1),
+        cameras: selectedZone.cameras.filter((_: any, idx: number) => idx % 2 === 1),
+        maintenance: selectedZone.maintenance.filter((_: any, idx: number) => idx % 2 === 1),
+        visitors: selectedZone.visitors.filter((_: any, idx: number) => idx % 2 === 1),
+      },
+      {
+        id: "ground",
+        label: "Ground Layer",
+        devices: selectedZone.devices.filter((_: any, idx: number) => idx % 3 === 2),
+        cameras: selectedZone.cameras.filter((_: any, idx: number) => idx % 3 === 2),
+        maintenance: selectedZone.maintenance.filter((_: any, idx: number) => idx % 3 === 2),
+        visitors: selectedZone.visitors.filter((_: any, idx: number) => idx % 3 === 2),
+      },
+    ];
+
+    return segments.filter(
+      (segment) =>
+        segment.devices.length ||
+        segment.cameras.length ||
+        segment.maintenance.length ||
+        segment.visitors.length
+    );
+  }, [selectedZone]);
+
+  useEffect(() => {
+    setActiveFloorId((prev) => {
+      if (!selectedFloors.length) return null;
+      if (prev && selectedFloors.some((floor) => floor.id === prev)) return prev;
+      return selectedFloors[0].id;
+    });
+  }, [selectedFloors]);
+
+  const activeFloor = useMemo(
+    () => selectedFloors.find((floor) => floor.id === activeFloorId) || selectedFloors[0] || null,
+    [selectedFloors, activeFloorId]
   );
 
   const liveFeed = useMemo(() => {
@@ -323,6 +386,15 @@ export default function DigitalTwinPage() {
               ))}
             </div>
           </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Scene Controls</div>
+            <div className="mt-3 space-y-3">
+              <RangeControl label="Yaw" value={yaw} min={8} max={42} onChange={setYaw} />
+              <RangeControl label="Tilt" value={tilt} min={38} max={76} onChange={setTilt} />
+              <RangeControl label="Zoom" value={zoom} min={80} max={128} onChange={setZoom} />
+            </div>
+          </div>
         </div>
 
         <div className="glass p-4">
@@ -340,82 +412,117 @@ export default function DigitalTwinPage() {
           <div className="relative min-h-[640px] overflow-hidden rounded-[28px] border border-white/10 bg-[#060912]">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.18),transparent_35%),radial-gradient(circle_at_80%_15%,rgba(16,185,129,0.14),transparent_25%),radial-gradient(circle_at_55%_75%,rgba(168,85,247,0.12),transparent_30%),linear-gradient(180deg,#0a1020_0%,#070b14_100%)]" />
             <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:42px_42px]" />
+            <div className="absolute left-5 top-5 z-20 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 backdrop-blur">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Twin Camera</div>
+              <div className="mt-2 flex items-center gap-2 text-sm text-white">
+                <Layers3 className="h-4 w-4 text-cyan-300" />
+                <span>{mode === "3d" ? "Estate volumetric render" : mode === "2d" ? "Plan topology render" : "Operational overlay render"}</span>
+              </div>
+            </div>
+            <div className="absolute right-5 top-5 z-20 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 backdrop-blur">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Scene State</div>
+              <div className="mt-2 space-y-1 text-xs text-zinc-300">
+                <div>{twinZones.length} structures in view</div>
+                <div>{liveFeed.length} overlay events</div>
+                <div>{activeFloor ? `${activeFloor.label} active` : "No floor selected"}</div>
+              </div>
+            </div>
 
             {mode !== "ops" ? (
               <div className="absolute inset-x-10 bottom-10 top-20 rounded-[36px] border border-white/8 bg-gradient-to-b from-white/[0.03] to-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]" />
             ) : null}
+            <div
+              className="absolute inset-x-8 bottom-8 top-16 origin-center transition-transform duration-500"
+              style={{
+                transform:
+                  mode === "3d"
+                    ? `perspective(1600px) rotateX(${tilt}deg) rotateZ(-${yaw}deg) scale(${zoom / 100})`
+                    : mode === "2d"
+                      ? `scale(${Math.min(1.2, zoom / 100)})`
+                      : `scale(${Math.min(1.15, zoom / 100)})`,
+              }}
+            >
+              {twinZones.map((z) => {
+                const selected = selectedZone?.id === z.id;
+                const cardTone = z.status === "healthy" ? "border-emerald-500/25 bg-emerald-500/8" : z.status === "attention" ? "border-red-500/25 bg-red-500/8" : "border-amber-500/25 bg-amber-500/8";
+                const left = `${z.x}%`;
+                const top = `${z.y}%`;
 
-            {twinZones.map((z) => {
-              const selected = selectedZone?.id === z.id;
-              const cardTone = z.status === "healthy" ? "border-emerald-500/25 bg-emerald-500/8" : z.status === "attention" ? "border-red-500/25 bg-red-500/8" : "border-amber-500/25 bg-amber-500/8";
-              const left = `${z.x}%`;
-              const top = `${z.y}%`;
-
-              return (
-                <button
-                  key={z.id}
-                  type="button"
-                  onClick={() => setSelectedZoneId(z.id)}
-                  className="absolute text-left transition"
-                  style={{ left, top, width: mode === "2d" ? 180 : 170 }}
-                >
-                  {mode === "3d" ? (
-                    <div className={cn("relative", selected ? "scale-[1.03]" : "scale-100")}>
-                      <div className="absolute left-4 top-0 h-24 w-24 rotate-[32deg] rounded-2xl border border-white/10 bg-white/5 blur-2xl" />
-                      <div
-                        className={cn(
-                          "relative mx-auto",
-                          selected ? "drop-shadow-[0_20px_45px_rgba(34,211,238,0.18)]" : "drop-shadow-[0_16px_35px_rgba(0,0,0,0.35)]"
-                        )}
-                        style={{ height: `${Math.min(220, z.height + 38)}px` }}
-                      >
-                        <div className="absolute left-8 right-8 top-4 h-10 -skew-x-[35deg] rounded-xl border border-white/10 bg-white/[0.08]" />
-                        <div className={cn("absolute left-3 top-10 bottom-6 w-10 -skew-y-[55deg] rounded-l-xl border border-white/8 bg-white/[0.04]", cardTone)} />
-                        <div className={cn("absolute right-5 left-12 top-12 bottom-6 rounded-r-2xl border border-white/10 bg-gradient-to-b from-white/[0.14] to-white/[0.03]", cardTone)} />
-                        <div className="absolute inset-x-8 bottom-0 h-6 rounded-full bg-cyan-400/10 blur-xl" />
-                        <div className="absolute inset-x-0 bottom-7 px-6">
-                          <div className="rounded-2xl border border-white/10 bg-black/35 px-3 py-2 backdrop-blur">
-                            <div className="text-xs font-semibold text-white truncate">{z.name}</div>
-                            <div className="mt-1 text-[10px] text-zinc-300">{z.devices.length} devices • {z.cameras.length} cameras</div>
-                            <div className={cn("mt-1 text-[10px]", z.status === "healthy" ? "text-emerald-300" : z.status === "attention" ? "text-red-300" : "text-amber-300")}>{z.status}</div>
+                return (
+                  <button
+                    key={z.id}
+                    type="button"
+                    onClick={() => setSelectedZoneId(z.id)}
+                    className="absolute text-left transition"
+                    style={{ left, top, width: mode === "2d" ? 180 : 170 }}
+                  >
+                    {mode === "3d" ? (
+                      <div className={cn("relative transition-transform duration-300", selected ? "scale-[1.05]" : "scale-100")}>
+                        <div className="absolute left-4 top-0 h-24 w-24 rotate-[32deg] rounded-2xl border border-white/10 bg-white/5 blur-2xl" />
+                        <div
+                          className={cn(
+                            "relative mx-auto",
+                            selected ? "drop-shadow-[0_20px_45px_rgba(34,211,238,0.18)]" : "drop-shadow-[0_16px_35px_rgba(0,0,0,0.35)]"
+                          )}
+                          style={{ height: `${Math.min(220, z.height + 38)}px` }}
+                        >
+                          <div className="absolute left-8 right-8 top-4 h-10 -skew-x-[35deg] rounded-xl border border-white/10 bg-white/[0.08]" />
+                          <div className={cn("absolute left-3 top-10 bottom-6 w-10 -skew-y-[55deg] rounded-l-xl border border-white/8 bg-white/[0.04]", cardTone)} />
+                          <div className={cn("absolute right-5 left-12 top-12 bottom-6 rounded-r-2xl border border-white/10 bg-gradient-to-b from-white/[0.14] to-white/[0.03]", cardTone)} />
+                          <div className="absolute inset-x-8 bottom-0 h-6 rounded-full bg-cyan-400/10 blur-xl" />
+                          {layers.devices ? (
+                            <div className="absolute right-9 top-8 h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(34,211,238,0.9)]" />
+                          ) : null}
+                          {layers.cameras ? (
+                            <div className="absolute left-10 top-14 h-2.5 w-2.5 rounded-full bg-blue-300 shadow-[0_0_18px_rgba(96,165,250,0.9)]" />
+                          ) : null}
+                          {layers.visitors && z.visitors.length ? (
+                            <div className="absolute left-1/2 top-[58%] h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-emerald-300 shadow-[0_0_18px_rgba(16,185,129,0.9)]" />
+                          ) : null}
+                          <div className="absolute inset-x-0 bottom-7 px-6">
+                            <div className="rounded-2xl border border-white/10 bg-black/35 px-3 py-2 backdrop-blur">
+                              <div className="text-xs font-semibold text-white truncate">{z.name}</div>
+                              <div className="mt-1 text-[10px] text-zinc-300">{z.devices.length} devices • {z.cameras.length} cameras</div>
+                              <div className={cn("mt-1 text-[10px]", z.status === "healthy" ? "text-emerald-300" : z.status === "attention" ? "text-red-300" : "text-amber-300")}>{z.status}</div>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ) : mode === "2d" ? (
-                    <div className={cn("rounded-[24px] border p-4 backdrop-blur transition", cardTone, selected ? "shadow-[0_0_0_1px_rgba(34,211,238,0.35)]" : "") }>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="text-sm font-semibold text-white">{z.name}</div>
-                          <div className="mt-1 text-[11px] text-zinc-400">{z.home?.block || "Block"} {z.home?.unit || "Unit"}</div>
+                    ) : mode === "2d" ? (
+                      <div className={cn("rounded-[24px] border p-4 backdrop-blur transition", cardTone, selected ? "shadow-[0_0_0_1px_rgba(34,211,238,0.35)]" : "") }>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-semibold text-white">{z.name}</div>
+                            <div className="mt-1 text-[11px] text-zinc-400">{z.home?.block || "Block"} {z.home?.unit || "Unit"}</div>
+                          </div>
+                          <div className={cn("h-2.5 w-2.5 rounded-full", z.status === "healthy" ? "bg-emerald-400" : z.status === "attention" ? "bg-red-400" : "bg-amber-400")} />
                         </div>
-                        <div className={cn("h-2.5 w-2.5 rounded-full", z.status === "healthy" ? "bg-emerald-400" : z.status === "attention" ? "bg-red-400" : "bg-amber-400")} />
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-zinc-300">
+                          <TwinStat icon={Cpu} value={String(z.devices.length)} />
+                          <TwinStat icon={Camera} value={String(z.cameras.length)} />
+                          <TwinStat icon={ScanEye} value={String(z.visitors.length)} />
+                          <TwinStat icon={ShieldAlert} value={String(z.maintenance.length)} />
+                        </div>
                       </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-zinc-300">
-                        <TwinStat icon={Cpu} value={String(z.devices.length)} />
-                        <TwinStat icon={Camera} value={String(z.cameras.length)} />
-                        <TwinStat icon={ScanEye} value={String(z.visitors.length)} />
-                        <TwinStat icon={ShieldAlert} value={String(z.maintenance.length)} />
+                    ) : (
+                      <div className={cn("rounded-[24px] border p-4 backdrop-blur transition", cardTone, selected ? "shadow-[0_0_0_1px_rgba(34,211,238,0.35)]" : "") }>
+                        <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                          <Boxes className="h-4 w-4 text-cyan-300" />
+                          {z.name}
+                        </div>
+                        <div className="mt-2 space-y-1 text-[11px] text-zinc-300">
+                          {layers.utilities ? <div>Power {z.meters.power ? "linked" : "missing"} • Water {z.meters.water ? "linked" : "missing"}</div> : null}
+                          {layers.devices ? <div>{z.devices.length} live device nodes</div> : null}
+                          {layers.cameras ? <div>{z.cameras.length} camera feeds mapped</div> : null}
+                          {layers.visitors ? <div>{z.visitors.length} visitor activity items</div> : null}
+                          {layers.maintenance ? <div>{z.maintenance.length} maintenance tasks</div> : null}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className={cn("rounded-[24px] border p-4 backdrop-blur transition", cardTone, selected ? "shadow-[0_0_0_1px_rgba(34,211,238,0.35)]" : "") }>
-                      <div className="flex items-center gap-2 text-xs font-semibold text-white">
-                        <Boxes className="h-4 w-4 text-cyan-300" />
-                        {z.name}
-                      </div>
-                      <div className="mt-2 space-y-1 text-[11px] text-zinc-300">
-                        {layers.utilities ? <div>Power {z.meters.power ? "linked" : "missing"} • Water {z.meters.water ? "linked" : "missing"}</div> : null}
-                        {layers.devices ? <div>{z.devices.length} live device nodes</div> : null}
-                        {layers.cameras ? <div>{z.cameras.length} camera feeds mapped</div> : null}
-                        {layers.visitors ? <div>{z.visitors.length} visitor activity items</div> : null}
-                        {layers.maintenance ? <div>{z.maintenance.length} maintenance tasks</div> : null}
-                      </div>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
             {layers.utilities && mode !== "ops" ? (
               <>
@@ -436,13 +543,61 @@ export default function DigitalTwinPage() {
             <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Selected Zone</div>
             {selectedZone ? (
               <>
-                <div className="mt-2 text-lg font-semibold text-white">{selectedZone.name}</div>
-                <div className="mt-1 text-xs text-zinc-400">{selectedZone.home?.description || "Mapped estate unit with live twin overlays."}</div>
+                <div className="mt-2 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-lg font-semibold text-white">{selectedZone.name}</div>
+                    <div className="mt-1 text-xs text-zinc-400">{selectedZone.home?.description || "Mapped estate unit with live twin overlays."}</div>
+                  </div>
+                  <div className={cn("rounded-full px-3 py-1 text-[11px]", selectedZone.status === "healthy" ? "bg-emerald-500/15 text-emerald-300" : selectedZone.status === "attention" ? "bg-red-500/15 text-red-300" : "bg-amber-500/15 text-amber-300")}>{selectedZone.status}</div>
+                </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-[11px]">
                   <OverlayMetric icon={Zap} label="Power" value={selectedZone.meters.power || "No meter"} accent="text-amber-300" />
                   <OverlayMetric icon={Droplets} label="Water" value={selectedZone.meters.water || "No meter"} accent="text-cyan-300" />
                   <OverlayMetric icon={Wifi} label="Internet" value={selectedZone.meters.internet || "No ID"} accent="text-emerald-300" />
                   <OverlayMetric icon={Cpu} label="Devices" value={String(selectedZone.devices.length)} accent="text-violet-300" />
+                </div>
+                <div className="mt-4">
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Floor Drill-Down</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedFloors.map((floor) => (
+                      <button
+                        key={floor.id}
+                        type="button"
+                        onClick={() => setActiveFloorId(floor.id)}
+                        className={cn(
+                          "rounded-full border px-3 py-1.5 text-xs transition",
+                          activeFloor?.id === floor.id ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200" : "border-white/10 bg-white/5 text-zinc-300"
+                        )}
+                      >
+                        {floor.label}
+                      </button>
+                    ))}
+                  </div>
+                  {activeFloor ? (
+                    <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-white">{activeFloor.label}</div>
+                        <div className="text-[11px] text-zinc-400">
+                          {activeFloor.devices.length} devices • {activeFloor.cameras.length} cameras
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        {[
+                          { label: "Device Nodes", value: activeFloor.devices.map((item) => item?.name || item?.label).filter(Boolean).slice(0, 3) },
+                          { label: "Camera Views", value: activeFloor.cameras.map((item) => item?.name).filter(Boolean).slice(0, 3) },
+                          { label: "Maintenance", value: activeFloor.maintenance.map((item) => item?.title).filter(Boolean).slice(0, 2) },
+                          { label: "Visitor Activity", value: activeFloor.visitors.map((item) => item?.visitor_name || item?.name).filter(Boolean).slice(0, 2) },
+                        ].map((row) => (
+                          <div key={row.label} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                            <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">{row.label}</div>
+                            <div className="mt-1 text-xs text-zinc-200">
+                              {row.value.length ? row.value.join(" • ") : "No live items on this layer."}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </>
             ) : (
@@ -507,5 +662,36 @@ function OverlayMetric({ icon: Icon, label, value, accent }: { icon: any; label:
       <div className="flex items-center gap-2 text-zinc-400"><Icon className={cn("h-3.5 w-3.5", accent)} /><span>{label}</span></div>
       <div className="mt-2 text-white">{value}</div>
     </div>
+  );
+}
+
+function RangeControl({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="block">
+      <div className="mb-1 flex items-center justify-between text-[11px] text-zinc-400">
+        <span>{label}</span>
+        <span>{value}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-cyan-400"
+      />
+    </label>
   );
 }
