@@ -8,7 +8,7 @@ import { walletsService } from "@/services/walletsService";
 import { facilityService } from "@/services/facilityService";
 import serviceConfigService, { type ServiceConfig, type ServiceKey } from "@/services/serviceConfigService";
 import { formatMoney } from "@/lib/format";
-import { CreditCard, Wallet, Zap, Wifi, Globe, Building2, Layers3 } from "lucide-react";
+import { CreditCard, Wallet, Zap, Wifi, Globe, Building2, Droplets, Layers3 } from "lucide-react";
 
 type ServiceRow = {
   key: ServiceKey;
@@ -29,6 +29,15 @@ const SERVICES: ServiceRow[] = [
     accountLabel: "Electricity Meter",
     accountHint: "Linked from the home electricity meter",
     icon: Zap,
+  },
+  {
+    key: "water_service",
+    title: "Water Metering",
+    desc: "Set price per cubic meter and charge water consumption or recharge against the linked water meter.",
+    suggested: 12000,
+    accountLabel: "Water Meter",
+    accountHint: "Linked from the home water meter",
+    icon: Droplets,
   },
   {
     key: "internet_service",
@@ -80,6 +89,11 @@ function pricingGuide(key: ServiceKey) {
         label: "Bundle / fixed pricing",
         note: "Use suggested amount for the main plan and unit name for the plan type. Consumer app currently exposes preset bundle purchases from this service.",
       };
+    case "water_service":
+      return {
+        label: "Metered water billing",
+        note: "Set unit cost as the estate water rate per cubic meter or billing unit. Example: 850 NGN / m3. Resident receipts will calculate from this tariff.",
+      };
     case "fiber_internet":
       return {
         label: "Secondary fiber plan",
@@ -130,6 +144,7 @@ export default function FacilityServicesPage() {
   const [activeKey, setActiveKey] = useState<ServiceKey>("utility_token");
   const [amounts, setAmounts] = useState<Record<ServiceKey, string>>({
     utility_token: "5000",
+    water_service: "12000",
     internet_service: "10000",
     fiber_internet: "15000",
     service_charge: "25000",
