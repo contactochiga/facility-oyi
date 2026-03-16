@@ -102,6 +102,18 @@ function clamp(text?: string | null, max = 260) {
   return `${t.slice(0, max)}…`;
 }
 
+function mediaItemsFromPost(post: any): Array<{ url: string; mediaType: "image" | "video"; name?: string | null }> {
+  return Array.isArray(post?.media)
+    ? post.media
+        .map((item: any) => ({
+          url: String(item?.url || ""),
+          mediaType: item?.type === "video" || item?.mediaType === "video" ? "video" : "image",
+          name: item?.name ? String(item.name) : null,
+        }))
+        .filter((item: any) => item.url)
+    : [];
+}
+
 // -------------------------------
 // MetricCard (local, so nothing breaks)
 // -------------------------------
@@ -748,6 +760,27 @@ export default function CommunityPage() {
                     <p className="text-slate-300 mb-4">
                       {clamp(post.content, 520) || "—"}
                     </p>
+
+                    {mediaItemsFromPost((post as any)?._raw).length ? (
+                      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {mediaItemsFromPost((post as any)?._raw).map((media, idx) => (
+                          <div
+                            key={`${media.url}-${idx}`}
+                            className="overflow-hidden rounded-xl border border-slate-800 bg-black/30"
+                          >
+                            {media.mediaType === "video" ? (
+                              <video src={media.url} controls className="max-h-64 w-full bg-black object-cover" />
+                            ) : (
+                              <img
+                                src={media.url}
+                                alt={media.name || "community media"}
+                                className="max-h-64 w-full object-cover"
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
 
                     <div className="flex items-center gap-6 text-sm text-slate-400">
                       <button
