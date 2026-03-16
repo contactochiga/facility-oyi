@@ -6,6 +6,7 @@ import Topbar from "@/components/shell/Topbar";
 import {
   communityService,
   type CommunityPost,
+  type CommunityComment,
 } from "@/services/communityService";
 import {
   MessageSquare,
@@ -165,6 +166,11 @@ export default function CommunityPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [scheduledFor, setScheduledFor] = useState<string>("");
   const [mediaItems, setMediaItems] = useState<Array<{ url: string; mediaType: "image" | "video" }>>([]);
+  const [threadPostId, setThreadPostId] = useState<string | null>(null);
+  const [threadComments, setThreadComments] = useState<CommunityComment[]>([]);
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [threadInput, setThreadInput] = useState("");
+  const [threadSending, setThreadSending] = useState(false);
 
   async function toBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -312,6 +318,70 @@ export default function CommunityPage() {
     }
   }
 
+  async function openThread(postId: string) {
+    setThreadPostId(postId);
+    setThreadLoading(true);
+    setErr(null);
+    try {
+      const comments = await communityService.listComments(postId);
+      setThreadComments(Array.isArray(comments) ? comments : []);
+    } catch (e: any) {
+      setErr(e?.message || "Failed to load comment thread");
+      setThreadComments([]);
+    } finally {
+      setThreadLoading(false);
+    }
+  }
+
+  async function addCommentToThread() {
+    const postId = String(threadPostId || "");
+    const content = threadInput.trim();
+    if (!postId || !content) return;
+
+    setThreadSending(true);
+    setErr(null);
+    try {
+      const created = await communityService.createComment(postId, content);
+      setThreadComments((prev) => [...prev, created]);
+      setThreadInput("");
+      setItems((prev) =>
+        prev.map((item: any) =>
+          String(item.id) === postId
+            ? {
+                ...item,
+                comment_count: Number(item?.comment_count ?? item?.comments ?? 0) + 1,
+                comments: Number(item?.comments ?? item?.comment_count ?? 0) + 1,
+              }
+            : item
+        )
+      );
+    } catch (e: any) {
+      setErr(e?.message || "Failed to send comment");
+    } finally {
+      setThreadSending(false);
+    }
+  }
+
+  async function toggleReaction(postId: string) {
+    try {
+      const res = await communityService.reactToPost(postId, "like");
+      setItems((prev) =>
+        prev.map((item: any) =>
+          String(item.id) === postId
+            ? {
+                ...item,
+                like_count: Number(res?.like_count ?? res?.likes ?? item?.like_count ?? 0),
+                likes: Number(res?.like_count ?? res?.likes ?? item?.likes ?? 0),
+                liked_by_me: Boolean(res?.liked_by_me ?? !item?.liked_by_me),
+              }
+            : item
+        )
+      );
+    } catch (e: any) {
+      setErr(e?.message || "Failed to update reaction");
+    }
+  }
+
   // -------------------------------
   // Adapt backend posts → new UI cards (no data loss; just presentation)
   // -------------------------------
@@ -349,6 +419,7 @@ export default function CommunityPage() {
         type: "announcement",
         _raw: p,
         _status: status,
+        _liked: Boolean(p?.liked_by_me || p?.reacted_by_me),
       };
     });
   }, [items]);
@@ -388,9 +459,9 @@ export default function CommunityPage() {
 
     const activeResidents = new Set(cards.map((c) => c.author)).size;
     const interactions = (items as any[]).reduce((acc, p) => {
-      const l = Number(p?.likes ?? 0);
-      const c = Number(p?.comments ?? 0);
-      const v = Number(p?.views ?? 0);
+      const l = Number(p?.likes ?? p?.like_count ?? p?.reactions_count ?? 0);
+      const c = Number(p?.comments ?? p?.comment_count ?? p?.reply_count ?? p?.replies_count ?? 0);
+      const v = Number(p?.views ?? p?.view_count ?? 0);
       return acc + l + c + v;
     }, 0);
     const engagementRate =
@@ -681,8 +752,11 @@ export default function CommunityPage() {
                     <div className="flex items-center gap-6 text-sm text-slate-400">
                       <button
                         type="button"
-                        className="flex items-center gap-2 hover:text-blue-500 transition-colors"
-                        onClick={() => setNotice("Engagement metrics sync from resident app interactions.")}
+                        className={cn(
+                          "flex items-center gap-2 transition-colors",
+                          (post as any)._liked ? "text-blue-400" : "hover:text-blue-500"
+                        )}
+                        onClick={() => void toggleReaction(String(post.id))}
                       >
                         <ThumbsUp size={16} />
                         <span>{post.likes}</span>
@@ -691,7 +765,7 @@ export default function CommunityPage() {
                       <button
                         type="button"
                         className="flex items-center gap-2 hover:text-blue-500 transition-colors"
-                        onClick={() => setNotice("Open resident app to review full comment threads.")}
+                        onClick={() => void openThread(String(post.id))}
                       >
                         <MessageSquare size={16} />
                         <span>{post.comments}</span>
@@ -957,6 +1031,80 @@ export default function CommunityPage() {
           </div>
         </div>
       )}
+
+      {threadPostId ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+              <div>
+                <div className="text-sm uppercase tracking-[0.24em] text-slate-500">
+                  Discussion Thread
+                </div>
+                <div className="mt-1 text-lg font-semibold text-white">
+                  Post comments and replies
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setThreadPostId(null)}
+                className="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[55vh] overflow-y-auto px-5 py-4">
+              {threadLoading ? (
+                <div className="text-sm text-slate-400">Loading comments...</div>
+              ) : threadComments.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-400">
+                  No comments yet. Start the thread from ops.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {threadComments.map((comment) => (
+                    <div
+                      key={String(comment.id)}
+                      className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium text-white">
+                          {String((comment as any).author_name || "Resident")}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {whenShort(comment.created_at)}
+                        </div>
+                      </div>
+                      <div className="mt-2 text-sm leading-6 text-slate-300">
+                        {String(comment.content || "")}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-800 px-5 py-4">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <textarea
+                  value={threadInput}
+                  onChange={(e) => setThreadInput(e.target.value)}
+                  placeholder="Write a reply or moderation note..."
+                  className="min-h-[96px] flex-1 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => void addCommentToThread()}
+                  disabled={threadSending || !threadInput.trim()}
+                  className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {threadSending ? "Posting..." : "Reply"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Small operator hint (keeps “don’t lose anything” mindset) */}
       <div className="text-xs text-slate-500">

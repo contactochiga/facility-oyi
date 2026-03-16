@@ -16,6 +16,18 @@ export type CommunityPost = {
   author_name?: string | null;
   created_by_name?: string | null;
   created_by_email?: string | null;
+  like_count?: number;
+  comment_count?: number;
+  liked_by_me?: boolean;
+};
+
+export type CommunityComment = {
+  id: string;
+  post_id: string;
+  content: string;
+  user_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type UploadedCommunityMedia = {
@@ -87,5 +99,20 @@ export const communityService = {
   }): Promise<UploadedCommunityMedia> {
     const res = await API.post("/community/media/upload", input);
     return res.data as UploadedCommunityMedia;
+  },
+
+  async listComments(postId: string): Promise<CommunityComment[]> {
+    const res = await API.get(`/community/post/${postId}/comments`);
+    return Array.isArray(res.data) ? (res.data as CommunityComment[]) : [];
+  },
+
+  async createComment(postId: string, content: string): Promise<CommunityComment> {
+    const res = await API.post(`/community/post/${postId}/comment`, { content });
+    return res.data as CommunityComment;
+  },
+
+  async reactToPost(postId: string, type = "like"): Promise<any> {
+    const res = await API.post(`/community/post/${postId}/react`, { type });
+    return res.data as any;
   },
 };
