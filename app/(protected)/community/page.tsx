@@ -328,9 +328,9 @@ export default function CommunityPage() {
         ).trim() || "System Manager";
       const building = "Estate Management";
       const avatar = initialsFromName(author);
-      const likes = Number(p?.likes ?? 0);
-      const comments = Number(p?.comments ?? 0);
-      const views = Number(p?.views ?? 0);
+      const likes = Number(p?.likes ?? p?.like_count ?? p?.reactions_count ?? 0);
+      const comments = Number(p?.comments ?? p?.comment_count ?? p?.reply_count ?? p?.replies_count ?? 0);
+      const views = Number(p?.views ?? p?.view_count ?? 0);
 
       const status = String(p?.status || "active").toLowerCase();
       const isPinned = status === "pinned" || status === "announcement_pinned";
