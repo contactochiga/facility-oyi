@@ -2,7 +2,7 @@
 
 import Topbar from "@/components/shell/Topbar";
 import { MetricCard } from "@/components/MetricCard";
-import { Car, TrendingUp, Clock, MapPin } from "lucide-react";
+import { Car, TrendingUp, Clock, MapPin, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { visitorService, type VisitorItem } from "@/services/visitorService";
 import { deviceService, type FacilityDevice } from "@/services/deviceService";
@@ -32,6 +32,7 @@ export default function TrafficPage() {
   const [loading, setLoading] = useState(false);
   const [visitors, setVisitors] = useState<VisitorItem[]>([]);
   const [devices, setDevices] = useState<FacilityDevice[]>([]);
+  const [showAllGates, setShowAllGates] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -105,6 +106,8 @@ export default function TrafficPage() {
     () => gateActivity.slice(0, 6).map((g) => ({ zone: g.gate, occupied: g.entries, available: g.exits })),
     [gateActivity]
   );
+  const primaryGate = gateActivity[0] || null;
+  const secondaryGates = gateActivity.slice(1);
 
   const activeVisitors = visitors.filter((v) => {
     const s = safeLower(v.status);
@@ -158,12 +161,34 @@ export default function TrafficPage() {
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-        <h3 className="text-base font-semibold text-zinc-100 mb-4">Gate Status</h3>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-zinc-100">Gate Status</h3>
+            <p className="mt-1 text-sm text-zinc-400">
+              {primaryGate?.gate || "No gate traffic yet"} · 1/{Math.max(gateActivity.length, 1)} primary exit
+            </p>
+          </div>
+          {secondaryGates.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowAllGates((value) => !value)}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10"
+            >
+              {showAllGates ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {showAllGates ? "Collapse exits" : `Show ${secondaryGates.length} more exits`}
+            </button>
+          ) : null}
+        </div>
         <div className="space-y-3">
-          {gateActivity.map((gate) => (
+          {(showAllGates ? gateActivity : gateActivity.slice(0, 1)).map((gate, index) => (
             <div key={gate.gate} className="rounded-xl border border-white/10 bg-black/20 p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-zinc-100">{gate.gate}</span>
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-zinc-100">{gate.gate}</span>
+                  <div className="mt-1 text-[11px] text-zinc-500">
+                    Exit {index + 1}/{Math.max(gateActivity.length, 1)}
+                  </div>
+                </div>
                 <span
                   className={
                     gate.status === "operational"

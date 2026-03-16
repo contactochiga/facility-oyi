@@ -19,6 +19,8 @@ export type CommunityPost = {
   like_count?: number;
   comment_count?: number;
   liked_by_me?: boolean;
+  views?: number;
+  view_count?: number;
 };
 
 export type CommunityComment = {
@@ -113,6 +115,11 @@ export const communityService = {
 
   async reactToPost(postId: string, type = "like"): Promise<any> {
     const res = await API.post(`/community/post/${postId}/react`, { type });
+    return res.data as any;
+  },
+
+  async trackView(postId: string): Promise<any> {
+    const res = await API.post(`/community/post/${postId}/view`);
     return res.data as any;
   },
 };

@@ -178,11 +178,14 @@ export default function CommunityPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [scheduledFor, setScheduledFor] = useState<string>("");
   const [mediaItems, setMediaItems] = useState<Array<{ url: string; mediaType: "image" | "video" }>>([]);
-  const [threadPostId, setThreadPostId] = useState<string | null>(null);
-  const [threadComments, setThreadComments] = useState<CommunityComment[]>([]);
-  const [threadLoading, setThreadLoading] = useState(false);
-  const [threadInput, setThreadInput] = useState("");
-  const [threadSending, setThreadSending] = useState(false);
+  const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
+  const [commentMap, setCommentMap] = useState<Record<string, CommunityComment[]>>({});
+  const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [commentSending, setCommentSending] = useState<Record<string, boolean>>({});
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
+  const postRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const viewedPostIds = useRef<Set<string>>(new Set());
 
   async function toBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -233,6 +236,13 @@ export default function CommunityPage() {
       const eid = estateId || (await resolveEstate());
       const posts = await communityService.listByEstate(eid);
       setItems(posts || []);
+      const nextViews: Record<string, number> = {};
+      for (const post of posts || []) {
+        const postId = String((post as any)?.id || "");
+        if (!postId) continue;
+        nextViews[postId] = Number((post as any)?.views ?? (post as any)?.view_count ?? 0);
+      }
+      setViewCounts((prev) => ({ ...prev, ...nextViews }));
     } catch (e: any) {
       setErr(e?.message || "Failed to load community posts");
       setItems([]);
@@ -330,32 +340,36 @@ export default function CommunityPage() {
     }
   }
 
-  async function openThread(postId: string) {
-    setThreadPostId(postId);
-    setThreadLoading(true);
+  async function toggleComments(postId: string) {
+    const next = !openComments[postId];
+    setOpenComments((prev) => ({ ...prev, [postId]: next }));
+    if (!next || commentMap[postId]) return;
+    setCommentLoading((prev) => ({ ...prev, [postId]: true }));
     setErr(null);
     try {
       const comments = await communityService.listComments(postId);
-      setThreadComments(Array.isArray(comments) ? comments : []);
+      setCommentMap((prev) => ({ ...prev, [postId]: Array.isArray(comments) ? comments : [] }));
     } catch (e: any) {
-      setErr(e?.message || "Failed to load comment thread");
-      setThreadComments([]);
+      setErr(e?.message || "Failed to load comments");
+      setCommentMap((prev) => ({ ...prev, [postId]: [] }));
     } finally {
-      setThreadLoading(false);
+      setCommentLoading((prev) => ({ ...prev, [postId]: false }));
     }
   }
 
-  async function addCommentToThread() {
-    const postId = String(threadPostId || "");
-    const content = threadInput.trim();
+  async function addInlineComment(postId: string) {
+    const content = String(commentDrafts[postId] || "").trim();
     if (!postId || !content) return;
 
-    setThreadSending(true);
+    setCommentSending((prev) => ({ ...prev, [postId]: true }));
     setErr(null);
     try {
       const created = await communityService.createComment(postId, content);
-      setThreadComments((prev) => [...prev, created]);
-      setThreadInput("");
+      setCommentMap((prev) => ({
+        ...prev,
+        [postId]: [...(prev[postId] || []), created],
+      }));
+      setCommentDrafts((prev) => ({ ...prev, [postId]: "" }));
       setItems((prev) =>
         prev.map((item: any) =>
           String(item.id) === postId
@@ -370,7 +384,7 @@ export default function CommunityPage() {
     } catch (e: any) {
       setErr(e?.message || "Failed to send comment");
     } finally {
-      setThreadSending(false);
+      setCommentSending((prev) => ({ ...prev, [postId]: false }));
     }
   }
 
@@ -412,7 +426,8 @@ export default function CommunityPage() {
       const avatar = initialsFromName(author);
       const likes = Number(p?.likes ?? p?.like_count ?? p?.reactions_count ?? 0);
       const comments = Number(p?.comments ?? p?.comment_count ?? p?.reply_count ?? p?.replies_count ?? 0);
-      const views = Number(p?.views ?? p?.view_count ?? 0);
+      const postId = String(p?.id ?? "");
+      const views = Number(viewCounts[postId] ?? p?.views ?? p?.view_count ?? 0);
 
       const status = String(p?.status || "active").toLowerCase();
       const isPinned = status === "pinned" || status === "announcement_pinned";
@@ -434,7 +449,7 @@ export default function CommunityPage() {
         _liked: Boolean(p?.liked_by_me || p?.reacted_by_me),
       };
     });
-  }, [items]);
+  }, [items, viewCounts]);
 
   const moderationQueue = useMemo(() => {
     return cards.filter((c) => c._status === "flagged");
@@ -517,6 +532,43 @@ export default function CommunityPage() {
     return Array.from(countByAuthor.values())
       .sort((a, b) => b.posts - a.posts)
       .slice(0, 4);
+  }, [cards]);
+
+  useEffect(() => {
+    if (!cards.length || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const postId = String((entry.target as HTMLElement).dataset.postId || "");
+          if (!postId || viewedPostIds.current.has(postId)) continue;
+          viewedPostIds.current.add(postId);
+          void (async () => {
+            try {
+              const res = await communityService.trackView(postId);
+              const nextCount = Number(res?.view_count ?? res?.views ?? 0);
+              if (Number.isFinite(nextCount)) {
+                setViewCounts((prev) => ({ ...prev, [postId]: nextCount }));
+              }
+            } catch {
+              // fail-soft
+            }
+          })();
+          observer.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.65 }
+    );
+
+    for (const post of cards) {
+      const postId = String(post.id || "");
+      const node = postRefs.current[postId];
+      if (!postId || !node || viewedPostIds.current.has(postId)) continue;
+      observer.observe(node);
+    }
+
+    return () => observer.disconnect();
   }, [cards]);
 
   return (
@@ -712,6 +764,12 @@ export default function CommunityPage() {
                     key={String(post.id)}
                     className="bg-slate-900 border border-slate-800 rounded-xl p-6"
                   >
+                    <div
+                      ref={(node) => {
+                        postRefs.current[String(post.id)] = node;
+                      }}
+                      data-post-id={String(post.id)}
+                    />
                     {post.isPinned ? (
                       <div className="flex items-center gap-2 mb-3 text-yellow-500 text-sm">
                         <Pin size={14} />
@@ -798,7 +856,7 @@ export default function CommunityPage() {
                       <button
                         type="button"
                         className="flex items-center gap-2 hover:text-blue-500 transition-colors"
-                        onClick={() => void openThread(String(post.id))}
+                        onClick={() => void toggleComments(String(post.id))}
                       >
                         <MessageSquare size={16} />
                         <span>{post.comments}</span>
@@ -806,9 +864,67 @@ export default function CommunityPage() {
 
                       <div className="flex items-center gap-2">
                         <Eye size={16} />
-                        <span>{post.views}</span>
+                        <span>{viewCounts[String(post.id)] ?? post.views}</span>
                       </div>
                     </div>
+
+                    {openComments[String(post.id)] ? (
+                      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                        {commentLoading[String(post.id)] ? (
+                          <div className="text-sm text-slate-400">Loading comments...</div>
+                        ) : (
+                          <div className="space-y-3">
+                            {(commentMap[String(post.id)] || []).length ? (
+                              (commentMap[String(post.id)] || []).map((comment) => (
+                                <div
+                                  key={String(comment.id)}
+                                  className="rounded-xl border border-slate-800 bg-slate-900/80 p-3"
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-sm font-medium text-white">
+                                      {String((comment as any).author_name || "Resident")}
+                                    </div>
+                                    <div className="text-xs text-slate-500">
+                                      {whenShort(comment.created_at)}
+                                    </div>
+                                  </div>
+                                  <div className="mt-2 text-sm leading-6 text-slate-300">
+                                    {String(comment.content || "")}
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="text-sm text-slate-400">No comments yet.</div>
+                            )}
+
+                            <div className="flex flex-col gap-3 sm:flex-row">
+                              <textarea
+                                value={commentDrafts[String(post.id)] || ""}
+                                onChange={(e) =>
+                                  setCommentDrafts((prev) => ({
+                                    ...prev,
+                                    [String(post.id)]: e.target.value,
+                                  }))
+                                }
+                                placeholder="Write a comment..."
+                                className="min-h-[88px] flex-1 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => void addInlineComment(String(post.id))}
+                                disabled={
+                                  !!commentSending[String(post.id)] ||
+                                  !String(commentDrafts[String(post.id)] || "").trim()
+                                }
+                                className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {commentSending[String(post.id)] ? "Posting..." : "Reply"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 ))
               )}
@@ -1064,80 +1180,6 @@ export default function CommunityPage() {
           </div>
         </div>
       )}
-
-      {threadPostId ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-              <div>
-                <div className="text-sm uppercase tracking-[0.24em] text-slate-500">
-                  Discussion Thread
-                </div>
-                <div className="mt-1 text-lg font-semibold text-white">
-                  Post comments and replies
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setThreadPostId(null)}
-                className="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="max-h-[55vh] overflow-y-auto px-5 py-4">
-              {threadLoading ? (
-                <div className="text-sm text-slate-400">Loading comments...</div>
-              ) : threadComments.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-400">
-                  No comments yet. Start the thread from ops.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {threadComments.map((comment) => (
-                    <div
-                      key={String(comment.id)}
-                      className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-medium text-white">
-                          {String((comment as any).author_name || "Resident")}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {whenShort(comment.created_at)}
-                        </div>
-                      </div>
-                      <div className="mt-2 text-sm leading-6 text-slate-300">
-                        {String(comment.content || "")}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-slate-800 px-5 py-4">
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <textarea
-                  value={threadInput}
-                  onChange={(e) => setThreadInput(e.target.value)}
-                  placeholder="Write a reply or moderation note..."
-                  className="min-h-[96px] flex-1 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => void addCommentToThread()}
-                  disabled={threadSending || !threadInput.trim()}
-                  className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {threadSending ? "Posting..." : "Reply"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {/* Small operator hint (keeps “don’t lose anything” mindset) */}
       <div className="text-xs text-slate-500">

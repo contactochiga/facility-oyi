@@ -63,11 +63,11 @@ export default function NotificationsModal({
   return (
     <div className="fixed inset-0 z-[120]">
       <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/30"
         onClick={onClose}
       />
 
-      <div className="absolute right-4 top-16 w-[92vw] max-w-md">
+      <div className="absolute right-3 left-3 top-16 md:left-auto md:right-4 w-auto md:w-[380px] max-w-[92vw]">
         <div className="glass border border-white/10 rounded-2xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
             <div>
@@ -141,7 +141,7 @@ export default function NotificationsModal({
           </div>
 
           <div className="px-4 py-3 border-t border-white/10 text-[11px] text-zinc-500">
-            Source: <span className="text-zinc-200">GET /notifications?unread=true</span>
+            Tap a card to clear it from the unread stack.
           </div>
         </div>
       </div>
