@@ -157,7 +157,7 @@ export default function OverviewPage() {
       setNeedsEstate(true);
     }
     setSyncingEstate(false);
-    return res?.estate_id || null;
+    return res?.estate_id || membershipEstateId || null;
   }
 
   async function loadCommunity(eid?: string | null) {
