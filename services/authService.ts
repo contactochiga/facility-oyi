@@ -7,10 +7,15 @@ export const authService = {
       const res = await API.post("/auth/login", { email, password });
       return res.data;
     } catch (err: any) {
+      const timedOut = err?.code === "ECONNABORTED" || String(err?.message || "").includes("timeout");
       return {
         error:
+          (timedOut
+            ? "Backend is taking too long to respond. Render may be waking up; try again in a moment."
+            : null) ||
           err?.response?.data?.error ||
           err?.response?.data?.message ||
+          err?.message ||
           "Login failed",
       };
     }
@@ -25,8 +30,12 @@ export const authService = {
       );
       return res.data;
     } catch (err: any) {
+      const timedOut = err?.code === "ECONNABORTED" || String(err?.message || "").includes("timeout");
       return {
         error:
+          (timedOut
+            ? "Backend is taking too long to respond. Render may be waking up; try again in a moment."
+            : null) ||
           err?.response?.data?.error ||
           err?.response?.data?.message ||
           err?.response?.data?.detail ||

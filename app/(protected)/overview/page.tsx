@@ -98,7 +98,6 @@ export default function OverviewPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [modalErr, setModalErr] = useState<string | null>(null);
-
   const [estateForm, setEstateForm] = useState({
     name: "",
     address: "",
@@ -122,7 +121,6 @@ export default function OverviewPage() {
   const trendWallet = useMemo(() => series(12), []);
 
   const canCreateEstate = estateForm.name.trim().length > 1;
-
   async function hydrateEstateFromMembership() {
     try {
       const res = await facilityService.myEstates();
@@ -145,10 +143,19 @@ export default function OverviewPage() {
   }
 
   async function loadOverview() {
-    const res = await facilityService.overview();
+    const [res, memberships] = await Promise.all([
+      facilityService.overview(),
+      facilityService.myEstates().catch(() => null),
+    ]);
+    const membershipEstateId = memberships?.estates?.[0]?.id || null;
     setData(res);
-    setEstateId(res?.estate_id || null);
-    setNeedsEstate(false);
+    if (res?.estate_id || membershipEstateId) {
+      setEstateId(res?.estate_id || membershipEstateId);
+      setNeedsEstate(false);
+    } else {
+      setEstateId(null);
+      setNeedsEstate(true);
+    }
     setSyncingEstate(false);
     return res?.estate_id || null;
   }
@@ -242,7 +249,6 @@ export default function OverviewPage() {
       };
 
       await facilityService.createEstate(payload);
-
       setShowCreate(false);
       setEstateForm({ name: "", address: "", lat: "", lng: "", type: "estate" });
 
@@ -403,7 +409,7 @@ export default function OverviewPage() {
           value={formatNumber(data?.active_devices ?? 0)}
           hint="Consumption • generation • performance"
           tone="good"
-          href="/devices"
+          href="/security"
         />
 
         <StatCard

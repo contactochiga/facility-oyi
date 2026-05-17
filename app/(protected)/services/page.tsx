@@ -42,7 +42,7 @@ const SERVICES: ServiceRow[] = [
   {
     key: "internet_service",
     title: "Fiber Internet Service",
-    desc: "Set bundle pricing and charge internet package renewals via wallet.",
+    desc: "Manage internet package renewals via wallet.",
     suggested: 10000,
     accountLabel: "Internet ID",
     accountHint: "Linked from the home internet account",
@@ -60,7 +60,7 @@ const SERVICES: ServiceRow[] = [
   {
     key: "service_charge",
     title: "Service Charge",
-    desc: "Set the fixed monthly service charge collected from resident wallets.",
+    desc: "Manage recurring service charge collection from resident wallets.",
     suggested: 500000,
     accountLabel: "Home Account",
     accountHint: "Uses the linked home record",
@@ -77,27 +77,27 @@ const SERVICES: ServiceRow[] = [
   },
 ];
 
-function pricingGuide(key: ServiceKey) {
+function serviceGuide(key: ServiceKey) {
   switch (key) {
     case "utility_token":
       return {
-        label: "Metered billing",
+        label: "Metered utility rule",
         note: "Set unit cost as the estate electricity rate per kWh. Example: 300 NGN / kWh. Resident receipts and token generation will use this.",
       };
     case "internet_service":
       return {
-        label: "Bundle / fixed pricing",
+        label: "Bundle / fixed service",
         note: "Use suggested amount for the main plan and unit name for the plan type. Consumer app currently exposes preset bundle purchases from this service.",
       };
     case "water_service":
       return {
-        label: "Metered water billing",
+        label: "Metered water rule",
         note: "Set unit cost as the estate water rate per cubic meter or billing unit. Example: 850 NGN / m3. Resident receipts will calculate from this tariff.",
       };
     case "fiber_internet":
       return {
-        label: "Secondary fiber plan",
-        note: "Keep this disabled unless you need a second separate internet billing stream.",
+        label: "Secondary fiber service",
+        note: "Keep this disabled unless you need a second separate internet service stream.",
       };
     case "service_charge":
       return {
@@ -437,15 +437,15 @@ export default function FacilityServicesPage() {
 
   return (
     <div className="space-y-7">
-      <Topbar title="Services & Wallet Ops" subtitle="Billing workflow • service charges • utility operations" />
+      <Topbar title="Services & Wallet Ops" subtitle="Wallet workflow • service charges • utility operations" />
 
       <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
         <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Access</div>
         <div className="mt-2 text-sm text-white">
-          Sidebar {"->"} <span className="text-blue-300">Billing & Finance</span> {"->"} <span className="text-blue-300">Services & Wallet Ops</span>
+          Sidebar {"->"} <span className="text-blue-300">Wallet Operations</span> {"->"} <span className="text-blue-300">Services & Wallet Ops</span>
         </div>
         <div className="mt-2 text-xs text-zinc-400">
-          This is the page where you set estate service prices, meter billing rules, bundle pricing, and resident payment availability.
+          This is the page where you manage estate service access, meter rules, wallet operations, and resident payment availability.
         </div>
       </div>
 
@@ -473,7 +473,7 @@ export default function FacilityServicesPage() {
       ) : null}
       {configFallback ? (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          Service configuration is still using backend defaults. Save estate billing config after creating the `estate_service_configs` table.
+          Service configuration is still using backend defaults. Save estate service config after creating the `estate_service_configs` table.
         </div>
       ) : null}
 
@@ -519,8 +519,8 @@ export default function FacilityServicesPage() {
           </div>
 
           <div className="mt-4 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-blue-200">{pricingGuide(activeKey).label}</div>
-            <div className="mt-2 text-sm text-white">{pricingGuide(activeKey).note}</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-blue-200">{serviceGuide(activeKey).label}</div>
+            <div className="mt-2 text-sm text-white">{serviceGuide(activeKey).note}</div>
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -585,7 +585,7 @@ export default function FacilityServicesPage() {
               />
             </div>
             <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <div className="text-[11px] text-zinc-500">Billing Mode</div>
+              <div className="text-[11px] text-zinc-500">Collection Mode</div>
               <select
                 value={activeDraft.billing_mode}
                 onChange={(e) => setDraftField(activeKey, "billing_mode", e.target.value)}
@@ -633,7 +633,7 @@ export default function FacilityServicesPage() {
 
           <div className="mt-4 flex gap-2 flex-wrap">
             <Button variant="ghost" onClick={saveConfig} disabled={configBusy}>
-              {configBusy ? "Saving..." : "Save Pricing & Billing"}
+              {configBusy ? "Saving..." : "Save Service Rules"}
             </Button>
             <Button onClick={debitForService} disabled={busy}>
               <span className="inline-flex items-center gap-2"><CreditCard size={14} />Process Service Debit</span>

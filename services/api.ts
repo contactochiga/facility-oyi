@@ -2,8 +2,8 @@ import axios from "axios";
 
 export const API = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
-  headers: { "Content-Type": "application/json" },
-  timeout: 20000,
+  headers: { "Content-Type": "application/json", "X-Ochiga-Surface": "facility" },
+  timeout: 90000,
 });
 
 API.interceptors.request.use((config) => {
@@ -12,6 +12,7 @@ API.interceptors.request.use((config) => {
     if (token) {
       config.headers = config.headers ?? {};
       config.headers["Authorization"] = `Bearer ${token}`;
+      config.headers["X-Oyi-Contract-Version"] = "ochiga.tier1.2026-05-16";
     }
   }
   return config;

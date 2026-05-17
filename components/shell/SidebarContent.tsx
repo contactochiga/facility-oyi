@@ -9,7 +9,6 @@ import {
   Zap,
   Wrench,
   Shield,
-  Wallet,
   AlertTriangle,
   Car,
   Droplets,
@@ -40,13 +39,15 @@ type Item = {
 const items: Item[] = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard, startsWith: ["/overview"] },
 
-  // route stays /devices (so nothing breaks), label/icon becomes Energy
-  { href: "/devices", label: "Energy", icon: Zap, startsWith: ["/devices", "/hardware", "/hardware-devices"] },
+  { href: "/utilities", label: "Power & Utilities", icon: Zap, startsWith: ["/utilities", "/water"] },
 
-  // route stays /visitors (so nothing breaks), label/icon becomes Security
-  { href: "/visitors", label: "Security", icon: Shield, startsWith: ["/visitors", "/security"] },
+  { href: "/devices", label: "Hardware Devices", icon: ShieldCheck, startsWith: ["/devices", "/hardware", "/hardware-devices"] },
+
+  { href: "/security", label: "Security", icon: Shield, startsWith: ["/security", "/cameras"] },
 
   { href: "/maintenance", label: "Maintenance", icon: Wrench, startsWith: ["/maintenance"] },
+
+  { href: "/visitors", label: "Visitors & Access", icon: Users, startsWith: ["/visitors"] },
 
   { href: "/traffic", label: "Traffic", icon: Car, startsWith: ["/traffic"] },
   { href: "/water", label: "Water", icon: Droplets, startsWith: ["/water"] },
@@ -55,11 +56,9 @@ const items: Item[] = [
   { href: "/cameras", label: "Cameras", icon: Cctv, startsWith: ["/cameras"] },
   { href: "/digital-twin", label: "Digital Twin", icon: Orbit, startsWith: ["/digital-twin"] },
 
-  { href: "/wallets", label: "Billing & Finance", icon: Wallet, startsWith: ["/wallet", "/wallets"] },
   { href: "/community", label: "Community", icon: Users, startsWith: ["/community"] },
 
-  // ✅ FIX: Alerts should go to /alerts
-  { href: "/alerts", label: "Alerts", icon: AlertTriangle, startsWith: ["/alerts"] },
+  { href: "/alerts", label: "Alerts & Incidents", icon: AlertTriangle, startsWith: ["/alerts"] },
 ];
 
 function getInitials(nameOrEmail?: string) {

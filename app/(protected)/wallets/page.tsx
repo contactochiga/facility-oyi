@@ -276,7 +276,7 @@ export default function WalletsPage() {
 
   return (
     <div className="space-y-7">
-      <Topbar title="Billing and Finance" subtitle="Live finance signals from your facility backend" />
+      <Topbar title="Wallet Operations" subtitle="Live wallet flows from your facility backend" />
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex gap-2">
