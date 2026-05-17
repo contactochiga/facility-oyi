@@ -42,11 +42,11 @@ type Item = {
 };
 
 const items: Item[] = [
-  { domain: "Command", href: "/overview", label: "Overview", icon: LayoutDashboard, startsWith: ["/overview"] },
+  { domain: "Command", href: "/overview", label: "Estate Overview", icon: LayoutDashboard, startsWith: ["/overview"] },
   { domain: "Command", href: "/alerts", label: "Alerts & Incidents", icon: AlertTriangle, startsWith: ["/alerts"] },
 
-  { domain: "Estate Structure", href: "/homes", label: "Homes & Units", icon: Home, startsWith: ["/homes"] },
-  { domain: "Estate Structure", href: "/occupancy", label: "Residents & Occupancy", icon: Users, startsWith: ["/occupancy"] },
+  { domain: "Estate Facility", href: "/homes", label: "Homes & Units", icon: Home, startsWith: ["/homes"] },
+  { domain: "Estate Facility", href: "/occupancy", label: "Residents & Occupancy", icon: Users, startsWith: ["/occupancy"] },
 
   { domain: "Hardware Devices", href: "/devices", label: "Device Registry", icon: ShieldCheck, startsWith: ["/devices", "/hardware", "/hardware-devices"] },
 
@@ -192,6 +192,11 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
   const [openDomains, setOpenDomains] = useState<Record<string, boolean>>({});
 
+  function collapsedDomainLabel(domain: string) {
+    if (domain === "Command") return "Estate Overview";
+    return domain;
+  }
+
   function toggleDomain(group: { domain: string; items: Item[] }) {
     const first = group.items[0];
     if (first?.href) {
@@ -208,6 +213,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
         {groupedNav.map((group, groupIndex) => {
           const collapsed = !openDomains[group.domain];
           const PrimaryIcon = group.items[0]?.icon || LayoutDashboard;
+          const groupActive = group.items.some((item) => isActive(item));
 
           return (
             <div key={group.domain} className="space-y-1">
@@ -217,8 +223,16 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                 className={cn(
                   "w-full text-left transition-all",
                   collapsed
-                    ? "mt-2 flex min-h-[38px] items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-[13px] font-medium text-zinc-200"
-                    : "px-4 pt-4 pb-1 text-[9.5px] font-semibold uppercase tracking-[0.16em] text-zinc-500",
+                    ? cn(
+                        "mt-2 flex min-h-[38px] items-center justify-between rounded-lg border px-3 py-2.5 text-[13px] font-medium",
+                        groupActive
+                          ? "border-violet-500/45 bg-gradient-to-r from-violet-600 to-blue-600/70 text-white shadow-[0_12px_30px_rgba(99,102,241,0.2)]"
+                          : "border-white/10 bg-white/5 text-zinc-200"
+                      )
+                    : cn(
+                        "px-4 pt-4 pb-1 text-[9.5px] font-semibold uppercase tracking-[0.16em]",
+                        groupActive ? "text-zinc-200" : "text-zinc-500"
+                      ),
                   groupIndex === 0 && !collapsed ? "pt-0" : ""
                 )}
                 aria-expanded={!collapsed}
@@ -228,7 +242,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/5 text-zinc-400">
                       <PrimaryIcon size={15.5} />
                     </span>
-                    <span className="truncate">{group.domain}</span>
+                    <span className="truncate">{collapsedDomainLabel(group.domain)}</span>
                   </span>
                 ) : (
                   group.domain
