@@ -9,22 +9,21 @@ import {
   Zap,
   Wrench,
   Shield,
-  AlertTriangle,
   Car,
-  Droplets,
   Wind,
   Users,
   Orbit,
-  Cctv,
   ChevronDown,
   LogOut,
   Settings,
   User as UserIcon,
   ShieldCheck,
   Home,
-  FileText,
   BarChart3,
   UserCog,
+  Wallet,
+  MessageSquare,
+  LucideIcon,
 } from "lucide-react";
 
 import { useSessionStore } from "@/store/useSessionStore";
@@ -36,40 +35,25 @@ function cn(...classes: Array<string | false | null | undefined>) {
 type Item = {
   href: string;
   label: string;
-  icon: any;
-  domain: string;
+  icon: LucideIcon;
   startsWith?: string[];
+  adminOnly?: boolean;
 };
 
 const items: Item[] = [
-  { domain: "Command", href: "/overview", label: "Estate Overview", icon: LayoutDashboard, startsWith: ["/overview"] },
-  { domain: "Command", href: "/alerts", label: "Alerts & Incidents", icon: AlertTriangle, startsWith: ["/alerts"] },
-
-  { domain: "Estate Facility", href: "/homes", label: "Homes & Units", icon: Home, startsWith: ["/homes"] },
-  { domain: "Estate Facility", href: "/occupancy", label: "Residents & Occupancy", icon: Users, startsWith: ["/occupancy"] },
-
-  { domain: "Hardware Devices", href: "/devices", label: "Device Registry", icon: ShieldCheck, startsWith: ["/devices", "/hardware", "/hardware-devices"] },
-
-  { domain: "Security & Access", href: "/security", label: "Security Dashboard", icon: Shield, startsWith: ["/security"] },
-  { domain: "Security & Access", href: "/visitors", label: "Visitors & Access", icon: Users, startsWith: ["/visitors"] },
-  { domain: "Security & Access", href: "/cameras", label: "Cameras & Surveillance", icon: Cctv, startsWith: ["/cameras"] },
-
-  { domain: "Utilities", href: "/utilities", label: "Utilities Dashboard", icon: Zap, startsWith: ["/utilities"] },
-  { domain: "Utilities", href: "/water", label: "Water Systems", icon: Droplets, startsWith: ["/water"] },
-
-  { domain: "Environment & Sensors", href: "/environment", label: "Environment Dashboard", icon: Wind, startsWith: ["/environment"] },
-
-  { domain: "Traffic & Mobility", href: "/traffic", label: "Traffic Dashboard", icon: Car, startsWith: ["/traffic"] },
-
-  { domain: "Operations", href: "/maintenance", label: "Maintenance Operations", icon: Wrench, startsWith: ["/maintenance"] },
-  { domain: "Operations", href: "/community", label: "Community & Comms", icon: Users, startsWith: ["/community"] },
-  { domain: "Operations", href: "/wallets", label: "Wallet Operations", icon: BarChart3, startsWith: ["/wallets"] },
-
-  { domain: "Digital Twin & Spatial", href: "/digital-twin", label: "Digital Twin", icon: Orbit, startsWith: ["/digital-twin"] },
-
-  { domain: "Documents & Plans", href: "/services", label: "Services & Plans", icon: FileText, startsWith: ["/services"] },
-
-  { domain: "Intelligence", href: "/overview", label: "Analytics & Activity", icon: BarChart3, startsWith: ["/analytics"] },
+  { href: "/overview", label: "Facility Overview", icon: LayoutDashboard, startsWith: ["/overview"] },
+  { href: "/digital-twin", label: "Live Infrastructure", icon: Orbit, startsWith: ["/digital-twin"] },
+  { href: "/homes", label: "Estate Structure", icon: Home, startsWith: ["/homes", "/occupancy"] },
+  { href: "/devices", label: "Hardware Devices", icon: ShieldCheck, startsWith: ["/devices", "/hardware", "/hardware-devices"] },
+  { href: "/security", label: "Security & Access", icon: Shield, startsWith: ["/security", "/visitors", "/cameras"] },
+  { href: "/utilities", label: "Utilities", icon: Zap, startsWith: ["/utilities", "/water"] },
+  { href: "/environment", label: "Environment & Sensors", icon: Wind, startsWith: ["/environment"] },
+  { href: "/traffic", label: "Traffic & Mobility", icon: Car, startsWith: ["/traffic"] },
+  { href: "/maintenance", label: "Maintenance Operations", icon: Wrench, startsWith: ["/maintenance", "/alerts"] },
+  { href: "/community", label: "Community & Communications", icon: MessageSquare, startsWith: ["/community", "/messages"] },
+  { href: "/wallets", label: "Wallet Operations", icon: Wallet, startsWith: ["/wallets"] },
+  { href: "/overview", label: "Facility Intelligence", icon: BarChart3, startsWith: ["/analytics", "/reports"] },
+  { href: "/super-admin", label: "Facility Administration", icon: UserCog, startsWith: ["/super-admin", "/account"], adminOnly: true },
 ];
 
 function getInitials(nameOrEmail?: string) {
@@ -108,7 +92,6 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   const pathname = usePathname();
   const router = useRouter();
 
-  // ✅ keep your existing store, but access it safely for logout
   const session = useSessionStore() as any;
   const user = session?.user;
 
@@ -138,19 +121,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   const initials = useMemo(() => getInitials(displayName), [displayName]);
   const isAdmin = String((user as any)?.role || "").toLowerCase() === "admin";
   const navItems = useMemo(
-    () =>
-      isAdmin
-        ? [
-            ...items,
-            {
-              domain: "Administration",
-              href: "/super-admin",
-              label: "Super Admin",
-              icon: UserCog,
-              startsWith: ["/super-admin"],
-            } as Item,
-          ]
-        : items,
+    () => items.filter((item) => !item.adminOnly || isAdmin),
     [isAdmin]
   );
 
@@ -158,7 +129,6 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
     setOpenAccount(false);
 
     try {
-      // ✅ Support whatever name you used in the store (logout/signOut/clearSession/etc.)
       const fn =
         session?.logout ||
         session?.signOut ||
@@ -168,9 +138,8 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
       if (typeof fn === "function") {
         await fn();
-      } else {
-        // fallback: best-effort clear user if you store it directly
-        if (typeof session?.setUser === "function") session.setUser(null);
+      } else if (typeof session?.setUser === "function") {
+        session.setUser(null);
       }
     } finally {
       onNavigate?.();
@@ -178,118 +147,47 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
     }
   }
 
-  const groupedNav = useMemo(() => {
-    return navItems.reduce<Array<{ domain: string; items: Item[] }>>((groups, item) => {
-      const last = groups[groups.length - 1];
-      if (last?.domain === item.domain) {
-        last.items.push(item);
-      } else {
-        groups.push({ domain: item.domain, items: [item] });
-      }
-      return groups;
-    }, []);
-  }, [navItems]);
-
-  const [openDomains, setOpenDomains] = useState<Record<string, boolean>>({});
-
-  function collapsedDomainLabel(domain: string) {
-    if (domain === "Command") return "Estate Overview";
-    return domain;
-  }
-
-  function toggleDomain(group: { domain: string; items: Item[] }) {
-    const first = group.items[0];
-    if (first?.href) {
-      router.push(first.href);
-      onNavigate?.();
-    }
-    setOpenDomains((current) => ({ ...current, [group.domain]: !current[group.domain] }));
-  }
-
   return (
     <div className="flex h-full flex-col">
-      {/* NAV */}
       <nav className="p-4 space-y-1 overflow-y-auto">
-        {groupedNav.map((group, groupIndex) => {
-          const collapsed = !openDomains[group.domain];
-          const PrimaryIcon = group.items[0]?.icon || LayoutDashboard;
-          const groupActive = group.items.some((item) => isActive(item));
+        <div className="px-3 pb-2 text-[9.5px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+          Facility Modules
+        </div>
+        {navItems.map((it) => {
+          const Icon = it.icon;
+          const active = isActive(it);
 
           return (
-            <div key={group.domain} className="space-y-1">
-              <button
-                type="button"
-                onClick={() => toggleDomain(group)}
+            <Link
+              key={it.label}
+              href={it.href}
+              onClick={() => {
+                setOpenAccount(false);
+                onNavigate?.();
+              }}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all",
+                active
+                  ? "border-violet-500/45 bg-gradient-to-r from-violet-600 to-blue-600/70 text-white shadow-[0_12px_30px_rgba(99,102,241,0.2)]"
+                  : "border-transparent text-zinc-400 hover:border-white/10 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              <span
                 className={cn(
-                  "w-full text-left transition-all",
-                  collapsed
-                    ? cn(
-                        "mt-2 flex min-h-[38px] items-center justify-between rounded-lg border px-3 py-2.5 text-[13px] font-medium",
-                        groupActive
-                          ? "border-violet-500/45 bg-gradient-to-r from-violet-600 to-blue-600/70 text-white shadow-[0_12px_30px_rgba(99,102,241,0.2)]"
-                          : "border-white/10 bg-white/5 text-zinc-200"
-                      )
-                    : cn(
-                        "px-4 pt-4 pb-1 text-[9.5px] font-semibold uppercase tracking-[0.16em]",
-                        groupActive ? "text-zinc-200" : "text-zinc-500"
-                      ),
-                  groupIndex === 0 && !collapsed ? "pt-0" : ""
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border",
+                  active
+                    ? "border-white/15 bg-white/15 text-white"
+                    : "border-white/10 bg-white/5 text-zinc-400"
                 )}
-                aria-expanded={!collapsed}
               >
-                {collapsed ? (
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/5 text-zinc-400">
-                      <PrimaryIcon size={15.5} />
-                    </span>
-                    <span className="truncate">{collapsedDomainLabel(group.domain)}</span>
-                  </span>
-                ) : (
-                  group.domain
-                )}
-                {collapsed ? <span className="text-zinc-500">+</span> : null}
-              </button>
-
-              {!collapsed &&
-                group.items.map((it) => {
-                  const Icon = it.icon;
-                  const active = isActive(it);
-
-                  return (
-                    <Link
-                      key={it.href}
-                      href={it.href}
-                      onClick={() => {
-                        setOpenAccount(false);
-                        onNavigate?.();
-                      }}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all",
-                        active
-                          ? "border-violet-500/45 bg-gradient-to-r from-violet-600 to-blue-600/70 text-white shadow-[0_12px_30px_rgba(99,102,241,0.2)]"
-                          : "border-transparent text-zinc-400 hover:border-white/10 hover:bg-white/5 hover:text-white"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border",
-                          active
-                            ? "border-white/15 bg-white/15 text-white"
-                            : "border-white/10 bg-white/5 text-zinc-400"
-                        )}
-                      >
-                        <Icon size={15.5} className={cn(active ? "opacity-100" : "opacity-90")} />
-                      </span>
-                      <span className="text-[13px] font-medium">{it.label}</span>
-                    </Link>
-                  );
-                })}
-            </div>
+                <Icon size={15.5} className={cn(active ? "opacity-100" : "opacity-90")} />
+              </span>
+              <span className="text-[13px] font-medium truncate">{it.label}</span>
+            </Link>
           );
         })}
       </nav>
 
-      {/* ACCOUNT FOOTER (dropdown) */}
       <div className="mt-auto p-4">
         <div ref={accountRef} className="relative">
           <button
@@ -317,7 +215,6 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
           {openAccount && (
             <div className="absolute bottom-[calc(100%+10px)] left-0 w-full rounded-xl border border-white/10 bg-zinc-950/90 backdrop-blur p-2 shadow-xl">
-              {/* ✅ Account -> /account */}
               <button
                 type="button"
                 onClick={() => {
@@ -331,7 +228,6 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                 Account
               </button>
 
-              {/* ✅ Settings -> /settings */}
               <button
                 type="button"
                 onClick={() => {
@@ -347,7 +243,6 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
               <div className="my-2 h-px bg-white/10" />
 
-              {/* ✅ Sign out -> real logout + /login */}
               <button
                 type="button"
                 onClick={handleLogout}
