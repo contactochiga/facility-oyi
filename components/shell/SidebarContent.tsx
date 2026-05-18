@@ -11,7 +11,6 @@ import {
   Shield,
   Car,
   Wind,
-  Users,
   Orbit,
   ChevronDown,
   LogOut,
@@ -27,34 +26,29 @@ import {
 } from "lucide-react";
 
 import { useSessionStore } from "@/store/useSessionStore";
+import { FACILITY_MODULES, visibleModules, type ModuleDefinition } from "@/lib/moduleRegistry";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-type Item = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  startsWith?: string[];
-  adminOnly?: boolean;
+const MODULE_ICONS: Record<string, LucideIcon> = {
+  overview: LayoutDashboard,
+  "live-infrastructure": Orbit,
+  "estate-structure": Home,
+  "hardware-devices": ShieldCheck,
+  "security-access": Shield,
+  utilities: Zap,
+  "environment-sensors": Wind,
+  "traffic-mobility": Car,
+  maintenance: Wrench,
+  community: MessageSquare,
+  wallets: Wallet,
+  intelligence: BarChart3,
+  administration: UserCog,
 };
 
-const items: Item[] = [
-  { href: "/overview", label: "Facility Overview", icon: LayoutDashboard, startsWith: ["/overview"] },
-  { href: "/digital-twin", label: "Live Infrastructure", icon: Orbit, startsWith: ["/digital-twin"] },
-  { href: "/homes", label: "Estate Structure", icon: Home, startsWith: ["/homes", "/occupancy"] },
-  { href: "/devices", label: "Hardware Devices", icon: ShieldCheck, startsWith: ["/devices", "/hardware", "/hardware-devices"] },
-  { href: "/security", label: "Security & Access", icon: Shield, startsWith: ["/security", "/visitors", "/cameras"] },
-  { href: "/utilities", label: "Utilities", icon: Zap, startsWith: ["/utilities", "/water"] },
-  { href: "/environment", label: "Environment & Sensors", icon: Wind, startsWith: ["/environment"] },
-  { href: "/traffic", label: "Traffic & Mobility", icon: Car, startsWith: ["/traffic"] },
-  { href: "/maintenance", label: "Maintenance Operations", icon: Wrench, startsWith: ["/maintenance", "/alerts"] },
-  { href: "/community", label: "Community & Communications", icon: MessageSquare, startsWith: ["/community", "/messages"] },
-  { href: "/wallets", label: "Wallet Operations", icon: Wallet, startsWith: ["/wallets"] },
-  { href: "/overview", label: "Facility Intelligence", icon: BarChart3, startsWith: ["/analytics", "/reports"] },
-  { href: "/super-admin", label: "Facility Administration", icon: UserCog, startsWith: ["/super-admin", "/account"], adminOnly: true },
-];
+type NavItem = ModuleDefinition & { icon: LucideIcon };
 
 function getInitials(nameOrEmail?: string) {
   const s = String(nameOrEmail || "").trim();
@@ -100,7 +94,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
   useOutsideClick(accountRef, () => setOpenAccount(false), openAccount);
 
-  function isActive(it: Item) {
+  function isActive(it: NavItem) {
     if (pathname === it.href) return true;
     if (it.startsWith?.some((p) => pathname?.startsWith(p))) return true;
     return false;
@@ -119,10 +113,13 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   }, [user]);
 
   const initials = useMemo(() => getInitials(displayName), [displayName]);
-  const isAdmin = String((user as any)?.role || "").toLowerCase() === "admin";
-  const navItems = useMemo(
-    () => items.filter((item) => !item.adminOnly || isAdmin),
-    [isAdmin]
+  const navItems = useMemo<NavItem[]>(
+    () =>
+      visibleModules(user, FACILITY_MODULES).map((item) => ({
+        ...item,
+        icon: MODULE_ICONS[item.key] || LayoutDashboard,
+      })),
+    [user]
   );
 
   async function handleLogout() {
