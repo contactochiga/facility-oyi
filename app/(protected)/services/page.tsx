@@ -116,8 +116,8 @@ export default function FacilityServicesPage() {
     <div className="space-y-7">
       <Topbar title="Service Operations" subtitle="Utility availability • estate service readiness • live operational signals" />
 
-      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-        Pricing, billing-rule editing, direct debit and wallet funding controls are intentionally hidden until the full infrastructure system is locked. This page now shows operational service readiness only.
+      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+        Service Operations is now operational-only: utilities, readiness, live estate signals, recent service activity and infrastructure health.
       </div>
 
       {err ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{err}</div> : null}
@@ -143,7 +143,7 @@ export default function FacilityServicesPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-sm font-semibold text-white">Infrastructure Service Registry</div>
-              <div className="mt-1 text-xs text-zinc-400">Estate-scoped utility and service domains that should stay live before pricing returns.</div>
+              <div className="mt-1 text-xs text-zinc-400">Estate-scoped utility and service domains powered by the live Facility API.</div>
             </div>
             <Button variant="ghost" onClick={() => load()} disabled={loading}>
               <span className="inline-flex items-center gap-2"><RefreshCw size={14} />Refresh</span>
@@ -193,7 +193,7 @@ export default function FacilityServicesPage() {
           <div className="glass rounded-2xl border border-white/10 p-4">
             <div className="text-sm font-semibold text-white">Production Rule</div>
             <div className="mt-2 text-xs leading-6 text-zinc-400">
-              Services remain operational-first. Pricing and billing controls should return only after backend permissions, audit coverage, storage metadata and live estate data are fully verified.
+              Services remain operational-first. Commercial controls stay outside this surface until the infrastructure runtime, audit coverage and live estate data are fully verified.
             </div>
           </div>
         </aside>

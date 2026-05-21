@@ -109,10 +109,12 @@ export const utilityService = {
         };
       }),
       totals: {
-        homes: overview?.homes || 0,
-        activeDevices: overview?.active_devices || devices.filter(isOnline).length,
-        openMaintenance: overview?.open_maintenance || maintenance.length,
-        alerts: overview?.alerts || alerts.length,
+        homes: Array.isArray((overview as any)?.homes)
+          ? (overview as any).homes.length
+          : Number((overview as any)?.homes || (overview as any)?.total_homes || 0),
+        activeDevices: Number((overview as any)?.active_devices || devices.filter(isOnline).length),
+        openMaintenance: Number((overview as any)?.open_maintenance || maintenance.length),
+        alerts: Number((overview as any)?.alerts || alerts.length),
       },
       devices,
       maintenance,
