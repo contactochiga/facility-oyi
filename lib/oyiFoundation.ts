@@ -63,8 +63,8 @@ const ROLE_ALIASES: Record<string, string> = {
 const ROLE_PERMISSIONS: Record<string, readonly PermissionKey[]> = {
   super_admin: PERMISSION_KEYS,
   ochiga_admin: PERMISSION_KEYS,
-  estate_admin: ["estates.read", "estates.write", "homes.read", "homes.write", "devices.read", "devices.control", "cameras.view", "visitors.create", "visitors.manage", "wallets.read", "wallets.manage", "support.read", "support.assign", "community.read", "community.write", "notifications.read"],
-  facility_manager: ["estates.read", "estates.write", "homes.read", "homes.write", "devices.read", "devices.control", "cameras.view", "visitors.manage", "wallets.read", "support.read", "support.assign", "community.read", "community.write", "notifications.read"],
+  estate_admin: ["estates.read", "estates.write", "homes.read", "homes.write", "devices.read", "devices.control", "cameras.view", "visitors.create", "visitors.manage", "wallets.read", "wallets.manage", "support.read", "support.assign", "staff.manage", "community.read", "community.write", "notifications.read"],
+  facility_manager: ["estates.read", "estates.write", "homes.read", "homes.write", "devices.read", "devices.control", "cameras.view", "visitors.manage", "wallets.read", "support.read", "support.assign", "staff.manage", "community.read", "community.write", "notifications.read"],
   security_operator: ["estates.read", "homes.read", "devices.read", "devices.control", "cameras.view", "visitors.create", "visitors.manage", "support.read", "notifications.read"],
   maintenance_operator: ["estates.read", "homes.read", "devices.read", "devices.control", "support.read", "support.assign", "notifications.read"],
   finance_operator: ["estates.read", "homes.read", "wallets.read", "wallets.manage", "documents.generate", "support.read", "notifications.read"],

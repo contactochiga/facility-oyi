@@ -149,12 +149,28 @@ export type HomeMembershipRow = {
 export type ListHomeUsersResponse = {
   home_id: string;
   users: HomeMembershipRow[];
+  invites?: HomeInviteRow[];
+  can_manage?: boolean;
 };
 
 export type InviteHomeUserPayload = {
   email: string;
-  role?: string; // owner | resident | staff | guest | member
+  role?: "owner" | "admin" | "resident" | "guest" | string;
   permissions?: Record<string, any>;
+};
+
+export type HomeInviteRow = {
+  id: string;
+  home_id: string;
+  invited_email?: string | null;
+  role?: string | null;
+  status: string;
+  expires_at?: string | null;
+  delivery_status?: string | null;
+  last_sent_at?: string | null;
+  claimed_at?: string | null;
+  revoked_at?: string | null;
+  created_at?: string | null;
 };
 
 // ✅ Matches backend inviteHomeUser() return (inviteUrl + qr + membership)
@@ -164,6 +180,14 @@ export type InviteHomeUserResponse = {
   qrDataUrl: string;
   invited_user_id: string;
   membership: HomeMembershipRow;
+  invite: HomeInviteRow;
+};
+
+export type ResendHomeInviteResponse = {
+  ok: true;
+  invite: HomeInviteRow;
+  inviteUrl: string;
+  qrDataUrl: string;
 };
 
 export type UpdateHomeUserPayload = {
@@ -202,19 +226,13 @@ function normalizeEmail(email: string) {
  * Your DB enum supports:
  * owner | admin | manager | security | resident | member | guest | staff | viewer
  *
- * Your UI currently uses:
- * resident | home_member | home_admin
- *
- * We'll map:
- * home_admin  -> owner
- * home_member -> member
- * resident    -> resident
+ * Legacy home_admin/home_member aliases remain accepted for compatibility.
  */
 function mapRoleToMembershipRole(role?: string): string {
   const r = String(role || "").trim().toLowerCase();
   if (r === "home_admin" || r === "owner") return "owner";
   if (r === "home_member" || r === "member" || r === "staff") return "member";
-  if (r === "guest" || r === "viewer") return r;
+  if (r === "admin" || r === "guest" || r === "viewer") return r;
   return "resident";
 }
 
@@ -392,6 +410,16 @@ export const facilityService = {
     });
 
     return res.data as InviteHomeUserResponse;
+  },
+
+  async resendHomeInvite(homeId: string, inviteId: string): Promise<ResendHomeInviteResponse> {
+    const res = await API.post(`/facility/homes/${homeId}/invites/${inviteId}/resend`);
+    return res.data as ResendHomeInviteResponse;
+  },
+
+  async revokeHomeInvite(homeId: string, inviteId: string): Promise<{ ok: true; invite: HomeInviteRow }> {
+    const res = await API.post(`/facility/homes/${homeId}/invites/${inviteId}/revoke`);
+    return res.data;
   },
 
   async updateHomeUser(membershipId: string, payload: UpdateHomeUserPayload) {
