@@ -21,6 +21,13 @@ export type CommunityPost = {
   liked_by_me?: boolean;
   views?: number;
   view_count?: number;
+  category?: string | null;
+  is_pinned?: boolean | null;
+  pinned_until?: string | null;
+  audience_type?: string | null;
+  audience_ref?: string | null;
+  scheduled_at?: string | null;
+  priority?: string | null;
 };
 
 export type CommunityComment = {
@@ -56,6 +63,12 @@ export const communityService = {
     content?: string | null;
     media?: any;
     poll?: any;
+    category?: string | null;
+    is_pinned?: boolean | null;
+    pinned_until?: string | null;
+    audience?: { type?: string | null; ref?: string | null } | null;
+    scheduled_at?: string | null;
+    priority?: string | null;
   }): Promise<CommunityPost> {
     const res = await API.post(`/community/post`, {
       estateId: input.estateId,
@@ -63,6 +76,12 @@ export const communityService = {
       content: input.content ?? null,
       media: input.media ?? null,
       poll: input.poll ?? null,
+      category: input.category ?? "notice",
+      is_pinned: input.is_pinned ?? false,
+      pinned_until: input.pinned_until ?? null,
+      audience: input.audience ?? null,
+      scheduled_at: input.scheduled_at ?? null,
+      priority: input.priority ?? null,
     });
 
     const row = res.data || {};
@@ -74,12 +93,18 @@ export const communityService = {
 
   async updatePost(
     postId: string,
-    input: { title?: string | null; content?: string | null; status?: string | null }
+    input: { title?: string | null; content?: string | null; status?: string | null; category?: string | null; is_pinned?: boolean | null; pinned_until?: string | null; audience?: { type?: string | null; ref?: string | null } | null; scheduled_at?: string | null; priority?: string | null }
   ): Promise<CommunityPost> {
     const res = await API.put(`/community/post/${postId}`, {
       title: input.title,
       content: input.content,
       status: input.status,
+      category: input.category,
+      is_pinned: input.is_pinned,
+      pinned_until: input.pinned_until,
+      audience: input.audience,
+      scheduled_at: input.scheduled_at,
+      priority: input.priority,
     });
     const row = res.data || {};
     return {

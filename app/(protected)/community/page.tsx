@@ -183,6 +183,14 @@ export default function CommunityPage() {
   const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [commentSending, setCommentSending] = useState<Record<string, boolean>>({});
+  const [actionTarget, setActionTarget] = useState<any | null>(null);
+  const [editTarget, setEditTarget] = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [category, setCategory] = useState("notice");
+  const [audienceType, setAudienceType] = useState("all_estate");
+  const [pinNotice, setPinNotice] = useState(false);
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const postRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const viewedPostIds = useRef<Set<string>>(new Set());
@@ -281,6 +289,11 @@ export default function CommunityPage() {
         title,
         content: content || null,
         media: mediaItems.length ? mediaItems : null,
+        category,
+        audience: { type: audienceType },
+        is_pinned: pinNotice,
+        scheduled_at: scheduledFor || null,
+        priority: pinNotice ? "high" : null,
       });
 
       if (scheduledFor) {
@@ -294,6 +307,9 @@ export default function CommunityPage() {
       setNewPost("");
       setMediaItems([]);
       setScheduledFor("");
+      setCategory("notice");
+      setAudienceType("all_estate");
+      setPinNotice(false);
     } catch (e: any) {
       setErr(e?.message || "Failed to publish announcement");
     } finally {
@@ -311,30 +327,42 @@ export default function CommunityPage() {
     }
   }
 
-  async function editPost(postId: string, currentTitle?: string, currentContent?: string) {
-    const nextTitle = window.prompt("Edit post title", String(currentTitle || "").trim() || "Announcement");
-    if (nextTitle === null) return;
-    const nextContent = window.prompt("Edit post content", String(currentContent || "").trim());
-    if (nextContent === null) return;
+  function editPost(postId: string, currentTitle?: string, currentContent?: string) {
+    setActionTarget(null);
+    setEditTarget({ id: postId });
+    setEditTitle(String(currentTitle || "").trim() || "Announcement");
+    setEditContent(String(currentContent || "").trim());
+  }
+
+  async function submitEditPost() {
+    const postId = String(editTarget?.id || "");
+    if (!postId) return;
     try {
       const updated = await communityService.updatePost(postId, {
-        title: nextTitle.trim(),
-        content: nextContent.trim(),
+        title: editTitle.trim() || "Announcement",
+        content: editContent.trim(),
       });
       setItems((prev) => prev.map((x) => (String(x.id) === String(postId) ? { ...x, ...updated } : x)));
       setNotice("Post updated.");
+      setEditTarget(null);
     } catch (e: any) {
       setErr(e?.message || "Failed to edit post");
     }
   }
 
-  async function removePost(postId: string) {
-    const yes = window.confirm("Delete this post? This action cannot be undone.");
-    if (!yes) return;
+  function removePost(postId: string) {
+    setActionTarget(null);
+    setDeleteTarget({ id: postId });
+  }
+
+  async function confirmRemovePost() {
+    const postId = String(deleteTarget?.id || "");
+    if (!postId) return;
     try {
       await communityService.deletePost(postId);
       setItems((prev) => prev.filter((x) => String(x.id) !== String(postId)));
       setNotice("Post deleted.");
+      setDeleteTarget(null);
     } catch (e: any) {
       setErr(e?.message || "Failed to delete post");
     }
@@ -701,11 +729,27 @@ export default function CommunityPage() {
                   ))}
                 </div>
               ) : null}
-              {scheduledFor ? (
-                <div className="mb-3 text-xs text-blue-300">
-                  Scheduled publish: {new Date(scheduledFor).toLocaleString()}
-                </div>
-              ) : null}
+              <div className="mb-3 grid gap-2 md:grid-cols-4">
+                <select value={category} onChange={(e) => setCategory(e.target.value)} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200">
+                  <option value="notice">Notice</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="security">Security</option>
+                  <option value="amenity">Amenity</option>
+                  <option value="resident">Resident</option>
+                </select>
+                <select value={audienceType} onChange={(e) => setAudienceType(e.target.value)} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200">
+                  <option value="all_estate">All estate</option>
+                  <option value="building">Building / block</option>
+                  <option value="home">Home / unit</option>
+                  <option value="residents">Residents</option>
+                  <option value="staff">Staff</option>
+                </select>
+                <input value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} type="datetime-local" className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200" />
+                <label className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200">
+                  <input type="checkbox" checked={pinNotice} onChange={(e) => setPinNotice(e.target.checked)} />
+                  Pinned
+                </label>
+              </div>
               <div className="flex items-center justify-between">
                 <div className="flex gap-2">
                   <button
@@ -720,24 +764,12 @@ export default function CommunityPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      const now = new Date();
-                      now.setMinutes(now.getMinutes() + 10);
-                      const isoLocal = now.toISOString().slice(0, 16);
-                      const picked = window.prompt("Schedule date-time (YYYY-MM-DDTHH:mm)", scheduledFor || isoLocal);
-                      if (picked === null) return;
-                      const stamp = new Date(picked).getTime();
-                      if (Number.isNaN(stamp)) {
-                        setErr("Invalid schedule date-time format.");
-                        return;
-                      }
-                      setScheduledFor(new Date(stamp).toISOString());
-                    }}
+                    onClick={() => setScheduledFor("")}
                     className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
                   >
                     <span className="inline-flex items-center gap-2">
                       <CalendarClock size={14} />
-                      Schedule
+                      Clear Schedule
                     </span>
                   </button>
                 </div>
@@ -792,23 +824,7 @@ export default function CommunityPage() {
 
                       <button
                         type="button"
-                        onClick={async () => {
-                          const id = String(post.id);
-                          const raw = (post as any)?._raw || {};
-                          const action = window.prompt(
-                            "Action: pin | flag | approve | edit | delete",
-                            "pin"
-                          );
-                          if (!action) return;
-                          const a = action.toLowerCase().trim();
-                          if (a === "pin") return void (await moderatePost(id, "scheduled"));
-                          if (a === "flag") return void (await moderatePost(id, "flagged"));
-                          if (a === "approve") return void (await moderatePost(id, "active"));
-                          if (a === "delete") return void (await removePost(id));
-                          if (a === "edit")
-                            return void (await editPost(id, raw?.title, raw?.content ?? raw?.body));
-                          setNotice("Unknown action.");
-                        }}
+                        onClick={() => setActionTarget(post)}
                         className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
                       >
                         <MoreVertical size={16} className="text-slate-400" />
@@ -1180,6 +1196,50 @@ export default function CommunityPage() {
           </div>
         </div>
       )}
+
+      {actionTarget ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-950 p-5 shadow-2xl">
+            <div className="text-lg font-semibold">Post actions</div>
+            <div className="mt-1 text-sm text-slate-400">Moderate, edit, pin, or remove this estate communication.</div>
+            <div className="mt-5 grid gap-2">
+              <button type="button" onClick={() => { void moderatePost(String(actionTarget.id), "active"); setActionTarget(null); }} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white">Approve / Active</button>
+              <button type="button" onClick={() => { void moderatePost(String(actionTarget.id), "flagged"); setActionTarget(null); }} className="rounded-xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white">Flag for Review</button>
+              <button type="button" onClick={() => { void moderatePost(String(actionTarget.id), "denied"); setActionTarget(null); }} className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white">Deny</button>
+              <button type="button" onClick={() => editPost(String(actionTarget.id), String((actionTarget as any)?._raw?.title || "Announcement"), String((actionTarget as any)?._raw?.content ?? (actionTarget as any)?._raw?.body ?? ""))} className="rounded-xl bg-slate-800 px-4 py-3 text-sm font-semibold text-white">Edit Post</button>
+              <button type="button" onClick={() => removePost(String(actionTarget.id))} className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200">Delete Post</button>
+              <button type="button" onClick={() => setActionTarget(null)} className="rounded-xl border border-slate-700 px-4 py-3 text-sm text-slate-300">Cancel</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {editTarget ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-950 p-5 shadow-2xl">
+            <div className="text-lg font-semibold">Edit communication</div>
+            <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none" />
+            <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={5} className="mt-3 w-full resize-none rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white outline-none" />
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setEditTarget(null)} className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300">Cancel</button>
+              <button type="button" onClick={() => void submitEditPost()} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Save</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-red-400/25 bg-slate-950 p-5 shadow-2xl">
+            <div className="text-lg font-semibold text-white">Delete this post?</div>
+            <div className="mt-1 text-sm text-slate-400">This removes it from resident Community feeds.</div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setDeleteTarget(null)} className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300">Cancel</button>
+              <button type="button" onClick={() => void confirmRemovePost()} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white">Delete</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Small operator hint (keeps “don’t lose anything” mindset) */}
       <div className="text-xs text-slate-500">
