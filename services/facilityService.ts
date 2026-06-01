@@ -155,6 +155,7 @@ export type ListHomeUsersResponse = {
 
 export type InviteHomeUserPayload = {
   email: string;
+  full_name?: string;
   role?: "owner" | "admin" | "resident" | "guest" | string;
   permissions?: Record<string, any>;
 };
@@ -405,6 +406,7 @@ export const facilityService = {
 
     const res = await API.post(`/facility/homes/${homeId}/invite`, {
       email: invitedEmail,
+      full_name: payload.full_name?.trim() || undefined,
       role: mapRoleToMembershipRole(payload.role),
       permissions: payload.permissions || {},
     });

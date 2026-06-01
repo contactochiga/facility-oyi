@@ -155,6 +155,7 @@ export default function HomeUsersPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [showInvite, setShowInvite] = useState(false);
+  const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<InviteRole>("resident");
   const [artifact, setArtifact] = useState<InviteArtifact | null>(null);
@@ -193,6 +194,10 @@ export default function HomeUsersPage() {
   }, [invites, members]);
 
   async function createInvite() {
+    if (!inviteName.trim()) {
+      setError("Enter the resident name.");
+      return;
+    }
     if (!inviteEmail.trim()) {
       setError("Enter the resident email address.");
       return;
@@ -203,6 +208,7 @@ export default function HomeUsersPage() {
     try {
       const response = await facilityService.inviteHomeUser(homeId, {
         email: inviteEmail,
+        full_name: inviteName,
         role: inviteRole,
         permissions: {},
       });
@@ -305,6 +311,7 @@ export default function HomeUsersPage() {
   }
 
   function openInviteSheet() {
+    setInviteName("");
     setInviteEmail("");
     setInviteRole("resident");
     setArtifact(null);
@@ -454,11 +461,12 @@ export default function HomeUsersPage() {
                       <p className="mt-1 text-xs text-zinc-500">
                         {invite.role || "resident"} · expires {formatDate(invite.expires_at)}
                       </p>
-                      {invite.last_sent_at ? <p className="mt-1 text-[11px] text-zinc-600">Last generated {formatDate(invite.last_sent_at)}</p> : null}
+                      {invite.last_sent_at ? <p className="mt-1 text-[11px] text-zinc-600">Last delivery attempt {formatDate(invite.last_sent_at)}</p> : null}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={status} />
+                    <StatusBadge status={invite.delivery_status || "pending"} />
                     {canResend ? (
                       <Button
                         variant="ghost"
@@ -502,6 +510,10 @@ export default function HomeUsersPage() {
           {!artifact ? (
             <div className="space-y-5">
               <label className="block">
+                <span className="text-xs font-medium text-zinc-300">Resident name</span>
+                <Input className="mt-2" placeholder="Resident full name" value={inviteName} onChange={(event) => setInviteName(event.target.value)} />
+              </label>
+              <label className="block">
                 <span className="text-xs font-medium text-zinc-300">Resident email</span>
                 <Input className="mt-2" type="email" placeholder="resident@example.com" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} />
               </label>
@@ -539,6 +551,7 @@ export default function HomeUsersPage() {
                     Secure invite ready
                   </div>
                   <p className="mt-2 text-xs text-emerald-100/70">Expires {formatDate(artifact.invite.expires_at)}</p>
+                  <p className="mt-1 text-xs text-emerald-100/70">Email delivery: {artifact.invite.delivery_status || "pending"}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-zinc-300">Setup link</p>
