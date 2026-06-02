@@ -145,13 +145,7 @@ function AccountInner() {
   // ✅ Facility-only token (prevents consumer token leaking)
   const token = useMemo(() => {
     if (typeof window === "undefined") return null;
-    return (
-      getCookie("oyi_facility_token") ||
-      getCookie("facility_token") ||
-      localStorage.getItem("oyi_facility_token") ||
-      localStorage.getItem("facility_token") ||
-      localStorage.getItem("token")
-    );
+    return getCookie("oyi_facility_token") || localStorage.getItem("oyi_facility_token");
   }, []);
 
   const decoded = useMemo<Decoded | null>(() => {

@@ -42,20 +42,15 @@ function getCookie(name: string) {
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
   process.env.NEXT_PUBLIC_BACKEND_URL ||
-  "https://oyi-os.onrender.com";
+  "";
 
 async function api<T>(path: string): Promise<T> {
+  if (!API_BASE) throw new Error("Facility API base URL is not configured.");
   const token =
     getCookie("oyi_facility_token") ||
-    getCookie("facility_token") ||
-    getCookie("oyi_consumer_token") ||
-    (typeof window !== "undefined"
-      ? localStorage.getItem("oyi_facility_token") ||
-        localStorage.getItem("facility_token") ||
-        localStorage.getItem("oyi_consumer_token") ||
-        localStorage.getItem("token")
-      : null);
+    (typeof window !== "undefined" ? localStorage.getItem("oyi_facility_token") : null);
 
   const res = await fetch(`${API_BASE}${path}`, {
     method: "GET",

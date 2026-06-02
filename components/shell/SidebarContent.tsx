@@ -60,7 +60,7 @@ function getInitials(nameOrEmail?: string) {
 }
 
 function useOutsideClick(
-  ref: React.RefObject<HTMLElement>,
+  ref: React.RefObject<HTMLElement | null>,
   onOutside: () => void,
   enabled: boolean
 ) {

@@ -84,9 +84,7 @@ export const visitorService = {
       if (res.data?.error) return [];
 
       return (Array.isArray(raw) ? raw : []).map(normalizeItem);
-    } catch (err: any) {
-      // keep silent to avoid crashing table
-      console.log("visitorService.list error:", pickError(err, "Failed to load visitors"));
+    } catch {
       return [];
     }
   },
