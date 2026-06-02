@@ -1,536 +1,185 @@
-// app/(protected)/alerts/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle2, Clock, RefreshCw, ShieldAlert, X } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import {
-  AlertTriangle,
-  AlertCircle,
-  Info,
-  CheckCircle,
-  Clock,
-  Filter,
-} from "lucide-react";
 import { notificationService, type AlertItem } from "@/services/notificationService";
 import cameraService, { type CameraEvent } from "@/services/cameraService";
 import { facilityService } from "@/services/facilityService";
 
-function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
+type IncidentStatus = "new" | "acknowledged" | "investigating" | "resolved" | "dismissed";
 
-type Severity = "critical" | "high" | "medium" | "low";
-type Status = "active" | "investigating" | "acknowledged" | "resolved";
-
-type UiAlert = {
+type Incident = {
   id: string;
-  severity: Severity;
-  category: string;
+  type: string;
+  severity: string;
+  source: string;
   title: string;
   description: string;
   location: string;
-  time: string;
-  status: Status;
-
-  // keep original for future wiring
-  raw: AlertItem;
+  time?: string | null;
+  status: IncidentStatus;
+  route: string;
+  canAcknowledge: boolean;
 };
 
-function safeStr(v: any, fallback = "—") {
-  const s = String(v ?? "").trim();
-  return s ? s : fallback;
+function text(value: any, fallback = "Unavailable") {
+  const s = String(value ?? "").trim();
+  return s || fallback;
 }
 
-function when(iso?: string | null) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString([], {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function when(value?: string | null) {
+  if (!value) return "No live timestamp";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "No live timestamp" : date.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-// A lightweight "time ago" (no deps)
-function timeAgo(iso?: string | null) {
-  if (!iso) return "—";
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return "—";
-  const diff = Date.now() - t;
-
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return `${sec}s ago`;
-
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} min ago`;
-
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} hour${hr === 1 ? "" : "s"} ago`;
-
-  const day = Math.floor(hr / 24);
-  return `${day} day${day === 1 ? "" : "s"} ago`;
-}
-
-function pickCategory(title: string, msg: string) {
-  const hay = `${title} ${msg}`.toLowerCase();
-
-  if (hay.includes("security") || hay.includes("access") || hay.includes("unauthorized") || hay.includes("intrusion"))
-    return "Security";
-  if (hay.includes("visitor") || hay.includes("gate") || hay.includes("door") || hay.includes("lock"))
-    return "Security";
-  if (hay.includes("maintenance") || hay.includes("elevator") || hay.includes("fault") || hay.includes("broken"))
-    return "Maintenance";
-  if (hay.includes("power") || hay.includes("energy") || hay.includes("generator") || hay.includes("inverter") || hay.includes("meter"))
-    return "Energy";
-  if (hay.includes("water") || hay.includes("pump") || hay.includes("tank") || hay.includes("pressure"))
-    return "Water";
-  if (hay.includes("traffic") || hay.includes("parking") || hay.includes("vehicle"))
-    return "Traffic";
-  if (hay.includes("air") || hay.includes("aqi") || hay.includes("environment") || hay.includes("humidity") || hay.includes("temperature"))
-    return "Environment";
-  if (hay.includes("fire") || hay.includes("alarm") || hay.includes("smoke"))
-    return "Fire Safety";
-
-  return "System";
-}
-
-function pickSeverity(title: string, msg: string, raw: any): Severity {
-  const hay = `${title} ${msg}`.toLowerCase();
-  const t = String(raw?.type || raw?.severity || raw?.level || "").toLowerCase();
-
-  // if backend already provides something useful
-  if (t === "critical" || t === "high" || t === "medium" || t === "low") return t as Severity;
-
-  if (hay.includes("critical") || hay.includes("fire") || hay.includes("intrusion") || hay.includes("unauthorized"))
-    return "critical";
-  if (hay.includes("failed") || hay.includes("malfunction") || hay.includes("offline") || hay.includes("pressure drop"))
-    return "high";
-  if (hay.includes("warning") || hay.includes("anomaly") || hay.includes("exceed") || hay.includes("degraded"))
-    return "medium";
-
+function severityFor(input: string) {
+  const hay = input.toLowerCase();
+  if (/critical|intrusion|fire|panic|lockdown|unauthorized/.test(hay)) return "critical";
+  if (/offline|failed|denied|security|camera/.test(hay)) return "high";
+  if (/warning|degraded|pending|maintenance/.test(hay)) return "medium";
   return "low";
 }
 
-function defaultLocation(category: string, title: string, msg: string) {
-  const hay = `${title} ${msg}`.toLowerCase();
-  if (hay.includes("gate")) return "Gate";
-  if (hay.includes("building a")) return "Building A";
-  if (hay.includes("building b")) return "Building B";
-  if (hay.includes("building c")) return "Building C";
-  if (hay.includes("building d")) return "Building D";
-  if (hay.includes("parking")) return "Parking";
-  if (category === "System") return "Facility Network";
-  return "Estate";
+function typeFor(input: string) {
+  const hay = input.toLowerCase();
+  if (/visitor|gate|access/.test(hay)) return "visitor";
+  if (/camera|motion|loiter|intrusion/.test(hay)) return "camera";
+  if (/device|edge|offline/.test(hay)) return "device";
+  if (/maintenance/.test(hay)) return "maintenance";
+  if (/community|report/.test(hay)) return "community/report";
+  if (/water|power|utility/.test(hay)) return "utility";
+  return "security";
 }
 
-function getSeverityIcon(severity: Severity) {
-  switch (severity) {
-    case "critical":
-      return <AlertCircle className="text-red-500" size={20} />;
-    case "high":
-      return <AlertTriangle className="text-orange-500" size={20} />;
-    case "medium":
-      return <AlertTriangle className="text-yellow-500" size={20} />;
-    default:
-      return <Info className="text-blue-500" size={20} />;
-  }
+function tone(value: string) {
+  if (value === "critical") return "border-rose-500/20 bg-rose-500/10 text-rose-200";
+  if (value === "high") return "border-orange-500/20 bg-orange-500/10 text-orange-200";
+  if (value === "medium") return "border-amber-500/20 bg-amber-500/10 text-amber-100";
+  return "border-sky-500/20 bg-sky-500/10 text-sky-200";
 }
 
-function getSeverityCardTone(severity: Severity) {
-  switch (severity) {
-    case "critical":
-      return "bg-red-500/10 border-red-500/20";
-    case "high":
-      return "bg-orange-500/10 border-orange-500/20";
-    case "medium":
-      return "bg-yellow-500/10 border-yellow-500/20";
-    default:
-      return "bg-blue-500/10 border-blue-500/20";
-  }
-}
-
-function getSeverityRowTone(severity: Severity) {
-  switch (severity) {
-    case "critical":
-      return "bg-red-500/10 text-red-200 border-red-500/20";
-    case "high":
-      return "bg-orange-500/10 text-orange-200 border-orange-500/20";
-    case "medium":
-      return "bg-yellow-500/10 text-yellow-200 border-yellow-500/20";
-    default:
-      return "bg-blue-500/10 text-blue-200 border-blue-500/20";
-  }
-}
-
-function getStatusTone(status: Status) {
-  switch (status) {
-    case "active":
-      return "bg-red-500/10 text-red-200";
-    case "investigating":
-      return "bg-yellow-500/10 text-yellow-200";
-    case "acknowledged":
-      return "bg-blue-500/10 text-blue-200";
-    default:
-      return "bg-green-500/10 text-green-200";
-  }
+function statusTone(value: IncidentStatus) {
+  if (value === "acknowledged" || value === "resolved") return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
+  if (value === "investigating") return "border-amber-500/20 bg-amber-500/10 text-amber-100";
+  if (value === "dismissed") return "border-white/10 bg-white/5 text-zinc-300";
+  return "border-rose-500/20 bg-rose-500/10 text-rose-200";
 }
 
 export default function AlertsPage() {
-  const [items, setItems] = useState<AlertItem[]>([]);
+  const [notifications, setNotifications] = useState<AlertItem[]>([]);
   const [cameraEvents, setCameraEvents] = useState<Array<CameraEvent & { camera_name?: string }>>([]);
-  const [loading, setLoading] = useState(false);
+  const [statusById, setStatusById] = useState<Record<string, IncidentStatus>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{ incident: Incident; action: IncidentStatus } | null>(null);
+  const [filter, setFilter] = useState<"all" | string>("all");
 
-  // UI “workflow” state (does not touch backend yet)
-  const [statusById, setStatusById] = useState<Record<string, Status>>({});
-
-  const [filterSeverity, setFilterSeverity] = useState<"all" | Severity>("all");
-  const [filterStatus, setFilterStatus] = useState<"all" | Status>("all");
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const [res, overview] = await Promise.all([
-        notificationService.unread(),
-        facilityService.overview().catch(() => null),
-      ]);
-      setItems(res || []);
-
-      const estateId = overview?.estate_id;
+      const unread = await notificationService.unread();
+      setNotifications(unread);
+      const estateId = await facilityService.overview().then((r) => r.estate_id).catch(() => "");
       if (estateId) {
-        const cams = await cameraService.listByEstate(estateId).catch(() => ({ items: [] as any[] }));
-        const list = (cams?.items || []).slice(0, 12);
-        const eventJobs = list.map(async (c) => {
-          const out = await cameraService
-            .listEvents(String(c.id), { limit: 10, sinceMinutes: 24 * 60 })
-            .catch(() => ({ events: [] as CameraEvent[] }));
-          return (out?.events || []).map((e) => ({ ...e, camera_name: c.name || c.ip }));
-        });
-        const all = (await Promise.all(eventJobs)).flat();
-        all.sort((a, b) => {
-          const ta = new Date(a.created_at || 0).getTime();
-          const tb = new Date(b.created_at || 0).getTime();
-          return tb - ta;
-        });
-        setCameraEvents(all.slice(0, 80));
+        const cameras = await cameraService.listByEstate(estateId).then((r) => r.items || []).catch(() => []);
+        const eventRows = await Promise.all(cameras.slice(0, 10).map(async (camera) => {
+          const result = await cameraService.listEvents(camera.id, { limit: 10, sinceMinutes: 24 * 60 }).catch(() => ({ events: [] }));
+          return (result.events || []).map((event) => ({ ...event, camera_name: camera.name || camera.ip || "Camera" }));
+        }));
+        setCameraEvents(eventRows.flat());
       } else {
         setCameraEvents([]);
       }
+    } catch (requestError: any) {
+      setError(requestError?.response?.data?.error || requestError?.message || "Unable to load alerts.");
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    load();
   }, []);
 
-  const uiAlerts: UiAlert[] = useMemo(() => {
-    const notificationAlerts = (items || []).map((a: any, idx) => {
-      const id = String(a?.id ?? a?._id ?? a?.uuid ?? idx);
-      const title = safeStr(a?.title ?? a?.subject ?? a?.name, "System alert");
-      const description = safeStr(a?.message ?? a?.body ?? a?.description, "—");
-      const category = safeStr(a?.category, pickCategory(title, description));
-      const severity = pickSeverity(title, description, a);
-
-      // If backend already provides status use it; else default unread to active
-      const backendStatus = String(a?.status || "").toLowerCase() as Status;
-      const status: Status =
-        statusById[id] ||
-        (backendStatus === "active" ||
-        backendStatus === "investigating" ||
-        backendStatus === "acknowledged" ||
-        backendStatus === "resolved"
-          ? backendStatus
-          : "active");
-
-      const created = a?.created_at ?? a?.createdAt ?? a?.time ?? null;
-
-      const location = safeStr(
-        a?.location ?? a?.zone ?? a?.source,
-        defaultLocation(category, title, description)
-      );
-
-      return {
-        id,
-        severity,
-        category,
-        title,
-        description,
-        location,
-        time: safeStr(a?.time, timeAgo(created)),
-        status,
-        raw: a,
-      };
-    });
-
-    const cameraIntelAlerts = (cameraEvents || []).map((ev: any, idx) => {
-      const title = safeStr(ev?.event_type, "camera event").replace(/_/g, " ");
-      const description = safeStr(ev?.message, "Camera detection event");
-      const sev = pickSeverity(title, description, ev);
-      const id = `cam-${String(ev?.id || idx)}`;
-      return {
-        id,
-        severity: sev,
-        category: "Camera Intelligence",
-        title: `Camera: ${title}`,
-        description,
-        location: safeStr(ev?.camera_name, "Camera"),
-        time: timeAgo(ev?.created_at),
-        status: statusById[id] || "active",
-        raw: ev,
-      } as UiAlert;
-    });
-
-    return [...notificationAlerts, ...cameraIntelAlerts];
-  }, [items, cameraEvents, statusById]);
-
-  const filteredAlerts = useMemo(() => {
-    return uiAlerts.filter((a) => {
-      if (filterSeverity !== "all" && a.severity !== filterSeverity) return false;
-      if (filterStatus !== "all" && a.status !== filterStatus) return false;
-      return true;
-    });
-  }, [uiAlerts, filterSeverity, filterStatus]);
-
-  const alertCounts = useMemo(() => {
-    return {
-      critical: uiAlerts.filter((a) => a.severity === "critical").length,
-      high: uiAlerts.filter((a) => a.severity === "high").length,
-      medium: uiAlerts.filter((a) => a.severity === "medium").length,
-      low: uiAlerts.filter((a) => a.severity === "low").length,
+  useEffect(() => {
+    void load();
+    const onRealtime = (event: Event) => {
+      const name = (event as CustomEvent)?.detail?.event || "";
+      if (/alert|incident|security|camera|notification|visitor|maintenance|device|edge/.test(name)) void load();
     };
-  }, [uiAlerts]);
+    window.addEventListener("facility:realtime-event", onRealtime);
+    return () => window.removeEventListener("facility:realtime-event", onRealtime);
+  }, [load]);
 
-  function setStatus(id: string, next: Status) {
-    setStatusById((p) => ({ ...p, [id]: next }));
+  const incidents = useMemo<Incident[]>(() => {
+    const fromNotifications = notifications.map((item) => {
+      const source = `${item.title || ""} ${item.message || ""}`;
+      const type = typeFor(source);
+      return {
+        id: item.id,
+        type,
+        severity: severityFor(source),
+        source: "notification",
+        title: text(item.title, "Security alert"),
+        description: text(item.message, "Review notification"),
+        location: type === "visitor" ? "Gate / access" : "Estate",
+        time: item.created_at,
+        status: statusById[item.id] || (String(item.status || "").toLowerCase() === "read" ? "acknowledged" : "new"),
+        route: type === "camera" ? "/cameras" : type === "visitor" ? "/visitors" : "/security-access",
+        canAcknowledge: true,
+      } as Incident;
+    });
+    const fromCamera = cameraEvents.map((event) => {
+      const title = text(event.event_type, "camera event").replace(/_/g, " ");
+      const severity = severityFor(`${title} ${event.message || ""}`);
+      return {
+        id: `camera:${event.id}`,
+        type: "camera",
+        severity,
+        source: "camera",
+        title,
+        description: text(event.message, "Camera event"),
+        location: event.camera_name || event.camera_id,
+        time: event.created_at,
+        status: statusById[`camera:${event.id}`] || "new",
+        route: "/cameras",
+        canAcknowledge: false,
+      } as Incident;
+    });
+    return [...fromNotifications, ...fromCamera].sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime());
+  }, [cameraEvents, notifications, statusById]);
+
+  const filtered = filter === "all" ? incidents : incidents.filter((incident) => incident.type === filter || incident.severity === filter || incident.status === filter);
+
+  async function applyAction(incident: Incident, action: IncidentStatus) {
+    setConfirming(null);
+    if (action === "acknowledged" && incident.canAcknowledge && incident.source === "notification") {
+      const ok = await notificationService.markRead(incident.id);
+      if (!ok) {
+        setError("Acknowledge failed. Backend notification read endpoint rejected the request.");
+        return;
+      }
+      await load();
+      return;
+    }
+    setStatusById((prev) => ({ ...prev, [incident.id]: action }));
   }
 
   return (
-    <div className="space-y-7">
-      <Topbar
-        title="Alerts"
-        subtitle="System alerts • security signals • operator notifications"
-      />
+    <div className="space-y-6">
+      <Topbar title="Alerts & Incidents" subtitle="Security, visitor, camera, device, Edge, utility, maintenance, and community alerts." rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
+      {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
-      {/* Counters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className={cn("rounded-2xl border p-5", getSeverityCardTone("critical"))}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-red-200/80">Critical</span>
-            <AlertCircle className="text-red-500" size={20} />
-          </div>
-          <div className="text-3xl font-semibold text-red-200">
-            {alertCounts.critical}
-          </div>
-        </div>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {["critical", "high", "medium", "new", "acknowledged"].map((item) => <button key={item} type="button" onClick={() => setFilter(filter === item ? "all" : item)} className={`rounded-2xl border p-4 text-left ${filter === item ? "border-sky-400/30 bg-sky-500/10" : "border-white/10 bg-white/[0.035]"}`}><p className="text-[10px] uppercase tracking-[0.17em] text-zinc-500">{item}</p><p className="mt-3 text-2xl font-semibold text-white">{incidents.filter((incident) => incident.severity === item || incident.status === item).length}</p><p className="mt-2 text-xs text-zinc-500">Click to filter</p></button>)}
+      </section>
 
-        <div className={cn("rounded-2xl border p-5", getSeverityCardTone("high"))}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-orange-200/80">High</span>
-            <AlertTriangle className="text-orange-500" size={20} />
-          </div>
-          <div className="text-3xl font-semibold text-orange-200">
-            {alertCounts.high}
-          </div>
-        </div>
+      <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+        <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Incident lifecycle</h2><p className="mt-1 text-xs text-zinc-500">Acknowledge persists for notifications. Investigating, resolved, and dismissed are frontend-safe until backend incident lifecycle routes are added.</p></div><ShieldAlert className="h-4 w-4 text-rose-200" /></div>
+        <div className="mt-4 space-y-3">{filtered.map((incident) => <article key={incident.id} className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2 py-1 text-[10px] uppercase ${tone(incident.severity)}`}>{incident.severity}</span><span className={`rounded-full border px-2 py-1 text-[10px] uppercase ${statusTone(incident.status)}`}>{incident.status}</span><span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase text-zinc-400">{incident.type}</span></div><h3 className="mt-3 text-sm font-semibold text-white">{incident.title}</h3><p className="mt-1 text-sm text-zinc-400">{incident.description}</p><p className="mt-2 text-xs text-zinc-500">{incident.source} · {incident.location} · {when(incident.time)}</p></div><div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => setConfirming({ incident, action: "acknowledged" })} className="gap-2"><CheckCircle2 className="h-4 w-4" /> Acknowledge</Button><Button variant="ghost" onClick={() => setConfirming({ incident, action: "investigating" })}>Investigating</Button><Button variant="ghost" onClick={() => setConfirming({ incident, action: "resolved" })}>Resolve</Button><Button variant="danger" onClick={() => setConfirming({ incident, action: "dismissed" })}>Dismiss</Button></div></div></article>)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No alerts or incidents match this view.</p> : null}</div>
+      </section>
 
-        <div className={cn("rounded-2xl border p-5", getSeverityCardTone("medium"))}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-yellow-200/80">Medium</span>
-            <AlertTriangle className="text-yellow-500" size={20} />
-          </div>
-          <div className="text-3xl font-semibold text-yellow-200">
-            {alertCounts.medium}
-          </div>
-        </div>
-
-        <div className={cn("rounded-2xl border p-5", getSeverityCardTone("low"))}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-blue-200/80">Low</span>
-            <Info className="text-blue-500" size={20} />
-          </div>
-          <div className="text-3xl font-semibold text-blue-200">
-            {alertCounts.low}
-          </div>
-        </div>
-      </div>
-
-      {/* List + filters */}
-      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
-          <h3 className="text-lg font-semibold flex items-center gap-2 text-white">
-            <Filter size={18} className="text-white/70" />
-            Active Alerts
-          </h3>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={filterSeverity}
-              onChange={(e) => setFilterSeverity(e.target.value as any)}
-              className="px-3 py-2 bg-zinc-900/60 border border-white/10 rounded-xl text-sm outline-none focus:border-blue-500"
-            >
-              <option value="all">All Severities</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as any)}
-              className="px-3 py-2 bg-zinc-900/60 border border-white/10 rounded-xl text-sm outline-none focus:border-blue-500"
-            >
-              <option value="all">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="investigating">Investigating</option>
-              <option value="acknowledged">Acknowledged</option>
-              <option value="resolved">Resolved</option>
-            </select>
-
-            <Button variant="ghost" onClick={load} disabled={loading}>
-              {loading ? "Refreshing..." : "Refresh"}
-            </Button>
-          </div>
-        </div>
-
-        {filteredAlerts.length === 0 ? (
-          <div className="text-center py-12">
-            <CheckCircle className="mx-auto mb-3 text-emerald-400" size={44} />
-            <p className="text-lg font-medium text-white mb-1">No Alerts Found</p>
-            <p className="text-sm text-white/60">
-              All systems operating normally.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredAlerts.map((alert) => (
-              <div
-                key={alert.id}
-                className={cn(
-                  "p-5 rounded-2xl border",
-                  getSeverityRowTone(alert.severity)
-                )}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="p-2 rounded-xl bg-black/20 border border-white/10">
-                    {getSeverityIcon(alert.severity)}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <h4 className="font-semibold text-white truncate">
-                            {alert.title}
-                          </h4>
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-black/20 border border-white/10 text-white/70">
-                            {alert.category}
-                          </span>
-                        </div>
-
-                        <p className="text-sm text-white/80">
-                          {alert.description}
-                        </p>
-                      </div>
-
-                      <span
-                        className={cn(
-                          "shrink-0 px-3 py-1 rounded-full text-xs font-medium",
-                          getStatusTone(alert.status)
-                        )}
-                      >
-                        {alert.status}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 text-xs text-white/60 mt-3 flex-wrap">
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} />
-                        {alert.time}
-                        {alert.raw?.created_at ? (
-                          <span className="text-white/40">
-                            {" "}
-                            • {when(alert.raw.created_at as any)}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="text-white/30">•</span>
-                      <span className="truncate">{alert.location}</span>
-                    </div>
-
-                    {/* Actions (UI-only until backend routes exist) */}
-                    <div className="flex gap-2 mt-4 flex-wrap">
-                      {alert.status === "active" ? (
-                        <>
-                          <button
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl text-xs font-medium transition-colors text-white"
-                            onClick={() => setStatus(alert.id, "acknowledged")}
-                            type="button"
-                          >
-                            Acknowledge
-                          </button>
-                          <button
-                            className="px-4 py-2 bg-zinc-900/60 hover:bg-zinc-800 rounded-xl text-xs font-medium transition-colors text-white/90 border border-white/10"
-                            onClick={() => setStatus(alert.id, "investigating")}
-                            type="button"
-                          >
-                            Assign Team
-                          </button>
-                        </>
-                      ) : null}
-
-                      {alert.status === "investigating" ? (
-                        <>
-                          <button
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-xs font-medium transition-colors text-white"
-                            onClick={() => setStatus(alert.id, "resolved")}
-                            type="button"
-                          >
-                            Mark Resolved
-                          </button>
-                          <button
-                            className="px-4 py-2 bg-zinc-900/60 hover:bg-zinc-800 rounded-xl text-xs font-medium transition-colors text-white/90 border border-white/10"
-                            onClick={() => setStatus(alert.id, "acknowledged")}
-                            type="button"
-                          >
-                            Update Status
-                          </button>
-                        </>
-                      ) : null}
-
-                      {alert.status === "acknowledged" ? (
-                        <button
-                          className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-xl text-xs font-medium transition-colors text-white"
-                          onClick={() => setStatus(alert.id, "investigating")}
-                          type="button"
-                        >
-                          Begin Investigation
-                        </button>
-                      ) : null}
-
-                      <button
-                        className="px-4 py-2 bg-zinc-900/60 hover:bg-zinc-800 rounded-xl text-xs font-medium transition-colors text-white/90 border border-white/10"
-                        onClick={() =>
-                          window.alert(
-                            `Alert details\n\n${alert.title}\n\n${alert.description}\n\nCategory: ${alert.category}\nLocation: ${alert.location}`
-                          )
-                        }
-                        type="button"
-                      >
-                        View Details
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {confirming ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex justify-between gap-3"><h2 className="text-lg font-semibold text-white">Confirm incident action</h2><button type="button" onClick={() => setConfirming(null)}><X className="h-4 w-4 text-zinc-400" /></button></header><p className="mt-2 text-sm text-zinc-400">Set <span className="text-white">{confirming.incident.title}</span> to <span className="text-white">{confirming.action}</span>. Only notification acknowledge is persisted by the current backend.</p><footer className="mt-6 flex justify-end gap-2"><Button variant="ghost" onClick={() => setConfirming(null)}>Cancel</Button><Button variant={confirming.action === "dismissed" ? "danger" : "primary"} onClick={() => void applyAction(confirming.incident, confirming.action)}>{confirming.action}</Button></footer></section></div> : null}
     </div>
   );
 }

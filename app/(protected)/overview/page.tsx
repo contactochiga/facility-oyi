@@ -274,6 +274,12 @@ function OverviewPage() {
 
   useEffect(() => {
     load();
+    const onRealtime = (event: Event) => {
+      const name = (event as CustomEvent)?.detail?.event || "";
+      if (/device|edge|visitor|maintenance|notification|office|camera|incident|audit/.test(name)) void load();
+    };
+    window.addEventListener("facility:realtime-event", onRealtime);
+    return () => window.removeEventListener("facility:realtime-event", onRealtime);
   }, [load]);
 
   const openMaintenance = sources.maintenance.data.filter((item) => !isClosed(item?.status));

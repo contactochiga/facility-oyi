@@ -15,12 +15,18 @@ export type BoundCamera = {
   id: string;
   estate_id: string;
   name: string | null;
-  ip: string;
+  ip?: string | null;
   onvif_port: number | null;
-  rtsp_url: string;
-  username: string | null;
-  password: string | null;
-  created_at: string;
+  rtsp_url?: string | null;
+  username?: string | null;
+  password?: string | null;
+  status?: string | null;
+  health_status?: string | null;
+  stream_status?: string | null;
+  edge_node_id?: string | null;
+  last_seen_at?: string | null;
+  created_at?: string | null;
+  metadata?: Record<string, any> | null;
 };
 
 export type CameraEvent = {

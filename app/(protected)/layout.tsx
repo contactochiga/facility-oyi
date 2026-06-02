@@ -7,6 +7,7 @@ import { FacilityShellProvider } from "@/components/shell/FacilityShellContext";
 import { isExpired } from "@/lib/auth";
 import { useSessionStore } from "@/store/useSessionStore";
 import { usePathname, useRouter } from "next/navigation";
+import { connectFacilityRealtime, disconnectFacilityRealtime } from "@/services/facilityRealtime";
 
 export default function ProtectedLayout({
   children,
@@ -29,6 +30,19 @@ export default function ProtectedLayout({
     const destination = `${pathname || "/overview"}${query ? `?${query}` : ""}`;
     router.replace(`/login?next=${encodeURIComponent(destination)}`);
   }, [hydrated, pathname, router, token, user]);
+
+  useEffect(() => {
+    if (!hydrated || !token || !user || isExpired(user)) {
+      disconnectFacilityRealtime();
+      return;
+    }
+    connectFacilityRealtime({
+      token,
+      estateId: (user as any)?.estate_id || null,
+      userId: user.id,
+    });
+    return () => disconnectFacilityRealtime();
+  }, [hydrated, token, user]);
 
   // Close drawer on route change (mobile nav feels clean)
   useEffect(() => {

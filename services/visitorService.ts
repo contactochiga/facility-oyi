@@ -23,7 +23,7 @@ export type VisitorItem = {
   estate_id?: string;
   home_id?: string | null;
 
-  created_at: string;
+  created_at?: string | null;
   expires_at?: string | null;
 
   // UI helpers (derived)
@@ -49,7 +49,6 @@ function normalizeItem(x: any): VisitorItem {
   const visitor_name = String(x?.visitor_name || x?.full_name || x?.name || "—");
   const visitor_phone = String(x?.visitor_phone || x?.phone || "—");
   const access_code = String(x?.access_code || x?.code || "—");
-  const created_at = String(x?.created_at || new Date().toISOString());
 
   return {
     id: String(x?.id),
@@ -60,7 +59,7 @@ function normalizeItem(x: any): VisitorItem {
     status: String(x?.status || "active"),
     estate_id: x?.estate_id,
     home_id: x?.home_id ?? null,
-    created_at,
+    created_at: x?.created_at ?? null,
     expires_at: x?.expires_at ?? null,
     full_name: visitor_name,
   };

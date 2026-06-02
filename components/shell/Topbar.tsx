@@ -10,6 +10,7 @@ import { messagesService } from "@/services/messagesService";
 import { MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useFacilityShell } from "@/components/shell/FacilityShellContext";
+import { useFacilityRealtimeStore } from "@/store/useFacilityRealtimeStore";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -48,6 +49,31 @@ function StatusPill({ ok }: { ok: boolean | null }) {
           ok === null ? "bg-zinc-500" : ok ? "bg-emerald-400" : "bg-amber-400"
         )}
       />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function RealtimePill() {
+  const status = useFacilityRealtimeStore((state) => state.status);
+  const lastEventAt = useFacilityRealtimeStore((state) => state.lastEventAt);
+  const label =
+    status === "live"
+      ? "Live"
+      : status === "reconnecting" || status === "connecting"
+      ? "Reconnecting"
+      : status === "offline"
+      ? "Polling fallback"
+      : "Polling fallback";
+  const tone =
+    status === "live"
+      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+      : status === "reconnecting" || status === "connecting"
+      ? "border-amber-500/20 bg-amber-500/10 text-amber-200"
+      : "border-white/10 bg-white/5 text-white/60";
+  return (
+    <div className={cn("hidden lg:inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-medium", tone)} title={lastEventAt ? `Last event ${lastEventAt}` : "Realtime bridge state"}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", status === "live" ? "bg-emerald-400" : status === "connecting" || status === "reconnecting" ? "bg-amber-400" : "bg-zinc-500")} />
       <span>{label}</span>
     </div>
   );
@@ -179,6 +205,7 @@ export default function Topbar({
                 {title}
               </h1>
               <StatusPill ok={backendOk} />
+              <RealtimePill />
             </div>
 
             {subtitle ? (

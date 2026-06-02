@@ -109,8 +109,16 @@ export default function HardwareDevicesPage() {
     const initialTab = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("tab");
     if (TABS.some((item) => item.key === initialTab)) setTab(initialTab as Tab);
     void load();
+    const onRealtime = (event: Event) => {
+      const name = (event as CustomEvent)?.detail?.event || "";
+      if (/device|edge|registry|discovered|audit/.test(name)) void load();
+    };
+    window.addEventListener("facility:realtime-event", onRealtime);
     const timer = window.setInterval(() => void load(), 30_000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.removeEventListener("facility:realtime-event", onRealtime);
+      window.clearInterval(timer);
+    };
   }, [load]);
 
   const registry = data?.registry || [];
