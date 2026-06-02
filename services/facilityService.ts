@@ -45,6 +45,33 @@ export type RoomsResponse<T = any> = {
   rooms: T[];
 };
 
+export type EstateStructureSummary = {
+  homes: number;
+  occupied_homes: number;
+  vacant_homes: number;
+  pending_activation_homes: number;
+  pending_invitations: number;
+  expired_invitations: number;
+  revoked_invitations: number;
+  failed_deliveries: number;
+  active_residents: number;
+  suspended_residents: number;
+  rooms_configured: number;
+  devices_assigned: number;
+  homes_without_residents: number;
+  homes_with_multiple_members: number;
+  resident_access_issues: number;
+  recently_activated_residents: number;
+};
+
+export type EstateStructureResponse = {
+  estate: { id: string; name: string };
+  homes: any[];
+  invitations: HomeInviteRow[];
+  summary: EstateStructureSummary;
+  sources: Record<string, string>;
+};
+
 // ---------------------------
 // ROOMS (CREATE)
 // ---------------------------
@@ -137,6 +164,7 @@ export type HomeMembershipRow = {
   status: string;
   permissions?: Record<string, any>;
   created_at?: string;
+  updated_at?: string;
   users: {
     id: string;
     email?: string;
@@ -172,6 +200,7 @@ export type HomeInviteRow = {
   claimed_at?: string | null;
   revoked_at?: string | null;
   created_at?: string | null;
+  lifecycle_status?: string | null;
 };
 
 // ✅ Matches backend inviteHomeUser() return (inviteUrl + qr + membership)
@@ -273,6 +302,13 @@ export const facilityService = {
     return res.data;
   },
 
+  async estateStructure(estateId?: string): Promise<EstateStructureResponse> {
+    const res = await API.get("/facility/estate-structure", {
+      params: estateId ? { estate_id: estateId } : undefined,
+    });
+    return res.data;
+  },
+
   async createHome(payload: {
     estate_id: string;
     name: string;
@@ -331,6 +367,11 @@ export const facilityService = {
   async createRoom(payload: CreateRoomPayload): Promise<CreateRoomResponse> {
     const res = await API.post("/facility/rooms", payload);
     return res.data;
+  },
+
+  async updateRoom(roomId: string, payload: { name?: string; type?: string; floor?: number | null }) {
+    const res = await API.patch(`/facility/rooms/${roomId}`, payload);
+    return res.data as { message: string; room: any };
   },
 
   // ---------------------------

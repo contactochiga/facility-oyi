@@ -25,7 +25,9 @@ export default function ProtectedLayout({
   useEffect(() => {
     if (!hydrated) return;
     if (token && user && !isExpired(user)) return;
-    router.replace(`/login?next=${encodeURIComponent(pathname || "/overview")}`);
+    const query = typeof window === "undefined" ? "" : window.location.search.replace(/^\?/, "");
+    const destination = `${pathname || "/overview"}${query ? `?${query}` : ""}`;
+    router.replace(`/login?next=${encodeURIComponent(destination)}`);
   }, [hydrated, pathname, router, token, user]);
 
   // Close drawer on route change (mobile nav feels clean)

@@ -54,7 +54,7 @@ export function middleware(req: NextRequest) {
   if (!token || isExpiredOrMalformed(token)) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("next", pathname);
+    url.searchParams.set("next", `${pathname}${req.nextUrl.search}`);
     const response = NextResponse.redirect(url);
     response.cookies.delete("oyi_facility_token");
     return response;

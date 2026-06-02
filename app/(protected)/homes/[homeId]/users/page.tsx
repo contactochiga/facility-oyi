@@ -91,7 +91,7 @@ function StatusBadge({ status }: { status?: string }) {
       ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
       : normalized === "expired"
       ? "border-orange-500/25 bg-orange-500/10 text-orange-200"
-      : normalized === "revoked" || normalized === "disabled"
+      : normalized === "revoked" || normalized === "disabled" || normalized === "suspended"
       ? "border-rose-500/25 bg-rose-500/10 text-rose-200"
       : "border-white/10 bg-white/5 text-zinc-300";
 
@@ -188,7 +188,7 @@ export default function HomeUsersPage() {
     return {
       active: members.filter((item) => item.status === "active").length,
       pending: invites.filter((item) => inviteStatus(item) === "pending").length,
-      disabled: members.filter((item) => item.status === "disabled").length,
+      disabled: members.filter((item) => ["disabled", "suspended"].includes(String(item.status).toLowerCase())).length,
       owners: members.filter((item) => item.role === "owner" && item.status === "active").length,
     };
   }, [invites, members]);
@@ -284,6 +284,20 @@ export default function HomeUsersPage() {
     }
   }
 
+  async function setMemberStatus(member: HomeMembershipRow, status: "active" | "disabled") {
+    setBusyAction(`status:${member.id}`);
+    setError(null);
+    try {
+      await facilityService.updateHomeUser(member.id, { status });
+      setNotice(status === "active" ? "Member access restored." : "Member access suspended.");
+      await load();
+    } catch (requestError: any) {
+      setError(errorMessage(requestError, "Unable to update member access."));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function confirmRemoveMember() {
     if (!removeMember) return;
     setBusyAction(`remove:${removeMember.id}`);
@@ -337,7 +351,7 @@ export default function HomeUsersPage() {
       />
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <MetricCard title="Active" value={String(stats.active)} change="Live home access" trend="neutral" icon={UserCheck} iconColor="text-emerald-400" />
+        <MetricCard title="Active" value={String(stats.active)} change="Current home access" trend="neutral" icon={UserCheck} iconColor="text-emerald-400" />
         <MetricCard title="Pending" value={String(stats.pending)} change="Awaiting setup" trend="neutral" icon={UserPlus} iconColor="text-amber-400" />
         <MetricCard title="Paused" value={String(stats.disabled)} change="Suspended access" trend="neutral" icon={UserX} iconColor="text-rose-400" />
         <MetricCard title="Owners" value={String(stats.owners)} change="Home authority" trend="neutral" icon={ShieldCheck} iconColor="text-blue-400" />
@@ -393,6 +407,7 @@ export default function HomeUsersPage() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-white">{profile.full_name || profile.username || "Resident"}</p>
                     <p className="mt-0.5 truncate text-xs text-zinc-500">{profile.email || "Email unavailable"}</p>
+                    <p className="mt-1 text-[11px] text-zinc-600">Assigned {formatDate(member.created_at)}</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -417,6 +432,17 @@ export default function HomeUsersPage() {
                         <Pencil className="mr-1.5 h-3.5 w-3.5" />
                         Edit
                       </Button>
+                      {["disabled", "suspended"].includes(String(member.status).toLowerCase()) ? (
+                        <Button variant="ghost" className="px-3 py-1.5 text-xs" disabled={busyAction === `status:${member.id}`} onClick={() => void setMemberStatus(member, "active")}>
+                          <UserCheck className="mr-1.5 h-3.5 w-3.5" />
+                          Restore
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" className="px-3 py-1.5 text-xs" disabled={busyAction === `status:${member.id}`} onClick={() => void setMemberStatus(member, "disabled")}>
+                          <UserX className="mr-1.5 h-3.5 w-3.5" />
+                          Suspend
+                        </Button>
+                      )}
                       <Button variant="danger" className="px-3 py-1.5 text-xs" onClick={() => setRemoveMember(member)}>
                         <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                         Remove
@@ -462,6 +488,8 @@ export default function HomeUsersPage() {
                         {invite.role || "resident"} · expires {formatDate(invite.expires_at)}
                       </p>
                       {invite.last_sent_at ? <p className="mt-1 text-[11px] text-zinc-600">Last delivery attempt {formatDate(invite.last_sent_at)}</p> : null}
+                      {invite.claimed_at ? <p className="mt-1 text-[11px] text-emerald-300/70">Activated {formatDate(invite.claimed_at)}</p> : null}
+                      {invite.revoked_at ? <p className="mt-1 text-[11px] text-rose-300/70">Revoked {formatDate(invite.revoked_at)}</p> : null}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">

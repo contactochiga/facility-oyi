@@ -4,11 +4,12 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { MetricCard } from "@/components/MetricCard";
 import { facilityService } from "@/services/facilityService";
-import { ArrowLeft, Building2, KeyRound, Pencil, Router, Users, Waves } from "lucide-react";
+import { ArrowLeft, Building2, DoorOpen, Home, Pencil, Search, Users } from "lucide-react";
 
 type HomeRow = {
   id: string;
@@ -26,6 +27,15 @@ type HomeRow = {
   resident_id?: string | null;
   type?: string | null;
   created_at?: string;
+  room_count?: number;
+  device_count?: number;
+  member_count?: number;
+  active_member_count?: number;
+  invited_member_count?: number;
+  suspended_member_count?: number;
+  pending_invite_count?: number;
+  expired_invite_count?: number;
+  occupancy_status?: "occupied" | "pending_activation" | "vacant" | string;
 };
 
 type RoomRow = {
@@ -56,12 +66,14 @@ function Field({
 }
 
 export default function HomesPage() {
+  const sp = useSearchParams();
   const [estateId, setEstateId] = useState<string | null>(null);
 
   const [homes, setHomes] = useState<HomeRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   // Expand → rooms cache
   const [openHomeId, setOpenHomeId] = useState<string | null>(null);
@@ -84,16 +96,26 @@ export default function HomesPage() {
   const canSubmit = useMemo(() => form.name.trim().length > 0, [form.name]);
   const editingHome = useMemo(() => homes.find((h) => h.id === editHomeId) || null, [homes, editHomeId]);
   const summary = useMemo(() => {
-    const withPower = homes.filter((h) => String(h.electricity_meter || "").trim()).length;
-    const withWater = homes.filter((h) => String(h.water_meter || "").trim()).length;
-    const withInternet = homes.filter((h) => String(h.internet_id || "").trim()).length;
     return {
       total: homes.length,
-      withPower,
-      withWater,
-      withInternet,
+      occupied: homes.filter((home) => home.occupancy_status === "occupied").length,
+      vacant: homes.filter((home) => home.occupancy_status === "vacant").length,
+      pending: homes.reduce((sum, home) => sum + Number(home.pending_invite_count || 0), 0),
     };
   }, [homes]);
+  const view = sp.get("view") || "all";
+  const filteredHomes = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    const filtered = homes.filter((home) => {
+      if (!needle) return true;
+      return [home.name, home.unit, home.block, home.description]
+        .some((value) => String(value || "").toLowerCase().includes(needle));
+    });
+    if (view === "rooms") return [...filtered].sort((a, b) => Number(b.room_count || 0) - Number(a.room_count || 0));
+    if (view === "access") return [...filtered].sort((a, b) => Number(b.pending_invite_count || 0) - Number(a.pending_invite_count || 0));
+    if (view === "buildings") return [...filtered].sort((a, b) => String(a.block || "").localeCompare(String(b.block || "")));
+    return filtered;
+  }, [homes, search, view]);
 
   async function bootstrapEstate() {
     const res = await facilityService.myEstates(); // { estates: [...] }
@@ -268,11 +290,17 @@ export default function HomesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (sp.get("action") === "create") openCreate();
+    // Query-driven modal opening intentionally tracks route state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sp]);
+
   return (
     <div className="space-y-7">
       <Topbar
         title="Homes"
-        subtitle="Units under management • meters • rooms • memberships"
+        subtitle="Operational home registry, occupancy, rooms, and resident access."
         rightSlot={
           <Link
             href="/overview"
@@ -286,9 +314,9 @@ export default function HomesPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <MetricCard title="Homes" value={String(summary.total)} change="Registered units" trend="neutral" icon={Building2} iconColor="text-blue-400" />
-        <MetricCard title="Electricity Linked" value={String(summary.withPower)} change="Homes with meter IDs" trend="neutral" icon={KeyRound} iconColor="text-amber-400" />
-        <MetricCard title="Water Linked" value={String(summary.withWater)} change="Homes with water meters" trend="neutral" icon={Waves} iconColor="text-cyan-400" />
-        <MetricCard title="Internet Linked" value={String(summary.withInternet)} change="Homes with service IDs" trend="neutral" icon={Router} iconColor="text-emerald-400" />
+        <MetricCard title="Occupied" value={String(summary.occupied)} change="Homes with active residents" trend="neutral" icon={Users} iconColor="text-emerald-400" />
+        <MetricCard title="Vacant" value={String(summary.vacant)} change="Homes without assigned residents" trend="neutral" icon={Home} iconColor="text-zinc-300" />
+        <MetricCard title="Pending Invites" value={String(summary.pending)} change="Awaiting resident activation" trend="neutral" icon={DoorOpen} iconColor="text-amber-400" />
       </div>
 
       <div className="glass border border-white/10 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
@@ -308,8 +336,26 @@ export default function HomesPage() {
         </div>
       </div>
 
+      <div className="glass flex flex-col gap-3 border border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap gap-2">
+          {[
+            ["All Homes", "/homes"],
+            ["Buildings", "/homes?view=buildings"],
+            ["Rooms", "/homes?view=rooms"],
+            ["Access", "/homes?view=access"],
+          ].map(([label, href]) => {
+            const active = href === "/homes" ? view === "all" : href.includes(`view=${view}`);
+            return <Link key={href} href={href} className={`rounded-xl border px-3 py-2 text-xs transition ${active ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-black/15 text-zinc-400 hover:text-white"}`}>{label}</Link>;
+          })}
+        </div>
+        <label className="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-3 py-2 lg:w-[320px]">
+          <Search className="h-4 w-4 text-zinc-500" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search homes, units, or blocks" className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-zinc-600" />
+        </label>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {homes.slice(0, 4).map((home) => (
+        {filteredHomes.slice(0, 4).map((home) => (
           <div key={`${home.id}:overview`} className="glass border border-white/10 rounded-2xl p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -329,10 +375,10 @@ export default function HomesPage() {
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <Field label="Electricity" value={home.electricity_meter} />
-              <Field label="Water" value={home.water_meter} />
-              <Field label="Internet" value={home.internet_id} />
-              <Field label="Gate Code" value={home.gate_code} />
+              <Field label="Occupancy" value={String(home.occupancy_status || "pending source").replace(/_/g, " ")} />
+              <Field label="Members" value={home.member_count ?? "Pending source"} />
+              <Field label="Rooms" value={home.room_count ?? "Pending source"} />
+              <Field label="Devices" value={home.device_count ?? "Pending source"} />
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -348,7 +394,10 @@ export default function HomesPage() {
                 className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-100 hover:bg-white/10 transition"
               >
                 <Users className="h-4 w-4" />
-                Manage Users
+                Manage Members
+              </Link>
+              <Link href="/occupancy" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-100 hover:bg-white/10 transition">
+                View Occupancy
               </Link>
               <Button variant="ghost" onClick={() => toggleHome(home.id)}>
                 {openHomeId === home.id ? "Collapse" : "Open Details"}
@@ -373,7 +422,7 @@ export default function HomesPage() {
       {/* TABLE */}
       <div className="glass border border-white/10 rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-          <div className="text-sm font-medium">Homes ({homes.length})</div>
+          <div className="text-sm font-medium">Homes ({filteredHomes.length})</div>
           <div className="text-xs text-zinc-500">
             Open a home to manage meters, rooms, and users
           </div>
@@ -391,7 +440,7 @@ export default function HomesPage() {
               </tr>
             </thead>
             <tbody>
-              {homes.map((h) => {
+              {filteredHomes.map((h) => {
                 const expanded = openHomeId === h.id;
                 const rooms = roomsByHome[h.id] || [];
                 const rLoading = roomsLoading[h.id];
@@ -466,7 +515,6 @@ export default function HomesPage() {
                                     Manage Rooms
                                   </a>
 
-                                  {/* ✅ Manage Users (NOW includes estateId) */}
                                   <a
                                     href={`/homes/${h.id}/users?estateId=${encodeURIComponent(
                                       estateId || ""
@@ -474,7 +522,7 @@ export default function HomesPage() {
                                     className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm bg-white/5 border border-white/10 hover:bg-white/10 transition"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    Manage Users
+                                    Manage Members
                                   </a>
                                   <Button
                                     variant="ghost"
@@ -517,7 +565,7 @@ export default function HomesPage() {
                               </div>
 
                               <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-xs text-zinc-400">
-                                Use <span className="text-zinc-200">Manage Users</span> to invite residents, update access roles, and disable or remove memberships without leaving the home context.
+                                Use <span className="text-zinc-200">Manage Members</span> to invite residents, update access roles, and disable or remove memberships without leaving the home context.
                               </div>
                             </div>
                           </div>
@@ -528,11 +576,10 @@ export default function HomesPage() {
                 );
               })}
 
-              {!homes.length && !loading && (
+              {!filteredHomes.length && !loading && (
                 <tr>
                   <td colSpan={5} className="px-5 py-10 text-center text-zinc-400">
-                    No homes yet. Click{" "}
-                    <span className="text-zinc-200">Add Home</span> to register the first unit.
+                    {homes.length ? "No homes match this filter." : <>No homes yet. Click <span className="text-zinc-200">Add Home</span> to register the first unit.</>}
                   </td>
                 </tr>
               )}
