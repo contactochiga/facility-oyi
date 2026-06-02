@@ -1,9 +1,16 @@
 import { create } from "zustand";
-import { decodeToken, isExpired, type DecodedToken } from "@/lib/auth";
+import {
+  decodeToken,
+  deleteCookie,
+  isExpired,
+  setCookie,
+  type DecodedToken,
+} from "@/lib/auth";
 
 type SessionState = {
   token: string | null;
   user: DecodedToken | null;
+  hydrated: boolean;
   hydrate: () => void;
   setToken: (token: string) => void;
   clear: () => void;
@@ -12,27 +19,36 @@ type SessionState = {
 export const useSessionStore = create<SessionState>((set) => ({
   token: null,
   user: null,
+  hydrated: false,
 
   hydrate: () => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("oyi_facility_token");
-    if (!token) return;
+    if (!token) {
+      deleteCookie("oyi_facility_token");
+      set({ token: null, user: null, hydrated: true });
+      return;
+    }
 
     const decoded = decodeToken(token);
     if (!decoded || isExpired(decoded)) {
       localStorage.removeItem("oyi_facility_token");
+      deleteCookie("oyi_facility_token");
+      set({ token: null, user: null, hydrated: true });
       return;
     }
-    set({ token, user: decoded });
+    set({ token, user: decoded, hydrated: true });
   },
 
   setToken: (token) => {
     localStorage.setItem("oyi_facility_token", token);
-    set({ token, user: decodeToken(token) });
+    setCookie("oyi_facility_token", token);
+    set({ token, user: decodeToken(token), hydrated: true });
   },
 
   clear: () => {
     localStorage.removeItem("oyi_facility_token");
-    set({ token: null, user: null });
+    deleteCookie("oyi_facility_token");
+    set({ token: null, user: null, hydrated: true });
   },
 }));

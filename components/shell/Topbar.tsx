@@ -9,6 +9,7 @@ import { notificationService } from "@/services/notificationService";
 import { messagesService } from "@/services/messagesService";
 import { MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useFacilityShell } from "@/components/shell/FacilityShellContext";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -70,6 +71,8 @@ export default function Topbar({
 }) {
   const { user } = useSessionStore();
   const router = useRouter();
+  const shell = useFacilityShell();
+  const openMenu = onOpenMenu || shell?.openMenu;
 
   const [openNotif, setOpenNotif] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -145,19 +148,24 @@ export default function Topbar({
 
   const userLabel = useMemo(() => {
     const email = user?.email ?? "—";
-    const role = user?.role ?? "operator";
-    return { email, role };
-  }, [user?.email, user?.role]);
+    const role = String(user?.role ?? "operator").replace(/_/g, " ");
+    const estate = (user as any)?.estate_name
+      ? String((user as any).estate_name)
+      : user?.estate_id
+      ? "Estate scope"
+      : "No estate scope";
+    return { email, role, estate };
+  }, [user]);
 
   return (
     <>
       <div className="flex items-center justify-between gap-4">
         {/* Left */}
         <div className="flex items-center gap-3 min-w-0">
-          {onOpenMenu && (
+          {openMenu && (
             <button
-              onClick={onOpenMenu}
-              className="lg:hidden rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10 transition"
+              onClick={openMenu}
+              className="xl:hidden rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10 transition"
               aria-label="Open navigation"
               type="button"
             >
@@ -184,6 +192,15 @@ export default function Topbar({
         {/* Right */}
         <div className="flex items-center gap-2 sm:gap-3">
           {rightSlot ? <div className="flex items-center">{rightSlot}</div> : null}
+
+          <div className="hidden xl:block rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-right">
+            <div className="max-w-[160px] truncate text-xs font-medium text-zinc-200">
+              {userLabel.estate}
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+              {userLabel.role}
+            </div>
+          </div>
 
           <button
             className="rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10 transition relative"

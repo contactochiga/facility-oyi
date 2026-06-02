@@ -19,7 +19,7 @@ export function decodeToken(token: string): DecodedToken | null {
 }
 
 export function isExpired(decoded?: DecodedToken | null) {
-  if (!decoded?.exp) return false;
+  if (!decoded?.exp) return true;
   return Date.now() >= decoded.exp * 1000;
 }
 

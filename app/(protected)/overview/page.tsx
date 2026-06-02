@@ -1,60 +1,109 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Topbar from "@/components/shell/Topbar";
-import StatCard from "@/components/ui/StatCard";
-import Button from "@/components/ui/Button";
-import { facilityService } from "@/services/facilityService";
-import type { FacilityOverview } from "@/types/facility";
-import { formatMoney, formatNumber } from "@/lib/format";
-import { LineChart, Line, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
-
-import { communityService, type CommunityPost } from "@/services/communityService";
-import { visitorService, type VisitorItem } from "@/services/visitorService";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  AlertTriangle,
+  Camera,
+  ChevronRight,
+  CircleHelp,
+  DoorOpen,
+  Home,
+  MonitorCog,
+  RefreshCw,
+  Router,
+  ShieldAlert,
+  Siren,
+  UserPlus,
+  Users,
+  Wrench,
+  Zap,
+} from "lucide-react";
+import Topbar from "@/components/shell/Topbar";
+import Button from "@/components/ui/Button";
+import API from "@/services/api";
+import { facilityService, type HomeInviteRow } from "@/services/facilityService";
+import { useSessionStore } from "@/store/useSessionStore";
+import type { FacilityOverview } from "@/types/facility";
 
-function series(seed = 10) {
-  const now = Date.now();
-  return Array.from({ length: 12 }).map((_, i) => ({
-    x: new Date(now - (11 - i) * 24 * 3600 * 1000).toLocaleDateString([], {
-      month: "short",
-      day: "2-digit",
-    }),
-    y: Math.max(0, Math.round(seed + Math.random() * seed * 2)),
-  }));
+type LoadStatus = "loading" | "ready" | "error" | "permission";
+type Source<T> = { status: LoadStatus; data: T; message?: string };
+type Severity = "critical" | "warning" | "info";
+type AttentionItem = {
+  id: string;
+  severity: Severity;
+  domain: string;
+  title: string;
+  detail: string;
+  href: string;
+  action: string;
+  time?: string | null;
+};
+
+type OverviewSources = {
+  overview: Source<FacilityOverview | null>;
+  homes: Source<any[]>;
+  devices: Source<any[]>;
+  maintenance: Source<any[]>;
+  visitors: Source<any[]>;
+  notifications: Source<any[]>;
+  cameras: Source<any[]>;
+  reports: Source<any[]>;
+  community: Source<any[]>;
+  invites: Source<HomeInviteRow[]>;
+};
+
+function source<T>(data: T, status: LoadStatus = "loading", message?: string): Source<T> {
+  return { data, status, message };
 }
 
-function score(n: number) {
-  return Math.max(0, Math.min(100, Math.round(n)));
+function emptySources(): OverviewSources {
+  return {
+    overview: source<FacilityOverview | null>(null),
+    homes: source<any[]>([]),
+    devices: source<any[]>([]),
+    maintenance: source<any[]>([]),
+    visitors: source<any[]>([]),
+    notifications: source<any[]>([]),
+    cameras: source<any[]>([]),
+    reports: source<any[]>([]),
+    community: source<any[]>([]),
+    invites: source<HomeInviteRow[]>([]),
+  };
 }
 
-function OpsPill({ label, value }: { label: string; value: number }) {
-  const color =
-    value >= 80
-      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
-      : value >= 55
-        ? "border-yellow-500/20 bg-yellow-500/10 text-yellow-200"
-        : "border-red-500/20 bg-red-500/10 text-red-200";
-
-  return (
-    <div className={`glass p-4 border ${color}`}>
-      <div className="text-[11px] opacity-80">{label}</div>
-      <div className="text-xl font-semibold">{value}%</div>
-    </div>
+function errorSource<T>(error: any, fallback: T): Source<T> {
+  const code = Number(error?.response?.status || 0);
+  const message = String(
+    error?.response?.data?.error ||
+      error?.response?.data?.message ||
+      error?.message ||
+      "Source unavailable"
   );
+  return source(fallback, code === 401 || code === 403 ? "permission" : "error", message);
 }
 
-function extractErr(e: any) {
-  const status = e?.response?.status;
-  const msg = e?.response?.data?.error || e?.message || "Request failed";
-  return { status, msg: String(msg) };
+async function loadSource<T>(request: Promise<T>, fallback: T): Promise<Source<T>> {
+  try {
+    return source(await request, "ready");
+  } catch (error) {
+    return errorSource(error, fallback);
+  }
 }
 
-function when(iso?: string | null) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString([], {
+function listFrom(data: any, keys: string[]) {
+  if (Array.isArray(data)) return data;
+  for (const key of keys) {
+    if (Array.isArray(data?.[key])) return data[key];
+  }
+  return [];
+}
+
+function dateLabel(value?: string | null) {
+  if (!value) return "Time unavailable";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Time unavailable";
+  return date.toLocaleString([], {
     month: "short",
     day: "2-digit",
     hour: "2-digit",
@@ -62,713 +111,500 @@ function when(iso?: string | null) {
   });
 }
 
-function timeOnly(iso?: string | null) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+function statusLabel(sourceState: Source<unknown>) {
+  if (sourceState.status === "loading") return "Loading source";
+  if (sourceState.status === "permission") return "Permission required";
+  if (sourceState.status === "error") return "Pending source";
+  return null;
 }
 
-function safeStr(v: any) {
-  const s = (v ?? "").toString().trim();
-  return s || "—";
+function SummaryCard({
+  label,
+  value,
+  hint,
+  href,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string | number;
+  hint: string;
+  href: string;
+  tone?: "neutral" | "good" | "warn";
+}) {
+  const color =
+    tone === "good"
+      ? "border-emerald-500/20 bg-emerald-500/[0.07]"
+      : tone === "warn"
+      ? "border-amber-500/20 bg-amber-500/[0.07]"
+      : "border-white/10 bg-white/[0.035]";
+  return (
+    <Link
+      href={href}
+      className={`rounded-2xl border p-4 transition hover:border-sky-400/30 hover:bg-white/[0.055] ${color}`}
+    >
+      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <div className="mt-3 text-2xl font-semibold tracking-tight text-white">{value}</div>
+      <div className="mt-2 text-xs leading-5 text-zinc-500">{hint}</div>
+    </Link>
+  );
 }
 
-function statusTone(status?: string) {
-  const s = String(status || "").toLowerCase();
-  if (s === "approved") return "text-emerald-200 bg-emerald-500/10 border-emerald-500/20";
-  if (s === "entered") return "text-blue-200 bg-blue-500/10 border-blue-500/20";
-  if (s === "exited") return "text-zinc-200 bg-white/5 border-white/10";
-  if (s === "denied") return "text-red-200 bg-red-500/10 border-red-500/20";
-  return "text-amber-200 bg-amber-500/10 border-amber-500/20";
+function Panel({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:p-5">
+      <h2 className="text-sm font-semibold text-zinc-100">{title}</h2>
+      {subtitle ? <p className="mt-1 text-xs leading-5 text-zinc-500">{subtitle}</p> : null}
+      <div className="mt-4">{children}</div>
+    </section>
+  );
 }
 
-export default function OverviewPage() {
-  const [data, setData] = useState<FacilityOverview | null>(null);
+function SourceMessage({ value, empty }: { value: Source<unknown>; empty: string }) {
+  const label = statusLabel(value);
+  return (
+    <div className="rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-3 text-sm text-zinc-500">
+      {label || empty}
+    </div>
+  );
+}
 
-  const [estateId, setEstateId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
+function severityClass(severity: Severity) {
+  if (severity === "critical") return "border-red-500/25 bg-red-500/[0.08] text-red-200";
+  if (severity === "warning") return "border-amber-500/25 bg-amber-500/[0.08] text-amber-200";
+  return "border-sky-500/20 bg-sky-500/[0.07] text-sky-200";
+}
 
-  const [err, setErr] = useState<string | null>(null);
+function isClosed(value?: string) {
+  return ["closed", "completed", "resolved", "cancelled"].includes(String(value || "").toLowerCase());
+}
 
-  // UX states
+function isOffline(device: any) {
+  const state = String(device?.status || device?.state?.status || "").toLowerCase();
+  return (
+    device?.online === false ||
+    device?.metadata?.online === false ||
+    ["offline", "unavailable", "error", "disconnected"].some((word) => state.includes(word))
+  );
+}
+
+function OverviewPage() {
+  const { user } = useSessionStore();
+  const [sources, setSources] = useState<OverviewSources>(emptySources);
+  const [estateName, setEstateName] = useState("Estate context");
+  const [lastRefresh, setLastRefresh] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [needsEstate, setNeedsEstate] = useState(false);
-  const [syncingEstate, setSyncingEstate] = useState(false);
-
   const [showCreate, setShowCreate] = useState(false);
-  const [modalErr, setModalErr] = useState<string | null>(null);
-  const [estateForm, setEstateForm] = useState({
-    name: "",
-    address: "",
-    lat: "",
-    lng: "",
-    type: "estate",
+  const [creating, setCreating] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [estateForm, setEstateForm] = useState({ name: "", address: "", type: "estate" });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setSources(emptySources());
+
+    const [overviewState, estatesState] = await Promise.all([
+      loadSource(facilityService.overview(), null),
+      loadSource(facilityService.myEstates(), { estates: [] }),
+    ]);
+    const overviewEstateId = overviewState.data?.estate_id || null;
+    const memberships = estatesState.data.estates || [];
+    const activeEstate = memberships.find((item) => item.id === overviewEstateId) || memberships[0];
+    const nextEstateId = overviewEstateId || activeEstate?.id || user?.estate_id || null;
+
+    setEstateName(activeEstate?.name || (user as any)?.estate_name || "Estate context");
+    setNeedsEstate(!nextEstateId);
+
+    if (!nextEstateId) {
+      setSources({ ...emptySources(), overview: overviewState });
+      setLoading(false);
+      setLastRefresh(new Date().toISOString());
+      return;
+    }
+
+    const [homes, devices, maintenance, visitors, notifications, cameras, reports, community] =
+      await Promise.all([
+        loadSource(facilityService.listHomes(nextEstateId).then((res) => res.homes || []), []),
+        loadSource(API.get("/facility/devices").then((res) => listFrom(res.data, ["devices", "items"])), []),
+        loadSource(API.get("/facility/maintenance").then((res) => listFrom(res.data, ["requests", "items"])), []),
+        loadSource(API.get("/facility/visitors", { params: { today: true } }).then((res) => listFrom(res.data, ["visitors", "items"])), []),
+        loadSource(API.get("/notifications", { params: { unread: true } }).then((res) => listFrom(res.data, ["items", "data"])), []),
+        loadSource(API.get(`/cameras/estate/${encodeURIComponent(nextEstateId)}`).then((res) => listFrom(res.data, ["items", "cameras"])), []),
+        loadSource(API.get("/messages/mod/reports", { params: { status: "open", limit: 40 } }).then((res) => listFrom(res.data, ["reports", "items"])), []),
+        loadSource(API.get(`/community/posts/estate/${encodeURIComponent(nextEstateId)}`).then((res) => listFrom(res.data, ["posts", "items"])), []),
+      ]);
+
+    let invites: Source<HomeInviteRow[]> = source([], homes.status === "ready" ? "ready" : homes.status);
+    if (homes.status === "ready" && homes.data.length) {
+      const inviteRequests = await Promise.allSettled(
+        homes.data.map((home) => facilityService.listHomeUsers(String(home.id)))
+      );
+      const accepted = inviteRequests
+        .filter((result): result is PromiseFulfilledResult<any> => result.status === "fulfilled")
+        .flatMap((result) => result.value?.invites || []);
+      invites =
+        accepted.length || inviteRequests.some((result) => result.status === "fulfilled")
+          ? source(accepted, "ready")
+          : errorSource((inviteRequests[0] as PromiseRejectedResult)?.reason, []);
+    }
+
+    setSources({
+      overview: overviewState,
+      homes,
+      devices,
+      maintenance,
+      visitors,
+      notifications,
+      cameras,
+      reports,
+      community,
+      invites,
+    });
+    setLoading(false);
+    setLastRefresh(new Date().toISOString());
+  }, [user]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const openMaintenance = sources.maintenance.data.filter((item) => !isClosed(item?.status));
+  const activeVisitors = sources.visitors.data.filter((item) =>
+    ["active", "approved", "entered", "pending"].includes(String(item?.status || "").toLowerCase())
+  );
+  const pendingVisitors = sources.visitors.data.filter(
+    (item) => String(item?.status || "").toLowerCase() === "pending"
+  );
+  const offlineDevices = sources.devices.data.filter(isOffline);
+  const pendingInvites = sources.invites.data.filter(
+    (item) => String(item?.status || "").toLowerCase() === "pending"
+  );
+  const expiredInvites = sources.invites.data.filter((item) => {
+    const expiry = item?.expires_at ? new Date(item.expires_at).getTime() : 0;
+    return String(item?.status || "").toLowerCase() === "expired" || (!!expiry && expiry < Date.now());
   });
 
-  // ✅ Community widget state
-  const [communityItems, setCommunityItems] = useState<CommunityPost[]>([]);
-  const [communityLoading, setCommunityLoading] = useState(false);
-  const [communityErr, setCommunityErr] = useState<string | null>(null);
-
-  // ✅ Mini-Security widget state (real DB data)
-  const [visitorItems, setVisitorItems] = useState<VisitorItem[]>([]);
-  const [visitorLoading, setVisitorLoading] = useState(false);
-  const [visitorErr, setVisitorErr] = useState<string | null>(null);
-
-  const trendDevices = useMemo(() => series(8), []);
-  const trendVisitors = useMemo(() => series(5), []);
-  const trendWallet = useMemo(() => series(12), []);
-
-  const canCreateEstate = estateForm.name.trim().length > 1;
-  async function hydrateEstateFromMembership() {
-    try {
-      const res = await facilityService.myEstates();
-      const first = res?.estates?.[0];
-
-      if (first?.id) {
-        setEstateId(first.id);
-        setNeedsEstate(false);
-        return first.id as string;
-      }
-
-      setEstateId(null);
-      setNeedsEstate(true);
-      return null;
-    } catch (e: any) {
-      const { status, msg } = extractErr(e);
-      setErr(`Failed to check sites${status ? ` (${status})` : ""}: ${msg}`);
-      return null;
+  const attention = useMemo<AttentionItem[]>(() => {
+    const items: AttentionItem[] = [];
+    for (const item of sources.notifications.data) {
+      const text = `${item?.title || ""} ${item?.message || ""}`.toLowerCase();
+      const critical = /security|breach|emergency|critical|lockdown/.test(text);
+      items.push({
+        id: `notification-${item.id}`,
+        severity: critical ? "critical" : "warning",
+        domain: critical ? "Security" : "Notification",
+        title: item.title || "Unread operational notification",
+        detail: item.message || "Review this notification.",
+        href: "/alerts",
+        action: "Review alert",
+        time: item.created_at,
+      });
     }
-  }
-
-  async function loadOverview() {
-    const [res, memberships] = await Promise.all([
-      facilityService.overview(),
-      facilityService.myEstates().catch(() => null),
-    ]);
-    const membershipEstateId = memberships?.estates?.[0]?.id || null;
-    setData(res);
-    if (res?.estate_id || membershipEstateId) {
-      setEstateId(res?.estate_id || membershipEstateId);
-      setNeedsEstate(false);
-    } else {
-      setEstateId(null);
-      setNeedsEstate(true);
+    for (const item of offlineDevices) {
+      items.push({
+        id: `device-${item.id}`,
+        severity: "warning",
+        domain: "Device registry",
+        title: `${item.name || item.label || "Device"} requires attention`,
+        detail: item.room_name || item.home_name || "Review device connectivity and assignment.",
+        href: "/devices",
+        action: "Review device",
+        time: item.updated_at || item.created_at,
+      });
     }
-    setSyncingEstate(false);
-    return res?.estate_id || membershipEstateId || null;
-  }
-
-  async function loadCommunity(eid?: string | null) {
-    const estate = eid || estateId;
-    if (!estate) return;
-
-    setCommunityLoading(true);
-    setCommunityErr(null);
-
-    try {
-      const posts = await communityService.listByEstate(estate);
-      setCommunityItems(posts || []);
-    } catch (e: any) {
-      const { status, msg } = extractErr(e);
-      setCommunityErr(`${msg}${status ? ` (HTTP ${status})` : ""}`);
-      setCommunityItems([]);
-    } finally {
-      setCommunityLoading(false);
+    for (const item of openMaintenance) {
+      items.push({
+        id: `maintenance-${item.id}`,
+        severity: String(item.priority || "").toLowerCase() === "urgent" ? "critical" : "warning",
+        domain: "Maintenance",
+        title: item.title || "Open maintenance request",
+        detail: item.status || "Awaiting assignment",
+        href: "/maintenance",
+        action: "Open request",
+        time: item.created_at,
+      });
     }
-  }
-
-  async function loadVisitorsToday() {
-    setVisitorLoading(true);
-    setVisitorErr(null);
-    try {
-      const res = await visitorService.listToday();
-      setVisitorItems((res || []) as VisitorItem[]);
-    } catch (e: any) {
-      const { status, msg } = extractErr(e);
-      setVisitorErr(`${msg}${status ? ` (HTTP ${status})` : ""}`);
-      setVisitorItems([]);
-    } finally {
-      setVisitorLoading(false);
+    for (const item of pendingVisitors) {
+      items.push({
+        id: `visitor-${item.id}`,
+        severity: "info",
+        domain: "Visitor access",
+        title: `${item.visitor_name || item.full_name || "Visitor"} is awaiting review`,
+        detail: item.purpose || "Visitor approval pending",
+        href: "/visitors",
+        action: "Verify visitor",
+        time: item.created_at,
+      });
     }
-  }
-
-  async function load() {
-    setErr(null);
-    setNeedsEstate(false);
-    setSyncingEstate(false);
-    setLoading(true);
-
-    try {
-      const eid = await loadOverview();
-      if (eid) {
-        await Promise.all([loadCommunity(eid), loadVisitorsToday()]);
-      }
-    } catch (e: any) {
-      const { status, msg } = extractErr(e);
-
-      const lower = msg.toLowerCase();
-      const looksLikeNotLinked = lower.includes("estate not linked") || status === 400;
-
-      if (looksLikeNotLinked) {
-        const eid = await hydrateEstateFromMembership();
-
-        if (eid) {
-          setData(null);
-          setSyncingEstate(true);
-          setErr(null);
-          await Promise.all([loadCommunity(eid), loadVisitorsToday()]);
-        } else {
-          setData(null);
-          setNeedsEstate(true);
-          setErr(null);
-        }
-      } else {
-        setErr(`${msg}${status ? ` (HTTP ${status})` : ""}`);
-      }
-    } finally {
-      setLoading(false);
+    for (const item of sources.reports.data) {
+      items.push({
+        id: `report-${item.id}`,
+        severity: "warning",
+        domain: "Community moderation",
+        title: item.reason || "Community report requires review",
+        detail: item.status || "Open report",
+        href: "/messages",
+        action: "Review report",
+        time: item.created_at,
+      });
     }
-  }
+    for (const item of expiredInvites) {
+      items.push({
+        id: `invite-${item.id}`,
+        severity: "info",
+        domain: "Resident access",
+        title: `${item.invited_email || "Resident"} invitation expired`,
+        detail: "Rotate and resend the invitation if access is still required.",
+        href: "/homes",
+        action: "Manage invites",
+        time: item.expires_at,
+      });
+    }
+    const rank: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
+    return items.sort((a, b) => rank[a.severity] - rank[b.severity]).slice(0, 12);
+  }, [expiredInvites, offlineDevices, openMaintenance, pendingVisitors, sources.notifications.data, sources.reports.data]);
+
+  const unresolvedSourceCount = Object.values(sources).filter(
+    (item) => item.status === "error" || item.status === "permission"
+  ).length;
+  const estateState = loading
+    ? "Refreshing"
+    : attention.some((item) => item.severity === "critical")
+    ? "Attention"
+    : attention.length
+    ? "Monitor"
+    : unresolvedSourceCount
+    ? "Awaiting sources"
+    : "Stable";
 
   async function createEstate() {
-    if (!canCreateEstate) return;
-
-    setErr(null);
-    setModalErr(null);
+    if (estateForm.name.trim().length < 2) return;
     setCreating(true);
-
+    setModalError(null);
     try {
-      const payload = {
+      await facilityService.createEstate({
         name: estateForm.name.trim(),
         address: estateForm.address.trim() || undefined,
-        lat: estateForm.lat.trim() ? Number(estateForm.lat) : undefined,
-        lng: estateForm.lng.trim() ? Number(estateForm.lng) : undefined,
-        type: estateForm.type || "estate",
-      };
-
-      await facilityService.createEstate(payload);
+        type: estateForm.type,
+      });
       setShowCreate(false);
-      setEstateForm({ name: "", address: "", lat: "", lng: "", type: "estate" });
-
-      const eid = await hydrateEstateFromMembership();
+      setEstateForm({ name: "", address: "", type: "estate" });
       await load();
-
-      if (eid) {
-        await Promise.all([loadCommunity(eid), loadVisitorsToday()]);
-      }
-    } catch (e: any) {
-      const { status, msg } = extractErr(e);
-      const friendly = `${msg}${status ? ` (HTTP ${status})` : ""}`;
-      setModalErr(friendly);
-      setErr(friendly);
+    } catch (error: any) {
+      setModalError(String(error?.response?.data?.error || error?.message || "Unable to create site."));
     } finally {
       setCreating(false);
     }
   }
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const stability = score(100 - (data?.open_maintenance ?? 0) * 3);
-  const security = score(100 - (data?.alerts ?? 0) * 6);
-  const uptime = score(70 + (data?.active_devices ?? 0));
-  const flow = score(85 - Math.max(0, (data?.visitors_today ?? 0) - 20) * 2);
-
-  const latestPosts = (communityItems || []).slice(0, 3);
-
-  const visitorStats = useMemo(() => {
-    const all = visitorItems || [];
-    let pending = 0;
-    let approved = 0;
-    let entered = 0;
-    let exited = 0;
-    let denied = 0;
-
-    for (const v of all as any[]) {
-      const s = String(v?.status || "").toLowerCase();
-      if (s === "pending") pending++;
-      else if (s === "approved") approved++;
-      else if (s === "entered") entered++;
-      else if (s === "exited") exited++;
-      else if (s === "denied") denied++;
-    }
-
-    const inEstate = Math.max(0, entered - exited);
-    return { pending, approved, entered, exited, denied, inEstate, total: all.length };
-  }, [visitorItems]);
-
-  const accessLogs = useMemo(() => {
-    const sorted = [...(visitorItems as any[])].sort((a, b) => {
-      const ta = new Date(a?.created_at || 0).getTime();
-      const tb = new Date(b?.created_at || 0).getTime();
-      return tb - ta;
-    });
-
-    return sorted.slice(0, 6).map((v) => ({
-      time: timeOnly(v?.created_at),
-      who: safeStr(v?.visitor_name),
-      purpose: safeStr(v?.purpose),
-      status: String(v?.status || "active"),
-    }));
-  }, [visitorItems]);
+  const metric = (value: number, sourceState: Source<unknown>) =>
+    statusLabel(sourceState) || String(value);
 
   return (
-    <div className="space-y-7">
-      <Topbar title="Overview" subtitle="Operational summary" showUser={false} showNotifications={true} />
-
-      {/* Header strip */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="muted">{estateId ? `Site: ${estateId}` : "Site: —"}</div>
-
-        {!estateId ? (
-          <Button onClick={() => setShowCreate(true)} disabled={creating}>
-            {creating ? "Creating..." : "Create Site"}
+    <div className="space-y-5 sm:space-y-6">
+      <Topbar
+        title="Facility Overview"
+        subtitle="Estate health, attention, and staff action queue"
+        rightSlot={
+          <Button variant="ghost" onClick={load} disabled={loading} className="gap-2">
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">{loading ? "Refreshing" : "Refresh"}</span>
           </Button>
-        ) : (
-          <Button variant="ghost" onClick={load} disabled={loading}>
-            {loading ? "Refreshing..." : "Refresh"}
-          </Button>
-        )}
-      </div>
+        }
+      />
 
-      {/* No estate */}
-      {needsEstate && (
-        <div className="glass border border-white/10 rounded-2xl p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div>
-              <div className="text-lg font-semibold">No site linked yet</div>
-              <div className="text-sm text-zinc-400 mt-1 max-w-2xl">
-                To unlock homes, rooms, visitors and maintenance, create your first site.
-                You’ll automatically become <span className="text-zinc-200">Owner</span>.
-              </div>
-              <div className="text-xs text-zinc-500 mt-3">
-                Estate-style meaning: “register the master estate before adding blocks/units.”
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button onClick={() => setShowCreate(true)} disabled={creating}>
-                {creating ? "Creating..." : "Create Site"}
-              </Button>
-              <Button variant="ghost" onClick={load} disabled={loading}>
-                {loading ? "Checking..." : "Retry"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Syncing */}
-      {syncingEstate && (
-        <div className="glass border border-white/10 rounded-2xl p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div>
-              <div className="text-lg font-semibold">Site created — syncing access</div>
-              <div className="text-sm text-zinc-400 mt-1 max-w-2xl">
-                Membership is active but overview still reads from a “linked site” field.
-                Tap retry to refresh.
-              </div>
-              <div className="text-xs text-zinc-500 mt-3">
-                Site: <span className="text-zinc-200">{estateId || "—"}</span>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={load} disabled={loading}>
-                {loading ? "Refreshing..." : "Retry"}
-              </Button>
-              <Button onClick={() => setShowCreate(true)} disabled={creating}>
-                {creating ? "Creating..." : "Create Another Site"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!!err && !needsEstate && !syncingEstate && (
-        <div className="glass border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-200">
-          {err}
-        </div>
-      )}
-
-      {/* Main stat cards (small refactor: Hardware Devices -> Energy) */}
-      <div className="grid gap-4 lg:gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Total Homes"
-          value={formatNumber(data?.homes ?? 0)}
-          hint="Units under management"
-          href="/homes"
-        />
-
-        <StatCard
-          label="Energy"
-          value={formatNumber(data?.active_devices ?? 0)}
-          hint="Consumption • generation • performance"
-          tone="good"
-          href="/security"
-        />
-
-        <StatCard
-          label="Open Maintenance"
-          value={formatNumber(data?.open_maintenance ?? 0)}
-          hint="Open + in progress"
-          tone={data?.open_maintenance ? "warn" : "good"}
-          href="/maintenance"
-        />
-
-        <StatCard
-          label="Security & Access"
-          value={formatNumber(data?.visitors_today ?? 0)}
-          hint="Visitor activity today"
-          href="/visitors"
-        />
-      </div>
-
-      {/* Replace Cameras with Mini-Security + keep Community */}
-      <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-2">
-        {/* ✅ MINI SECURITY (REAL DB) */}
-        <div className="glass p-5">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <div className="text-sm font-medium">Security Snapshot</div>
-              <div className="text-xs text-zinc-500 mt-1">
-                Visitor approvals • entry/exit • gate pressure (live from DB)
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Link href="/visitors">
-                <Button variant="ghost">Open Security</Button>
-              </Link>
-              <Button variant="ghost" onClick={loadVisitorsToday} disabled={!estateId || visitorLoading}>
-                {visitorLoading ? "Checking..." : "Refresh"}
-              </Button>
-            </div>
-          </div>
-
-          {visitorErr && (
-            <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {visitorErr}
-            </div>
-          )}
-
-          {!estateId ? (
-            <div className="mt-4 text-sm text-zinc-400">
-              No site linked yet. Create/select a site to view security signals.
-            </div>
-          ) : (
-            <>
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
-                <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-[11px] text-white/45">Pending</div>
-                  <div className="mt-1 text-lg font-semibold text-white">{visitorStats.pending}</div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-[11px] text-white/45">Approved</div>
-                  <div className="mt-1 text-lg font-semibold text-white">{visitorStats.approved}</div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-[11px] text-white/45">In estate</div>
-                  <div className="mt-1 text-lg font-semibold text-white">{visitorStats.inEstate}</div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-[11px] text-white/45">Denied</div>
-                  <div className="mt-1 text-lg font-semibold text-white">{visitorStats.denied}</div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-[11px] text-white/45">Total today</div>
-                  <div className="mt-1 text-lg font-semibold text-white">{visitorStats.total}</div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-[11px] text-white/45">Alerts</div>
-                  <div className="mt-1 text-lg font-semibold text-white">{formatNumber(data?.alerts ?? 0)}</div>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <div className="text-xs text-zinc-500">Recent access events</div>
-
-                {accessLogs.length === 0 ? (
-                  <div className="mt-3 text-sm text-zinc-400">No visitor events yet today.</div>
-                ) : (
-                  <div className="mt-3 space-y-2">
-                    {accessLogs.map((x, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-white truncate">{x.who}</div>
-                          <div className="text-xs text-zinc-500 truncate">
-                            {x.purpose} • {x.time}
-                          </div>
-                        </div>
-
-                        <span
-                          className={`shrink-0 inline-flex text-[11px] px-2 py-1 rounded-full border ${statusTone(x.status)}`}
-                        >
-                          {String(x.status).replaceAll("_", " ")}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* ✅ COMMUNITY (unchanged) */}
-        <div className="glass p-5">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <div className="text-sm font-medium">Community</div>
-              <div className="text-xs text-zinc-500 mt-1">
-                Estate broadcasts • announcements • live updates
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Link href="/community">
-                <Button variant="ghost">Open Community</Button>
-              </Link>
-
-              <Button
-                variant="ghost"
-                onClick={() => loadCommunity(estateId)}
-                disabled={!estateId || communityLoading}
-              >
-                {communityLoading ? "Checking..." : "New Update"}
-              </Button>
-            </div>
-          </div>
-
-          {communityErr && (
-            <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {communityErr}
-            </div>
-          )}
-
-          {!estateId ? (
-            <div className="mt-4 text-sm text-zinc-400">
-              No site linked yet. Select/onboard a site to view community updates.
-            </div>
-          ) : (
-            <div className="mt-4 space-y-2">
-              {latestPosts.length === 0 ? (
-                <div className="text-sm text-zinc-400">No community posts yet.</div>
-              ) : (
-                latestPosts.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-white truncate">
-                        {p.title || "Untitled"}
-                      </div>
-                      <div className="text-xs text-zinc-500">
-                        {when(p.created_at)} • {p.status || "published"}
-                      </div>
-                    </div>
-
-                    <div className="text-xs text-zinc-500 shrink-0">Live</div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Signal panels (kept: same structure) */}
-      <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-3">
-        <div className="glass p-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-xs text-zinc-400">Alerts</div>
-              <div className="mt-2 text-3xl font-semibold">{formatNumber(data?.alerts ?? 0)}</div>
-              <div className="mt-2 text-xs text-zinc-500">Unread notifications</div>
-            </div>
-            <div className="text-xs text-zinc-500">Trend</div>
-          </div>
-
-          <div className="h-28 mt-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendDevices.slice(-7)}>
-                <Tooltip
-                  contentStyle={{
-                    background: "rgba(24,24,27,0.95)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 12,
-                  }}
-                />
-                <Line type="monotone" dataKey="y" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="glass p-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-xs text-zinc-400">Visitor Flow</div>
-              <div className="mt-2 text-3xl font-semibold">{formatNumber(data?.visitors_today ?? 0)}</div>
-              <div className="mt-2 text-xs text-zinc-500">Gate pressure</div>
-            </div>
-            <div className="text-xs text-zinc-500">12 days</div>
-          </div>
-
-          <div className="h-28 mt-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={trendVisitors}>
-                <Tooltip
-                  contentStyle={{
-                    background: "rgba(24,24,27,0.95)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 12,
-                  }}
-                />
-                <Bar dataKey="y" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="glass p-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-xs text-zinc-400">Wallet</div>
-              <div className="mt-2 text-2xl font-semibold">
-                {formatMoney(data?.wallet?.balance ?? 0, "NGN")}
-              </div>
-              <div className="mt-2 text-xs text-zinc-500">
-                Outstanding: {formatMoney(data?.wallet?.outstanding_dues ?? 0, "NGN")} • Collected:{" "}
-                {formatMoney(data?.wallet?.collected_this_month ?? 0, "NGN")}
-              </div>
-            </div>
-            <div className="text-xs text-zinc-500">Signals</div>
-          </div>
-
-          <div className="h-28 mt-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendWallet}>
-                <Tooltip
-                  contentStyle={{
-                    background: "rgba(24,24,27,0.95)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 12,
-                  }}
-                />
-                <Line type="monotone" dataKey="y" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Ops strip (kept) */}
-      <div className="glass p-5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_30%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <div className="text-sm font-medium">Operational Strip</div>
-            <div className="text-xs text-zinc-500 mt-1">
-              A single strip that tells you where the site is bleeding right now.
-            </div>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Active estate context</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">{estateName}</h1>
+            <p className="mt-2 text-sm text-zinc-400">
+              Operator role: <span className="text-zinc-200">{String(user?.role || "operator").replace(/_/g, " ")}</span>
+            </p>
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
-            <OpsPill label="Stability" value={stability} />
-            <OpsPill label="Security" value={security} />
-            <OpsPill label="Uptime" value={uptime} />
-            <OpsPill label="Flow" value={flow} />
+          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+              Estate state: <span className="text-zinc-200">{estateState}</span>
+            </span>
+            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+              Refreshed: <span className="text-zinc-200">{dateLabel(lastRefresh)}</span>
+            </span>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Create estate modal (kept exactly) */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-          <div className="absolute inset-0 bg-black/70" onClick={() => !creating && setShowCreate(false)} />
-          <div className="relative glass border border-white/10 rounded-2xl w-full max-w-xl p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="text-lg font-semibold">Create Site</div>
-                <div className="text-sm text-zinc-400 mt-1">
-                  Register the master site. You’ll become the Owner and can invite managers.
-                </div>
-              </div>
-              <button className="text-zinc-400 hover:text-zinc-200" onClick={() => !creating && setShowCreate(false)}>
-                ✕
-              </button>
+      {needsEstate ? (
+        <Panel title="No estate context linked" subtitle="Create an estate context before opening operational workflows.">
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => setShowCreate(true)}>Create Estate</Button>
+            <Button variant="ghost" onClick={load}>Retry Context</Button>
+          </div>
+        </Panel>
+      ) : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <SummaryCard label="Estate state" value={estateState} hint="Derived from available operational sources" href="/alerts" tone={attention.length ? "warn" : "good"} />
+        <SummaryCard label="Open maintenance" value={metric(openMaintenance.length, sources.maintenance)} hint="Requests not yet resolved" href="/maintenance" tone={openMaintenance.length ? "warn" : "neutral"} />
+        <SummaryCard label="Active visitors" value={metric(activeVisitors.length, sources.visitors)} hint="Today's active access records" href="/visitors" />
+        <SummaryCard label="Device attention" value={metric(offlineDevices.length, sources.devices)} hint="Offline or unavailable registry entries" href="/devices" tone={offlineDevices.length ? "warn" : "neutral"} />
+        <SummaryCard label="Unread notices" value={metric(sources.notifications.data.length, sources.notifications)} hint="Operator notification queue" href="/alerts" />
+        <SummaryCard label="Community reports" value={metric(sources.reports.data.length, sources.reports)} hint="Open moderation queue items" href="/messages" />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(310px,0.55fr)]">
+        <Panel title="Attention Queue" subtitle="Ranked work requiring operator review across connected operational sources.">
+          {attention.length ? (
+            <div className="space-y-2">
+              {attention.map((item) => (
+                <Link key={item.id} href={item.href} className="flex gap-3 rounded-xl border border-white/10 bg-black/15 p-3 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+                  <span className={`mt-0.5 h-fit rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em] ${severityClass(item.severity)}`}>
+                    {item.severity}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs uppercase tracking-[0.14em] text-zinc-500">{item.domain}</span>
+                    <span className="mt-1 block text-sm font-medium text-zinc-100">{item.title}</span>
+                    <span className="mt-1 block text-xs leading-5 text-zinc-500">{item.detail} · {dateLabel(item.time)}</span>
+                  </span>
+                  <span className="hidden shrink-0 self-center text-xs text-sky-200 sm:block">{item.action}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 self-center text-zinc-600" />
+                </Link>
+              ))}
             </div>
+          ) : (
+            <SourceMessage value={sources.notifications} empty="No critical attention required." />
+          )}
+        </Panel>
 
-            {modalErr && (
-              <div className="mt-4 glass border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200 rounded-xl">
-                {modalErr}
+        <Panel title="Quick Actions" subtitle="Open the real workflow before taking operational action.">
+          <div className="grid gap-2">
+            {[
+              ["Add Home", "/homes", Home],
+              ["Invite Resident", "/homes", UserPlus],
+              ["Discover Device", "/devices", Router],
+              ["Verify Visitor", "/visitors", DoorOpen],
+              ["Open Camera Center", "/cameras", Camera],
+              ["Open Maintenance", "/maintenance", Wrench],
+            ].map(([label, href, Icon]) => (
+              <Link key={String(label)} href={String(href)} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-2.5 text-sm text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.05] hover:text-white">
+                <Icon className="h-4 w-4 text-sky-200" />
+                <span className="flex-1">{String(label)}</span>
+                <ChevronRight className="h-4 w-4 text-zinc-600" />
+              </Link>
+            ))}
+          </div>
+        </Panel>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-3">
+        <Panel title="Resident Operations" subtitle="Home access and pending resident activation work.">
+          <div className="grid grid-cols-3 gap-2">
+            <SummaryCard label="Homes" value={metric(sources.homes.data.length, sources.homes)} hint="Active context" href="/homes" />
+            <SummaryCard label="Pending" value={metric(pendingInvites.length, sources.invites)} hint="Invites" href="/homes" />
+            <SummaryCard label="Expired" value={metric(expiredInvites.length, sources.invites)} hint="Need review" href="/homes" />
+          </div>
+        </Panel>
+
+        <Panel title="Infrastructure Posture" subtitle="Registry and camera readiness without synthetic telemetry.">
+          <div className="space-y-2">
+            <PostureRow icon={Zap} label="Device registry" value={statusLabel(sources.devices) || `${sources.devices.data.length - offlineDevices.length} online · ${offlineDevices.length} attention`} />
+            <PostureRow icon={Camera} label="Camera inventory" value={statusLabel(sources.cameras) || `${sources.cameras.data.length} bound · health telemetry pending`} />
+            <PostureRow icon={MonitorCog} label="Oyi Edge" value="No live source configured" />
+            <PostureRow icon={CircleHelp} label="Utilities" value="Awaiting telemetry" />
+          </div>
+        </Panel>
+
+        <Panel title="Security And Visitors" subtitle="Today's resident access posture.">
+          <div className="space-y-2">
+            <PostureRow icon={Users} label="Active visitors" value={statusLabel(sources.visitors) || String(activeVisitors.length)} />
+            <PostureRow icon={ShieldAlert} label="Pending approvals" value={statusLabel(sources.visitors) || String(pendingVisitors.length)} />
+            <PostureRow icon={Siren} label="Lockdown status" value="No live source configured" />
+            <Link href="/visitors" className="mt-3 inline-flex items-center gap-2 text-sm text-sky-200 hover:text-sky-100">
+              Open visitor access <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </Panel>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <Panel title="Staff Action Queue" subtitle="High-signal tasks from the current attention queue.">
+          {attention.length ? (
+            <div className="grid gap-2 md:grid-cols-2">
+              {attention.slice(0, 6).map((item) => (
+                <Link key={`staff-${item.id}`} href={item.href} className="rounded-xl border border-white/10 bg-black/15 px-3 py-3 text-sm text-zinc-300 transition hover:border-sky-400/25">
+                  <span className="block text-xs uppercase tracking-[0.12em] text-zinc-500">{item.domain}</span>
+                  <span className="mt-1 block text-zinc-100">{item.action}</span>
+                  <span className="mt-1 block truncate text-xs text-zinc-500">{item.title}</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <SourceMessage value={sources.maintenance} empty="No staff actions are queued." />
+          )}
+        </Panel>
+        <Panel title="Source Integrity" subtitle="Unavailable sources stay visible instead of becoming fake zeroes.">
+          <div className="space-y-2">
+            {Object.entries(sources).map(([key, value]) => (
+              <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-xs">
+                <span className="capitalize text-zinc-400">{key}</span>
+                <span className={value.status === "ready" ? "text-emerald-200" : value.status === "loading" ? "text-sky-200" : "text-amber-200"}>
+                  {value.status === "ready" ? "Available" : statusLabel(value)}
+                </span>
               </div>
-            )}
+            ))}
+          </div>
+        </Panel>
+      </section>
 
-            <div className="grid gap-3 mt-5">
-              <input
-                className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
-                placeholder="Site name (e.g. Ochiga Smart Estate)"
-                value={estateForm.name}
-                onChange={(e) => setEstateForm((p) => ({ ...p, name: e.target.value }))}
-              />
-
-              <input
-                className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
-                placeholder="Address (optional)"
-                value={estateForm.address}
-                onChange={(e) => setEstateForm((p) => ({ ...p, address: e.target.value }))}
-              />
-
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
-                  placeholder="Latitude (optional)"
-                  value={estateForm.lat}
-                  onChange={(e) => setEstateForm((p) => ({ ...p, lat: e.target.value }))}
-                />
-                <input
-                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
-                  placeholder="Longitude (optional)"
-                  value={estateForm.lng}
-                  onChange={(e) => setEstateForm((p) => ({ ...p, lng: e.target.value }))}
-                />
-              </div>
-
-              <select
-                className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
-                value={estateForm.type}
-                onChange={(e) => setEstateForm((p) => ({ ...p, type: e.target.value }))}
-              >
+      {showCreate ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl">
+            <h2 className="text-lg font-semibold text-white">Create Estate</h2>
+            <p className="mt-1 text-sm text-zinc-500">Register the estate context before adding homes and residents.</p>
+            {modalError ? <p className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">{modalError}</p> : null}
+            <div className="mt-4 grid gap-3">
+              <input value={estateForm.name} onChange={(event) => setEstateForm((current) => ({ ...current, name: event.target.value }))} placeholder="Estate name" className="rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-sky-400/40" />
+              <input value={estateForm.address} onChange={(event) => setEstateForm((current) => ({ ...current, address: event.target.value }))} placeholder="Address (optional)" className="rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-sky-400/40" />
+              <select value={estateForm.type} onChange={(event) => setEstateForm((current) => ({ ...current, type: event.target.value }))} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none focus:border-sky-400/40">
                 <option value="estate">Estate</option>
                 <option value="facility">Facility</option>
                 <option value="campus">Campus</option>
               </select>
-
-              <div className="flex gap-2 mt-2">
-                <Button variant="ghost" onClick={() => setShowCreate(false)} disabled={creating}>
-                  Cancel
-                </Button>
-                <Button onClick={createEstate} disabled={!canCreateEstate || creating}>
-                  {creating ? "Creating..." : "Create Site"}
-                </Button>
-              </div>
-
-              <div className="text-xs text-zinc-500 mt-2">
-                After creation, you can add homes, rooms, and invite managers.
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setShowCreate(false)} disabled={creating}>Cancel</Button>
+                <Button onClick={createEstate} disabled={creating || estateForm.name.trim().length < 2}>{creating ? "Creating" : "Create Estate"}</Button>
               </div>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
+
+function PostureRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof AlertTriangle;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-2.5">
+      <Icon className="h-4 w-4 shrink-0 text-sky-200" />
+      <span className="min-w-0 flex-1 text-sm text-zinc-400">{label}</span>
+      <span className="text-right text-xs text-zinc-300">{value}</span>
+    </div>
+  );
+}
+
+export default OverviewPage;

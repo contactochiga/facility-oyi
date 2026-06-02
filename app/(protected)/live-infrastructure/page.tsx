@@ -36,7 +36,7 @@ export default function LiveInfrastructureModule() {
       activity={[
         "Live infrastructure shell is stable for map, twin, hybrid and heat-map modes",
         "Camera and device overlays route into existing live facility modules",
-        "Realtime overlay intensity waits for device.status.updated and edge.heartbeat volume",
+        "Operational overlay intensity waits for device.status.updated and edge.heartbeat volume",
       ]}
       insights={[
         "Digital Twin is presented as a Facility infrastructure mode, not a standalone product surface.",

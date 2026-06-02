@@ -6,7 +6,7 @@ import {
   ArrowRight,
   BarChart3,
   CheckCircle2,
-  Clock3,
+  ClipboardList,
   Layers3,
   LucideIcon,
   PauseCircle,
@@ -53,10 +53,26 @@ function toneClass(tone: ModuleMetric["tone"] = "neutral") {
 
 function statusClass(status?: string) {
   const s = String(status || "").toLowerCase();
-  if (s.includes("live") || s.includes("ready")) return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
+  if (s.includes("source available")) return "border-sky-500/20 bg-sky-500/10 text-sky-200";
   if (s.includes("pending")) return "border-amber-500/20 bg-amber-500/10 text-amber-200";
   if (s.includes("missing")) return "border-red-500/20 bg-red-500/10 text-red-200";
   return "border-white/10 bg-white/5 text-zinc-300";
+}
+
+function honestStatus(status?: string) {
+  const value = String(status || "");
+  const normalized = value.toLowerCase();
+  if (normalized === "live" || normalized === "ready") return "Source available";
+  return value;
+}
+
+function honestValue(value: string | number) {
+  if (typeof value !== "string") return value;
+  const normalized = value.toLowerCase();
+  if (["live", "ready", "linked", "guarded", "scoped", "grouped"].includes(normalized)) {
+    return "Pending source";
+  }
+  return value;
 }
 
 function EmptyLine({ children }: { children: ReactNode }) {
@@ -102,7 +118,7 @@ export default function ModuleDashboard({
           const active = index === 0;
           const className = `shrink-0 rounded-xl px-3 py-2 transition ${
             active
-              ? "bg-violet-500/20 text-white shadow-[0_0_22px_rgba(124,58,237,0.16)]"
+              ? "bg-sky-500/15 text-white shadow-[0_0_22px_rgba(14,165,233,0.12)]"
               : tab.disabled
               ? "cursor-not-allowed text-zinc-600"
               : "hover:bg-white/5 hover:text-white"
@@ -119,7 +135,7 @@ export default function ModuleDashboard({
         })}
       </nav>
 
-      <section className="relative overflow-hidden rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.12),transparent_24%),radial-gradient(circle_at_top_right,rgba(124,77,255,0.16),transparent_28%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-6 lg:p-7">
+      <section className="relative overflow-hidden rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.12),transparent_24%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_28%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-6 lg:p-7">
         <div className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(to_right,rgba(255,255,255,0.18)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.18)_1px,transparent_1px)] [background-size:44px_44px]" />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
@@ -134,7 +150,7 @@ export default function ModuleDashboard({
             </div>
             <div className="flex items-center justify-between gap-3">
               <span>Data Policy</span>
-              <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-sky-200">Live or Pending</span>
+              <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-sky-200">Connected or Pending</span>
             </div>
           </div>
         </div>
@@ -146,12 +162,12 @@ export default function ModuleDashboard({
             <div className="flex items-start justify-between gap-3">
               <div className="text-xs uppercase tracking-[0.14em] opacity-70">{metric.label}</div>
               {metric.status ? (
-                <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em] ${statusClass(metric.status)}`}>
-                  {metric.status}
+                <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em] ${statusClass(honestStatus(metric.status))}`}>
+                  {honestStatus(metric.status)}
                 </span>
               ) : null}
             </div>
-            <div className="mt-3 text-2xl font-semibold tracking-tight lg:text-3xl">{metric.value}</div>
+            <div className="mt-3 text-2xl font-semibold tracking-tight lg:text-3xl">{honestValue(metric.value)}</div>
             {metric.hint ? <div className="mt-2 text-xs leading-5 opacity-65">{metric.hint}</div> : null}
           </article>
         )) : <EmptyLine>No module metrics are available yet.</EmptyLine>}
@@ -162,20 +178,20 @@ export default function ModuleDashboard({
           {safeWidgets.length ? safeWidgets.map((widget, index) => {
             const Icon = widget.icon || [Layers3, Activity, ShieldCheck, BarChart3][index % 4];
             const card = (
-              <article className="h-full rounded-2xl border border-white/10 bg-white/[0.045] p-5 transition hover:border-violet-400/25 hover:bg-white/[0.065]">
+              <article className="h-full rounded-2xl border border-white/10 bg-white/[0.045] p-5 transition hover:border-sky-400/25 hover:bg-white/[0.065]">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-base font-semibold text-white">{widget.title}</h3>
                       {widget.status ? (
-                        <span className={`rounded-full border px-2 py-1 text-[10px] ${statusClass(widget.status)}`}>
-                          {widget.status}
+                        <span className={`rounded-full border px-2 py-1 text-[10px] ${statusClass(honestStatus(widget.status))}`}>
+                          {honestStatus(widget.status)}
                         </span>
                       ) : null}
                     </div>
                     <p className="mt-2 text-sm leading-6 text-zinc-400">{widget.body}</p>
                   </div>
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/25 text-violet-200">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/25 text-sky-200">
                     <Icon className="h-5 w-5" />
                   </span>
                 </div>
@@ -193,7 +209,7 @@ export default function ModuleDashboard({
           <article className="rounded-2xl border border-white/10 bg-white/[0.045] p-5">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-white">Quick Actions</h3>
-              <Sparkles className="h-4 w-4 text-violet-200" />
+              <Sparkles className="h-4 w-4 text-sky-200" />
             </div>
             <div className="mt-4 grid gap-2">
               {safeActions.length ? safeActions.map((action) => {
@@ -201,7 +217,7 @@ export default function ModuleDashboard({
                 const className = `flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm transition ${
                   disabled
                     ? "cursor-not-allowed border-white/5 bg-black/10 text-zinc-600"
-                    : "border-white/10 bg-black/20 text-zinc-200 hover:border-violet-400/30 hover:bg-white/10"
+                    : "border-white/10 bg-black/20 text-zinc-200 hover:border-sky-400/30 hover:bg-white/10"
                 }`;
                 return disabled ? (
                   <span key={action.label} className={className} aria-disabled="true">
@@ -222,27 +238,27 @@ export default function ModuleDashboard({
           </article>
 
           <article className="rounded-2xl border border-white/10 bg-white/[0.045] p-5">
-            <h3 className="text-sm font-semibold text-white">Realtime Activity</h3>
+            <h3 className="text-sm font-semibold text-white">Operational Notes</h3>
             <div className="mt-4 space-y-3">
               {activity.length ? activity.map((item, index) => (
                 <div key={item} className="flex gap-3 text-sm text-zinc-300">
-                  <span className="mt-1.5 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.7)]" />
+                  <span className="mt-1.5 h-2 w-2 rounded-full bg-sky-400/80" />
                   <span className="leading-5">{item}</span>
-                  {index === 0 ? <Clock3 className="ml-auto h-4 w-4 shrink-0 text-zinc-500" /> : null}
+                  {index === 0 ? <ClipboardList className="ml-auto h-4 w-4 shrink-0 text-zinc-500" /> : null}
                 </div>
-              )) : <EmptyLine>No realtime events have arrived for this module yet.</EmptyLine>}
+              )) : <EmptyLine>No operational notes are configured for this module.</EmptyLine>}
             </div>
           </article>
 
           <article className="rounded-2xl border border-white/10 bg-white/[0.045] p-5">
-            <h3 className="text-sm font-semibold text-white">AI / Ops Insights</h3>
+            <h3 className="text-sm font-semibold text-white">Implementation Notes</h3>
             <div className="mt-4 space-y-3">
               {insights.length ? insights.map((item) => (
                 <div key={item} className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-5 text-zinc-300">
                   <CheckCircle2 className="mb-2 h-4 w-4 text-emerald-300" />
                   {item}
                 </div>
-              )) : <EmptyLine>Insights will appear when live estate activity is available.</EmptyLine>}
+              )) : <EmptyLine>Notes will appear as this module is connected to its operational source.</EmptyLine>}
             </div>
           </article>
         </aside>

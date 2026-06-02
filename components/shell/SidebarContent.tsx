@@ -27,6 +27,7 @@ import {
 
 import { useSessionStore } from "@/store/useSessionStore";
 import { FACILITY_MODULES, visibleModules, type ModuleDefinition } from "@/lib/moduleRegistry";
+import { deleteCookie } from "@/lib/auth";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -101,15 +102,14 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   }
 
   const displayName = useMemo(() => {
-    const name = (user as any)?.name || "";
+    const name = (user as any)?.full_name || (user as any)?.name || "";
     const email = user?.email || "";
     return String(name || email || "Facility Operator");
   }, [user]);
 
   const displaySub = useMemo(() => {
-    const email = user?.email || "";
     const role = (user as any)?.role || "operator";
-    return email ? email : String(role);
+    return String(role).replace(/_/g, " ");
   }, [user]);
 
   const initials = useMemo(() => getInitials(displayName), [displayName]);
@@ -139,6 +139,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
         session.setUser(null);
       }
     } finally {
+      deleteCookie("oyi_facility_token");
       onNavigate?.();
       router.replace("/login");
     }
@@ -165,7 +166,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all",
                 active
-                  ? "border-violet-500/45 bg-gradient-to-r from-violet-600 to-blue-600/70 text-white shadow-[0_12px_30px_rgba(99,102,241,0.2)]"
+                  ? "border-sky-400/35 bg-sky-500/10 text-sky-50 shadow-[0_12px_30px_rgba(14,165,233,0.12)]"
                   : "border-transparent text-zinc-400 hover:border-white/10 hover:bg-white/5 hover:text-white"
               )}
             >
