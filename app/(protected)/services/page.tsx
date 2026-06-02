@@ -4,200 +4,121 @@ import { useEffect, useMemo, useState } from "react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
-import { Activity, Building2, Droplets, PlugZap, RadioTower, RefreshCw, Router, ShieldCheck, Wallet } from "lucide-react";
+import { serviceConfigService, type ServiceConfig } from "@/services/serviceConfigService";
+import { formatMoney } from "@/lib/format";
+import { Activity, Eye, RefreshCw, Settings, ShieldCheck, ToggleLeft, ToggleRight, Wallet, X } from "lucide-react";
 
-type ServiceHealth = {
-  key: string;
-  title: string;
-  description: string;
-  icon: any;
-  status: "operational" | "watch" | "pending";
-};
-
-const SERVICE_HEALTH: ServiceHealth[] = [
-  {
-    key: "power",
-    title: "Power Systems",
-    description: "Meters, inverter/UPS, generator links, outages and estate power telemetry.",
-    icon: PlugZap,
-    status: "operational",
-  },
-  {
-    key: "water",
-    title: "Water Systems",
-    description: "Water meters, tank levels, pumps, leaks and maintenance-linked water events.",
-    icon: Droplets,
-    status: "operational",
-  },
-  {
-    key: "network",
-    title: "Network & Internet",
-    description: "Resident internet IDs, access equipment, gateway health and connectivity signals.",
-    icon: Router,
-    status: "watch",
-  },
-  {
-    key: "access",
-    title: "Security Access",
-    description: "Gate, visitor, camera and access-control services tied to estate operations.",
-    icon: ShieldCheck,
-    status: "operational",
-  },
-  {
-    key: "edge",
-    title: "Edge Infrastructure",
-    description: "Local agents, telemetry sync, heartbeat state and site-level command readiness.",
-    icon: RadioTower,
-    status: "pending",
-  },
+const FALLBACK_SERVICES: ServiceConfig[] = [
+  { service_key: "utility_token", title: "Utility Token", description: "Resident electricity token purchase", active: true, status: "pending configuration", billing_mode: "metered" },
+  { service_key: "water_service", title: "Water Service", description: "Water recharge and service billing", active: true, status: "pending configuration", billing_mode: "metered" },
+  { service_key: "internet_service", title: "Internet Service", description: "Resident internet subscription services", active: true, status: "pending configuration", billing_mode: "fixed" },
+  { service_key: "service_charge", title: "Service Charge", description: "Estate operational dues", active: true, status: "pending configuration", billing_mode: "fixed" },
+  { service_key: "other_facility_fees", title: "Other Facility Fees", description: "Special estate fees", active: true, status: "pending configuration", billing_mode: "fixed" },
 ];
 
-function statusClass(status: ServiceHealth["status"]) {
-  if (status === "operational") return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
-  if (status === "watch") return "border-amber-500/20 bg-amber-500/10 text-amber-200";
-  return "border-white/10 bg-white/5 text-zinc-300";
+function lower(value: unknown) { return String(value || "").toLowerCase(); }
+function serviceKey(config: ServiceConfig) { return String(config.service_key || config.key || "service"); }
+function serviceTitle(config: ServiceConfig) { return String(config.title || serviceKey(config).replace(/_/g, " ")); }
+function isEnabled(config: ServiceConfig) { return config.enabled ?? config.active ?? false; }
+function readiness(config: ServiceConfig) {
+  if (!isEnabled(config)) return "Unavailable";
+  const status = lower(config.status);
+  if (/maintenance/.test(status)) return "Maintenance mode";
+  if (/pending|config/.test(status)) return "Pending configuration";
+  return "Available";
 }
+function readinessTone(label: string) { if (label === "Available") return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"; if (label === "Maintenance mode") return "border-amber-500/20 bg-amber-500/10 text-amber-200"; if (label === "Unavailable") return "border-white/10 bg-white/5 text-zinc-300"; return "border-sky-500/20 bg-sky-500/10 text-sky-200"; }
+function dateLabel(value?: string | null) { if (!value) return "Time unavailable"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Time unavailable" : d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 
-function formatMoney(amount: number, currency = "NGN") {
-  try {
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }).format(Number(amount || 0));
-  } catch {
-    return `${currency} ${Number(amount || 0).toLocaleString()}`;
-  }
-}
+function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) { return <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div><div className="mt-3 text-2xl font-semibold text-white">{value}</div><div className="mt-1 text-xs text-zinc-500">{hint}</div></div>; }
+function Field({ label, value }: { label: string; value: React.ReactNode }) { return <div className="rounded-xl border border-white/10 bg-black/20 p-3"><div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">{label}</div><div className="mt-1 text-sm text-zinc-200">{value}</div></div>; }
 
 export default function FacilityServicesPage() {
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-  const [overview, setOverview] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
+  const [configs, setConfigs] = useState<ServiceConfig[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [wallet, setWallet] = useState({ balance: 0, outstanding: 0, collected: 0 });
+  const [selected, setSelected] = useState<ServiceConfig | null>(null);
 
   async function load() {
-    setLoading(true);
-    setErr(null);
+    setLoading(true); setError(null); setNotice(null);
     try {
-      const overviewRes = await facilityService
-        .overview()
-        .catch((error) => ({ error: error?.message || "Failed to load overview" }));
-      const estateId = String((overviewRes as any)?.estate?.id || (overviewRes as any)?.estate_id || "").trim();
-      const paymentsRes = estateId
-        ? await facilityService.listEstateServicePayments(estateId, 8).catch(() => ({ payments: [] }))
-        : { payments: [] };
-      if ((overviewRes as any)?.error) setErr(String((overviewRes as any).error));
-      setOverview(overviewRes || null);
-      setPayments(Array.isArray((paymentsRes as any)?.payments) ? (paymentsRes as any).payments : []);
-    } finally {
-      setLoading(false);
-    }
+      const overview = await facilityService.overview().catch(() => null);
+      const estateId = String((overview as any)?.estate?.id || (overview as any)?.estate_id || "").trim();
+      setWallet({ balance: Number((overview as any)?.wallet?.balance || 0), outstanding: Number((overview as any)?.wallet?.outstanding_dues || 0), collected: Number((overview as any)?.wallet?.collected_this_month || 0) });
+      const configResult = await serviceConfigService.list();
+      setConfigError(configResult.error || null);
+      setConfigs(configResult.configs.length ? configResult.configs : FALLBACK_SERVICES);
+      if (estateId) {
+        const paymentRows = await facilityService.listEstateServicePayments(estateId, 20).catch(() => ({ payments: [] }));
+        setPayments(Array.isArray(paymentRows.payments) ? paymentRows.payments : []);
+      } else setPayments([]);
+    } catch (err: any) { setError(err?.message || "Failed to load service operations"); }
+    finally { setLoading(false); }
   }
 
-  useEffect(() => {
-    void load();
-  }, []);
+  useEffect(() => { void load(); }, []);
 
-  const stats = useMemo(() => {
-    const wallet = overview?.wallet || {};
-    const homes = Array.isArray(overview?.homes) ? overview.homes : [];
-    const devices = Array.isArray(overview?.devices) ? overview.devices : [];
-    const activeDevices = devices.filter((device: any) => /online|active|operational/i.test(String(device.status || ""))).length;
-    return [
-      { label: "Estate Wallet", value: formatMoney(Number(wallet.balance || 0)), hint: "Available estate balance", icon: Wallet },
-      { label: "Outstanding", value: formatMoney(Number(wallet.outstanding_dues || 0)), hint: "Service dues signal", icon: Activity },
-      { label: "Homes Linked", value: String(homes.length || overview?.total_homes || 0), hint: "Units with service context", icon: Building2 },
-      { label: "Active Devices", value: String(activeDevices || overview?.active_devices || 0), hint: "Operational utility/device signal", icon: PlugZap },
-    ];
-  }, [overview]);
+  async function toggleService(config: ServiceConfig) {
+    setSaving(true); setError(null); setNotice(null);
+    const enabled = !isEnabled(config);
+    const result = await serviceConfigService.update(serviceKey(config), { active: enabled, enabled });
+    setSaving(false);
+    if (result.error) { setError(result.error); return; }
+    setNotice(`${serviceTitle(config)} updated.`);
+    await load();
+  }
+
+  const enabled = configs.filter(isEnabled).length;
+  const disabled = configs.length - enabled;
+  const pending = configs.filter((config) => readiness(config) === "Pending configuration").length;
+
+  const consumerImpact = useMemo(() => [
+    { label: "Visitor services", enabled: true, source: "Security & Access / Visitors" },
+    { label: "Maintenance services", enabled: configs.some((config) => /maintenance|service_charge|other/.test(serviceKey(config))), source: "Maintenance request flow" },
+    { label: "Wallet services", enabled: configs.some(isEnabled), source: "Wallet-funded resident services" },
+    { label: "Community services", enabled: true, source: "Community module" },
+  ], [configs]);
 
   return (
-    <div className="space-y-7">
-      <Topbar title="Service Operations" subtitle="Utility availability • estate service readiness • live operational signals" />
+    <div className="space-y-6">
+      <Topbar title="Services Administration" subtitle="Resident-facing service readiness, configuration, impact and audit visibility" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
+      {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
+      {configError ? <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">Configuration source: {configError}. Showing contract defaults as Pending configuration, not live settings.</div> : null}
 
-      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-        Service Operations is now operational-only: utilities, readiness, live estate signals, recent service activity and infrastructure health.
-      </div>
+      <section className="grid gap-3 md:grid-cols-4">
+        <Metric label="Configured services" value={configs.length} hint="From config endpoint or contract defaults" />
+        <Metric label="Enabled" value={enabled} hint="Resident-facing services active" />
+        <Metric label="Disabled" value={disabled} hint="Unavailable to residents" />
+        <Metric label="Pending config" value={pending} hint="Needs backend settings source" />
+      </section>
 
-      {err ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{err}</div> : null}
-
-      <div className="grid gap-4 md:grid-cols-4">
-        {stats.map((item) => {
-          const Icon = item.icon;
-          return (
-            <div key={item.label} className="glass rounded-2xl border border-white/10 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-xs text-zinc-400">{item.label}</div>
-                <Icon size={18} className="text-blue-300" />
-              </div>
-              <div className="mt-2 text-2xl font-semibold text-white">{loading ? "..." : item.value}</div>
-              <div className="mt-1 text-[11px] text-zinc-500">{item.hint}</div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <section className="glass rounded-2xl border border-white/10 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-sm font-semibold text-white">Infrastructure Service Registry</div>
-              <div className="mt-1 text-xs text-zinc-400">Estate-scoped utility and service domains powered by the live Facility API.</div>
-            </div>
-            <Button variant="ghost" onClick={() => load()} disabled={loading}>
-              <span className="inline-flex items-center gap-2"><RefreshCw size={14} />Refresh</span>
-            </Button>
-          </div>
-
+      <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+          <h2 className="text-sm font-semibold text-white">Configured services</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {SERVICE_HEALTH.map((service) => {
-              const Icon = service.icon;
-              return (
-                <article key={service.key} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-blue-200">
-                        <Icon size={18} />
-                      </span>
-                      <div>
-                        <div className="text-sm font-semibold text-white">{service.title}</div>
-                        <div className="mt-1 text-xs text-zinc-400">{service.description}</div>
-                      </div>
-                    </div>
-                    <span className={`rounded-full border px-2 py-1 text-[11px] ${statusClass(service.status)}`}>{service.status}</span>
-                  </div>
-                </article>
-              );
+            {configs.map((config) => {
+              const ready = readiness(config);
+              return <article key={serviceKey(config)} className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-white">{serviceTitle(config)}</h3><p className="mt-1 text-xs leading-5 text-zinc-500">{config.description || "No description configured."}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] uppercase ${readinessTone(ready)}`}>{ready}</span></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><Field label="Billing" value={config.billing_mode || "Pending source"} /><Field label="Suggested" value={config.suggested_amount ? formatMoney(Number(config.suggested_amount), "NGN") : "Pending source"} /></div><div className="mt-4 flex flex-wrap gap-2"><Button variant="ghost" onClick={() => setSelected(config)} className="gap-2"><Eye className="h-4 w-4" />Details</Button><Button variant={isEnabled(config) ? "secondary" : "primary"} onClick={() => void toggleService(config)} disabled={saving || Boolean(configError)} className="gap-2">{isEnabled(config) ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}{isEnabled(config) ? "Disable" : "Enable"}</Button></div></article>;
             })}
           </div>
-        </section>
+        </div>
 
         <aside className="space-y-4">
-          <div className="glass rounded-2xl border border-white/10 p-4">
-            <div className="text-sm font-semibold text-white">Recent Service Signals</div>
-            <div className="mt-3 space-y-2 max-h-80 overflow-auto">
-              {payments.slice(0, 8).map((payment: any, index) => (
-                <div key={payment.id || index} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm text-white">{payment.service_title || payment.type || "Service activity"}</div>
-                    <span className="text-[11px] text-zinc-500">{payment.status || "recorded"}</span>
-                  </div>
-                  <div className="mt-1 text-xs text-zinc-400">{payment.home_label || payment.home_id || "Estate service"}</div>
-                </div>
-              ))}
-              {!payments.length ? <div className="text-xs text-zinc-500">No service activity has synced yet.</div> : null}
-            </div>
-          </div>
-
-          <div className="glass rounded-2xl border border-white/10 p-4">
-            <div className="text-sm font-semibold text-white">Production Rule</div>
-            <div className="mt-2 text-xs leading-6 text-zinc-400">
-              Services remain operational-first. Commercial controls stay outside this surface until the infrastructure runtime, audit coverage and live estate data are fully verified.
-            </div>
-          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><h2 className="text-sm font-semibold text-white">Consumer impact preview</h2><div className="mt-4 space-y-2">{consumerImpact.map((item) => <div key={item.label} className="rounded-xl border border-white/10 bg-black/20 p-3"><div className="flex items-center justify-between gap-3"><span className="text-sm text-white">{item.label}</span><span className={item.enabled ? "text-xs text-emerald-200" : "text-xs text-zinc-500"}>{item.enabled ? "Enabled" : "Unavailable"}</span></div><div className="mt-1 text-xs text-zinc-500">{item.source}</div></div>)}</div></div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><h2 className="text-sm font-semibold text-white">Service finance signal</h2><div className="mt-4 grid gap-2"><Field label="Estate wallet" value={formatMoney(wallet.balance, "NGN")} /><Field label="Outstanding" value={formatMoney(wallet.outstanding, "NGN")} /><Field label="Collected this month" value={formatMoney(wallet.collected, "NGN")} /></div></div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><h2 className="text-sm font-semibold text-white">Change audit visibility</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Audit events appear when the backend records service configuration changes. No local audit records are fabricated.</p></div>
         </aside>
-      </div>
+      </section>
+
+      <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><h2 className="text-sm font-semibold text-white">Recent resident service activity</h2><div className="mt-4 space-y-2">{payments.slice(0, 10).map((payment, index) => <div key={payment.id || payment.reference || index} className="rounded-xl border border-white/10 bg-black/20 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm text-white">{payment.service_title || payment.type || "Service payment"}</span><span className="text-xs text-zinc-500">{payment.status || "recorded"}</span></div><div className="mt-1 text-xs text-zinc-500">{payment.home_label || payment.home_name || "Home pending"} · {payment.amount ? formatMoney(Number(payment.amount), "NGN") : "Amount pending"} · {dateLabel(payment.created_at)}</div></div>)}{!payments.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident service activity has synced yet.</div> : null}</div></section>
+
+      {selected ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex justify-between gap-4"><div><p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Service configuration</p><h2 className="mt-1 text-lg font-semibold text-white">{serviceTitle(selected)}</h2></div><button type="button" onClick={() => setSelected(null)} className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:text-white"><X className="h-4 w-4" /></button></header><div className="mt-5 grid gap-3 sm:grid-cols-2"><Field label="Service key" value={serviceKey(selected)} /><Field label="Readiness" value={<span className={`rounded-full border px-2 py-1 text-xs ${readinessTone(readiness(selected))}`}>{readiness(selected)}</span>} /><Field label="Account label" value={selected.account_label || "Pending source"} /><Field label="Account hint" value={selected.account_hint || "Pending source"} /><Field label="Unit cost" value={selected.unit_cost ? formatMoney(Number(selected.unit_cost), "NGN") : "Pending source"} /><Field label="Updated" value={dateLabel(selected.updated_at)} /></div><div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-zinc-400"><Settings className="mb-2 h-4 w-4 text-sky-200" />Configuration editor uses <code>/services/config/:serviceKey</code>. If the operator lacks <code>settings.manage</code>, controls remain visible but fail closed through backend permissions.</div></section></div> : null}
     </div>
   );
 }

@@ -1,61 +1,21 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
 import { facilityService } from "@/services/facilityService";
 import { walletsService } from "@/services/walletsService";
 import { formatMoney } from "@/lib/format";
+import { useSessionStore } from "@/store/useSessionStore";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Wallet, TrendingUp, AlertCircle, DollarSign } from "lucide-react";
-
-function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
-function MetricCard({
-  title,
-  value,
-  hint,
-  trend = "neutral",
-  icon: Icon,
-  iconColor = "text-blue-500",
-}: {
-  title: string;
-  value: string | number;
-  hint?: string;
-  trend?: "up" | "down" | "neutral";
-  icon: any;
-  iconColor?: string;
-}) {
-  const trendColors: Record<string, string> = {
-    up: "text-green-500",
-    down: "text-red-500",
-    neutral: "text-slate-400",
-  };
-
-  return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-sm text-slate-400 mb-2">{title}</p>
-          <p className="text-3xl font-semibold mb-1">{value}</p>
-          {hint ? <p className={cn("text-sm", trendColors[trend] || "text-slate-400")}>{hint}</p> : null}
-        </div>
-        <div className={cn("p-3 rounded-lg bg-slate-800", iconColor)}>
-          <Icon size={24} />
-        </div>
-      </div>
-    </div>
-  );
-}
+import { AlertTriangle, Download, Eye, RefreshCw, Wallet, X } from "lucide-react";
 
 type WalletActivityRow = {
-  id: string;
-  type: string;
-  amount: number;
-  status: string;
+  id?: string;
+  type?: string;
+  amount?: number | string | null;
+  status?: string | null;
   reference?: string | null;
   created_at?: string | null;
   service_title?: string | null;
@@ -63,426 +23,97 @@ type WalletActivityRow = {
   user_email?: string | null;
   home_name?: string | null;
   home_label?: string | null;
-  token_code?: string | null;
-  bundle_name?: string | null;
-  period_label?: string | null;
+  source?: string | null;
+  destination?: string | null;
+  currency?: string | null;
 };
 
-function when(iso?: string | null) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleString([], {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+function cn(...classes: Array<string | false | null | undefined>) { return classes.filter(Boolean).join(" "); }
+function lower(value: unknown) { return String(value || "").toLowerCase(); }
+function dateLabel(value?: string | null) { if (!value) return "Time unavailable"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Time unavailable" : d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
+function statusTone(status?: string | null) { const value = lower(status); if (/completed|success|paid/.test(value)) return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"; if (/failed|rejected|reversed/.test(value)) return "border-red-500/20 bg-red-500/10 text-red-200"; if (/pending|processing|approval/.test(value)) return "border-amber-500/20 bg-amber-500/10 text-amber-200"; return "border-white/10 bg-white/5 text-zinc-300"; }
 
-function pill(s?: string) {
-  const x = String(s || "").toLowerCase();
-  if (x === "success" || x === "completed") {
-    return "bg-emerald-500/15 text-emerald-200 border-emerald-500/20";
-  }
-  if (x === "failed" || x === "reversed") {
-    return "bg-red-500/15 text-red-200 border-red-500/20";
-  }
-  return "bg-yellow-500/15 text-yellow-200 border-yellow-500/20";
+function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) {
+  return <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div><div className="mt-3 text-2xl font-semibold text-white">{value}</div><div className="mt-1 text-xs text-zinc-500">{hint}</div></div>;
 }
+function Detail({ label, value }: { label: string; value: React.ReactNode }) { return <div className="rounded-xl border border-white/10 bg-black/20 p-3"><div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">{label}</div><div className="mt-1 break-words text-sm text-zinc-200">{value || "-"}</div></div>; }
 
 export default function WalletsPage() {
-  const [activeTab, setActiveTab] = useState<"overview" | "transactions" | "outstanding" | "invoices">("overview");
+  const { user } = useSessionStore();
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const [overviewWallet, setOverviewWallet] = useState<{
-    balance: number;
-    outstanding_dues: number;
-    collected_this_month: number;
-  } | null>(null);
-
-  const [myWallet, setMyWallet] = useState<{ balance: number; currency: string }>({
-    balance: 0,
-    currency: "NGN",
-  });
-
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [wallet, setWallet] = useState({ balance: 0, outstanding_dues: 0, collected_this_month: 0, currency: "NGN" });
   const [rows, setRows] = useState<WalletActivityRow[]>([]);
+  const [selected, setSelected] = useState<WalletActivityRow | null>(null);
 
-  const [showDebit, setShowDebit] = useState(false);
-  const [debitAmount, setDebitAmount] = useState("");
-  const [debitReason, setDebitReason] = useState("service_charge");
-  const canDebit = Number(debitAmount) > 0;
+  const permissions = Array.isArray((user as any)?.permissions) ? (user as any).permissions : [];
+  const canRead = permissions.includes("wallets.read") || ["admin", "owner", "estate_admin", "finance_operator"].includes(String(user?.role || ""));
+  const canManage = permissions.includes("wallets.manage") || ["admin", "owner", "estate_admin", "finance_operator"].includes(String(user?.role || ""));
 
   async function load() {
-    setLoading(true);
-    setErr(null);
-
+    setLoading(true); setError(null);
     try {
       const ov = await facilityService.overview();
-      setOverviewWallet({
-        balance: Number(ov?.wallet?.balance || 0),
-        outstanding_dues: Number(ov?.wallet?.outstanding_dues || 0),
-        collected_this_month: Number(ov?.wallet?.collected_this_month || 0),
+      setWallet({
+        balance: Number((ov as any)?.wallet?.balance || 0),
+        outstanding_dues: Number((ov as any)?.wallet?.outstanding_dues || 0),
+        collected_this_month: Number((ov as any)?.wallet?.collected_this_month || 0),
+        currency: "NGN",
       });
-
       const mine = await walletsService.getMyWallet();
-      if (mine?.error) {
-        setErr(mine.error);
-      } else if (mine.wallet) {
-        setMyWallet({
-          balance: Number(mine.wallet.balance || 0),
-          currency: String(mine.wallet.currency || "NGN"),
-        });
-      }
-
+      if (mine.wallet?.currency) setWallet((current) => ({ ...current, currency: String(mine.wallet?.currency || current.currency) }));
       const estateId = String((ov as any)?.estate?.id || (ov as any)?.estate_id || "").trim();
       if (estateId) {
-        const tx = await facilityService.listEstateServicePayments(estateId, 80);
+        const tx = await facilityService.listEstateServicePayments(estateId, 120);
         setRows(Array.isArray(tx?.payments) ? tx.payments : []);
-      } else {
-        setRows([]);
-      }
-    } catch (e: any) {
-      setErr(e?.response?.data?.error || e?.message || "Failed to load billing and finance");
-    } finally {
-      setLoading(false);
-    }
+      } else setRows([]);
+    } catch (err: any) { setError(err?.response?.data?.error || err?.message || "Failed to load wallet operations"); }
+    finally { setLoading(false); }
   }
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { void load(); }, []);
 
-  async function runDebit() {
-    if (!canDebit) return;
-    setLoading(true);
-    setErr(null);
+  const pending = rows.filter((row) => /pending|processing|approval/.test(lower(row.status)));
+  const failed = rows.filter((row) => /failed|rejected|reversed/.test(lower(row.status)));
+  const completed = rows.filter((row) => /completed|success|paid/.test(lower(row.status)));
 
-    try {
-      const amt = Number(debitAmount);
-      const res = await walletsService.debit(amt, debitReason || "manual_debit");
-      if (res.error) {
-        setErr(res.error);
-        return;
-      }
+  const columns = useMemo<ColumnDef<WalletActivityRow>[]>(() => [
+    { header: "Transaction", cell: ({ row }) => <div><div className="text-sm text-white">{row.original.service_title || row.original.type || "Wallet transaction"}</div><div className="mt-1 text-xs text-zinc-500">{row.original.user_name || row.original.user_email || "Resident source pending"}</div></div> },
+    { header: "Amount", cell: ({ row }) => <span className="font-semibold text-white">{formatMoney(Number(row.original.amount || 0), row.original.currency || wallet.currency)}</span> },
+    { header: "Status", cell: ({ row }) => <span className={cn("rounded-full border px-2 py-1 text-xs", statusTone(row.original.status))}>{row.original.status || "pending"}</span> },
+    { header: "Reference", cell: ({ row }) => <span className="font-mono text-xs text-zinc-400">{row.original.reference || row.original.id || "-"}</span> },
+    { header: "Timestamp", cell: ({ row }) => <span className="text-xs text-zinc-400">{dateLabel(row.original.created_at)}</span> },
+    { id: "actions", header: "", cell: ({ row }) => <Button variant="ghost" onClick={() => setSelected(row.original)} className="gap-2"><Eye className="h-4 w-4" />Details</Button> },
+  ], [wallet.currency]);
 
-      setMyWallet((p) => ({ ...p, balance: Number(res.balance ?? p.balance) }));
-      setShowDebit(false);
-      setDebitAmount("");
-      setDebitReason("service_charge");
-      await load();
-    } finally {
-      setLoading(false);
-    }
+  if (!canRead) {
+    return <div className="space-y-6"><Topbar title="Wallet Operations" subtitle="Finance permissions required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: wallets.read.</div></div>;
   }
-
-  const estateBalance = overviewWallet?.balance ?? 0;
-  const estateOutstanding = overviewWallet?.outstanding_dues ?? 0;
-  const estateCollected = overviewWallet?.collected_this_month ?? 0;
-
-  const recognized = estateBalance + estateCollected + estateOutstanding;
-  const collectionRate =
-    estateOutstanding > 0
-      ? Math.max(0, Math.min(100, Math.round((estateCollected / (estateCollected + estateOutstanding)) * 100)))
-      : 100;
-
-  const composition = useMemo(() => {
-    const total = Math.max(1, recognized);
-    return [
-      {
-        label: "Estate Wallet Balance",
-        value: estateBalance,
-        pct: Math.round((estateBalance / total) * 100),
-        bar: "bg-blue-500",
-      },
-      {
-        label: "Collected This Month",
-        value: estateCollected,
-        pct: Math.round((estateCollected / total) * 100),
-        bar: "bg-emerald-500",
-      },
-      {
-        label: "Outstanding Dues",
-        value: estateOutstanding,
-        pct: Math.round((estateOutstanding / total) * 100),
-        bar: "bg-amber-500",
-      },
-    ];
-  }, [estateBalance, estateCollected, estateOutstanding, recognized]);
-
-  const columns = useMemo<ColumnDef<WalletActivityRow>[]>(
-    () => [
-      { accessorKey: "type", header: "Type" },
-      {
-        accessorKey: "service_title",
-        header: "Service",
-        cell: ({ row }) => (
-          <div>
-            <div className="text-sm text-white">{row.original.service_title || row.original.type}</div>
-            <div className="text-[11px] text-white/50">
-              {row.original.user_name || row.original.user_email || "-"}
-            </div>
-          </div>
-        ),
-      },
-      {
-        accessorKey: "amount",
-        header: "Amount",
-        cell: ({ row }) => (
-          <span className="font-semibold">
-            {formatMoney(Number(row.original.amount || 0), myWallet.currency || "NGN")}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "status",
-        header: "Status",
-        cell: ({ row }) => (
-          <span className={cn("inline-flex text-[11px] px-2 py-1 rounded-full border", pill(row.original.status))}>
-            {String(row.original.status || "pending")}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "reference",
-        header: "Reference",
-        cell: ({ row }) => (
-          <div className="text-xs text-white/70">
-            <div className="font-mono">{row.original.reference || "-"}</div>
-            {row.original.token_code ? <div className="text-emerald-300">Token: {row.original.token_code}</div> : null}
-          </div>
-        ),
-      },
-      {
-        accessorKey: "created_at",
-        header: "Created",
-        cell: ({ row }) => <span className="text-white/70 text-xs">{when(row.original.created_at)}</span>,
-      },
-      {
-        accessorKey: "home_name",
-        header: "Home",
-        cell: ({ row }) => (
-          <div className="text-xs text-white/70">
-            <div>{row.original.home_name || "-"}</div>
-            {row.original.home_label ? <div className="text-white/45">{row.original.home_label}</div> : null}
-          </div>
-        ),
-      },
-    ],
-    [myWallet.currency]
-  );
 
   return (
-    <div className="space-y-7">
-      <Topbar title="Wallet Operations" subtitle="Live wallet flows from your facility backend" />
+    <div className="space-y-6">
+      <Topbar title="Wallet Operations" subtitle="Estate finance, resident service payments, failed transactions, and finance attention queue" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
+      {notice ? <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">{notice}</div> : null}
 
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setShowDebit(true)} disabled={loading}>
-            Manual Debit
-          </Button>
-        </div>
+      <section className="grid gap-3 md:grid-cols-4">
+        <Metric label="Wallet balance" value={formatMoney(wallet.balance, wallet.currency)} hint="Estate overview source" />
+        <Metric label="Recent transactions" value={rows.length} hint="Service payment records" />
+        <Metric label="Pending" value={pending.length} hint="Pending or processing" />
+        <Metric label="Failed" value={failed.length} hint="Requires operator review" />
+      </section>
 
-        <Button variant="ghost" onClick={load} disabled={loading}>
-          {loading ? "Refreshing..." : "Refresh"}
-        </Button>
-      </div>
+      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><DataTable data={rows} columns={columns} title="Transaction Registry" searchKey="reference" /></div>
+        <aside className="space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><h2 className="text-sm font-semibold text-white">Wallet attention queue</h2><div className="mt-3 space-y-2">{[...failed, ...pending].slice(0, 8).map((row, index) => <button key={row.id || row.reference || index} type="button" onClick={() => setSelected(row)} className="block w-full rounded-xl border border-white/10 bg-black/20 p-3 text-left"><div className="flex justify-between gap-3"><span className="text-sm text-white">{row.service_title || row.type || "Transaction"}</span><span className={cn("rounded-full border px-2 py-1 text-[10px]", statusTone(row.status))}>{row.status || "pending"}</span></div><div className="mt-1 text-xs text-zinc-500">{formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · {dateLabel(row.created_at)}</div></button>)}{![...failed, ...pending].length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No failed or pending finance items.</div> : null}</div></div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><h2 className="text-sm font-semibold text-white">Operational exports</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Export Pending Backend Support. No local export is generated until a backend export contract exists.</p><Button variant="ghost" disabled className="mt-3 gap-2"><Download className="h-4 w-4" />Export pending</Button></div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><h2 className="text-sm font-semibold text-white">Permissions</h2><p className="mt-2 text-sm text-zinc-400">Read: wallets.read · Manage: wallets.manage</p><p className="mt-2 text-xs text-zinc-500">Manage available: {canManage ? "Yes" : "No"}</p></div>
+        </aside>
+      </section>
 
-      {!!err && (
-        <div className="border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-200 rounded-2xl">{err}</div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard
-          title="Total Collected (MTD)"
-          value={formatMoney(estateCollected || 0, "NGN")}
-          hint="From facility overview"
-          trend="up"
-          icon={DollarSign}
-          iconColor="text-green-500"
-        />
-        <MetricCard
-          title="Estate Wallet"
-          value={formatMoney(estateBalance || 0, "NGN")}
-          hint="Current aggregate balance"
-          trend="neutral"
-          icon={Wallet}
-          iconColor="text-blue-500"
-        />
-        <MetricCard
-          title="Outstanding Dues"
-          value={formatMoney(estateOutstanding || 0, "NGN")}
-          hint={estateOutstanding > 0 ? "Requires collection" : "No outstanding dues"}
-          trend={estateOutstanding > 0 ? "down" : "up"}
-          icon={AlertCircle}
-          iconColor="text-amber-500"
-        />
-        <MetricCard
-          title="Collection Rate"
-          value={`${collectionRate}%`}
-          hint="Collected vs outstanding"
-          trend={collectionRate >= 75 ? "up" : "down"}
-          icon={TrendingUp}
-          iconColor="text-purple-500"
-        />
-      </div>
-
-      <div className="mb-2">
-        <div className="flex gap-2 border-b border-slate-800">
-          {(["overview", "transactions", "outstanding", "invoices"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                "px-6 py-3 text-sm font-medium transition-colors border-b-2",
-                activeTab === tab
-                  ? "border-blue-500 text-blue-500"
-                  : "border-transparent text-slate-400 hover:text-white"
-              )}
-              type="button"
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {activeTab === "overview" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <h3 className="text-lg font-semibold mb-4">Wallet Composition</h3>
-            <div className="space-y-4">
-              {composition.map((item) => (
-                <div key={item.label} className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">{item.label}</span>
-                    <span className="text-lg font-semibold">{formatMoney(item.value || 0, "NGN")}</span>
-                  </div>
-                  <div className="w-full bg-slate-700 rounded-full h-2">
-                    <div className={cn("h-2 rounded-full", item.bar)} style={{ width: `${item.pct}%` }} />
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">{item.pct}% of known finance total</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <h3 className="text-lg font-semibold mb-4">Operator Wallet</h3>
-            <div className="p-4 bg-slate-800/50 rounded-lg">
-              <div className="text-xs text-slate-400">My Wallet Balance</div>
-              <div className="text-xl font-semibold mt-1">
-                {formatMoney(myWallet.balance || 0, myWallet.currency || "NGN")}
-              </div>
-            </div>
-
-            <div className="mt-6 pt-6 border-t border-slate-800">
-              <h4 className="text-sm font-semibold mb-2">Finance Feed Status</h4>
-              <p className="text-sm text-slate-400">
-                Resident wallet-funded service payments now appear here with unit, resident, and receipt context.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "transactions" && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-          <h3 className="text-lg font-semibold mb-4">Wallet Activity</h3>
-          <DataTable data={rows} columns={columns} title="Backend Wallet Activity" searchKey={"reference"} />
-          {!rows.length ? <div className="mt-3 text-sm text-slate-400">No service payment activity available yet.</div> : null}
-        </div>
-      )}
-
-      {activeTab === "outstanding" && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-          <h3 className="text-lg font-semibold mb-4">Outstanding Summary</h3>
-          {estateOutstanding > 0 ? (
-            <div className="p-5 bg-slate-800/50 rounded-lg border border-amber-500/20">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="font-semibold">Total Outstanding Dues</p>
-                  <p className="text-sm text-slate-400">Aggregate amount pending across linked homes</p>
-                </div>
-                <p className="text-2xl font-semibold text-amber-400">{formatMoney(estateOutstanding, "NGN")}</p>
-              </div>
-              <p className="text-xs text-slate-500">Open homes, residents, or services modules to send reminders per unit.</p>
-            </div>
-          ) : (
-            <div className="p-5 bg-slate-800/50 rounded-lg border border-emerald-500/20 text-sm text-slate-300">
-              No outstanding dues at the moment.
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === "invoices" && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-          <h3 className="text-lg font-semibold mb-3">Invoice Operations</h3>
-          <p className="text-sm text-slate-400 mb-6">
-            This section is live-ready and intentionally empty until invoice template endpoints are connected.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-slate-800/50 rounded-lg">
-              <p className="text-xs text-slate-400">Templates</p>
-              <p className="text-xl font-semibold mt-1">0</p>
-            </div>
-            <div className="p-4 bg-slate-800/50 rounded-lg">
-              <p className="text-xs text-slate-400">Generated (MTD)</p>
-              <p className="text-xl font-semibold mt-1">0</p>
-            </div>
-            <div className="p-4 bg-slate-800/50 rounded-lg">
-              <p className="text-xs text-slate-400">Paid (MTD)</p>
-              <p className="text-xl font-semibold mt-1">0</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showDebit && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
-          <div className="absolute inset-0 bg-black/70" onClick={() => !loading && setShowDebit(false)} />
-          <div className="relative bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-lg p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-lg font-semibold">Manual Debit</div>
-                <div className="text-sm text-slate-400 mt-1">Run a direct debit from the operator wallet.</div>
-              </div>
-              <button className="text-slate-400 hover:text-slate-200" onClick={() => !loading && setShowDebit(false)}>
-                x
-              </button>
-            </div>
-
-            <div className="grid gap-3 mt-5">
-              <input
-                className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 outline-none focus:border-blue-500"
-                placeholder="Amount (NGN)"
-                value={debitAmount}
-                onChange={(e) => setDebitAmount(e.target.value)}
-                inputMode="decimal"
-              />
-
-              <input
-                className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 outline-none focus:border-blue-500"
-                placeholder="Reason (e.g. service_charge)"
-                value={debitReason}
-                onChange={(e) => setDebitReason(e.target.value)}
-              />
-
-              <div className="flex gap-2 mt-2 justify-end">
-                <Button variant="ghost" onClick={() => setShowDebit(false)} disabled={loading}>
-                  Cancel
-                </Button>
-                <Button onClick={runDebit} disabled={loading || !canDebit}>
-                  {loading ? "Debiting..." : "Debit"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {selected ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex justify-between gap-4"><div><p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Transaction detail</p><h2 className="mt-1 text-lg font-semibold text-white">{selected.service_title || selected.type || "Wallet transaction"}</h2></div><button type="button" onClick={() => setSelected(null)} className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:text-white"><X className="h-4 w-4" /></button></header><div className="mt-5 grid gap-3 sm:grid-cols-2"><Detail label="Amount" value={formatMoney(Number(selected.amount || 0), selected.currency || wallet.currency)} /><Detail label="Source" value={selected.source || selected.user_name || selected.user_email || "Resident wallet source"} /><Detail label="Destination" value={selected.destination || "Estate service wallet"} /><Detail label="Reference" value={selected.reference || selected.id} /><Detail label="Status" value={<span className={cn("rounded-full border px-2 py-1 text-xs", statusTone(selected.status))}>{selected.status || "pending"}</span>} /><Detail label="Timestamp" value={dateLabel(selected.created_at)} /><Detail label="Home" value={selected.home_name || selected.home_label || "Home pending"} /><Detail label="Action" value={/failed|pending|rejected/.test(lower(selected.status)) ? "Review with resident/service provider" : "No operator action required"} /></div></section></div> : null}
     </div>
   );
 }

@@ -1,740 +1,380 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
-import {
-  maintenanceService,
-  type MaintenanceItem,
-} from "@/services/maintenanceService";
-import { deviceService, type FacilityDevice } from "@/services/deviceService";
-import { useEffect, useMemo, useState } from "react";
+import { maintenanceService, type MaintenanceItem, type MaintenanceStatus } from "@/services/maintenanceService";
 import type { ColumnDef } from "@tanstack/react-table";
-import {
-  Wrench,
-  CheckCircle,
-  Clock,
-  AlertCircle,
-  Plus,
-} from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle, Clock, MessageSquare, RefreshCw, UserCog, Wrench, X } from "lucide-react";
+
+type Lane = "active" | "unassigned" | "scheduled" | "waiting" | "completed" | "all";
+
+type WorkOrderForm = {
+  status: string;
+  assigned_to: string;
+  schedule_date: string;
+  schedule_time: string;
+  note: string;
+};
+
+const STATUS_OPTIONS: Array<{ value: MaintenanceStatus; label: string }> = [
+  { value: "new", label: "New" },
+  { value: "assigned", label: "Assigned" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "waiting_for_resident", label: "Waiting For Resident" },
+  { value: "waiting_for_parts", label: "Waiting For Parts" },
+  { value: "completed", label: "Completed" },
+  { value: "closed", label: "Closed" },
+  { value: "cancelled", label: "Cancelled" },
+];
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-type Lane = "open" | "in_progress" | "resolved" | "all";
-type Priority = "low" | "medium" | "high" | "urgent" | string;
-
-function safeLower(v: any) {
-  return String(v ?? "").toLowerCase();
+function lower(value: unknown) {
+  return String(value || "").toLowerCase();
 }
 
-function statusTone(status: string) {
-  const s = safeLower(status);
-  if (s === "resolved" || s === "closed")
-    return "text-emerald-200 bg-emerald-500/10 border-emerald-500/20";
-  if (s === "in_progress" || s === "assigned")
-    return "text-sky-200 bg-sky-500/10 border-sky-500/20";
-  if (s === "open" || s === "new")
-    return "text-amber-200 bg-amber-500/10 border-amber-500/20";
-  if (s === "cancelled")
-    return "text-zinc-200 bg-white/5 border-white/10";
-  return "text-zinc-200 bg-white/5 border-white/10";
+function titleCase(value: unknown) {
+  return String(value || "pending source").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function priorityTone(p: Priority) {
-  const v = safeLower(p);
-  if (v === "urgent") return "text-red-200 bg-red-500/10 border-red-500/20";
-  if (v === "high") return "text-amber-200 bg-amber-500/10 border-amber-500/20";
-  if (v === "medium") return "text-sky-200 bg-sky-500/10 border-sky-500/20";
-  if (v === "low") return "text-emerald-200 bg-emerald-500/10 border-emerald-500/20";
-  return "text-zinc-200 bg-white/5 border-white/10";
+function isClosed(item: MaintenanceItem) {
+  return ["completed", "closed", "cancelled", "resolved"].includes(lower(item.status));
 }
 
-function formatAgo(isoLike: any) {
-  const d = new Date(isoLike);
-  if (Number.isNaN(d.getTime())) return String(isoLike ?? "-");
-  const diff = Date.now() - d.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+function isWaiting(item: MaintenanceItem) {
+  return ["waiting_for_resident", "waiting_for_parts"].includes(lower(item.status));
 }
 
-function getLocationLabel(item: any) {
-  const parts = [
-    item?.zone,
-    item?.block,
-    item?.building,
-    item?.unit,
-    item?.apartment,
-    item?.home_name,
-    item?.home?.name,
-    item?.room_name,
-    item?.room?.name,
-  ]
-    .map((x: any) => String(x || "").trim())
-    .filter(Boolean);
-
-  if (parts.length) return parts.join(" • ");
-
-  const homeId = item?.home_id ? `Home ${String(item.home_id).slice(0, 6)}…` : "";
-  const roomId = item?.room_id ? `Room ${String(item.room_id).slice(0, 6)}…` : "";
-  const estateId = item?.estate_id ? `Estate ${String(item.estate_id).slice(0, 6)}…` : "";
-  const fallback = [homeId, roomId, estateId].filter(Boolean).join(" • ");
-  return fallback || "—";
+function isAssigned(item: MaintenanceItem) {
+  return Boolean(item.assigned_to || item.assigned_operator || item.metadata?.assigned_operator);
 }
 
-function getRequesterLabel(item: any) {
-  const name =
-    item?.resident_name ||
-    item?.resident?.name ||
-    item?.user_name ||
-    item?.user?.name ||
-    "";
-  const email =
-    item?.resident_email || item?.resident?.email || item?.user?.email || "";
-  const id = item?.resident_id || item?.user_id || "";
-
-  const cleanName = String(name || "").trim();
-  const cleanEmail = String(email || "").trim();
-
-  if (cleanName && cleanEmail) return `${cleanName} • ${cleanEmail}`;
-  if (cleanName) return cleanName;
-  if (cleanEmail) return cleanEmail;
-  if (id) return `Resident ${String(id).slice(0, 6)}…`;
-  return "—";
+function scheduledAt(item: MaintenanceItem) {
+  const explicit = item.scheduled_at || item.metadata?.scheduled_at;
+  if (explicit) return explicit;
+  const date = item.schedule_date || item.metadata?.schedule_date;
+  const time = item.schedule_time || item.metadata?.schedule_time;
+  return date ? `${date}${time ? `T${time}` : ""}` : null;
 }
 
-/** UI-only card, local to this page (no new dependency) */
-function MetricCard({
-  title,
-  value,
-  sub,
-  Icon,
-  iconClass,
-}: {
-  title: string;
-  value: string | number;
-  sub?: string;
-  Icon: any;
-  iconClass?: string;
-}) {
+function isScheduledToday(item: MaintenanceItem) {
+  const dateValue = scheduledAt(item);
+  if (!dateValue) return false;
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  return date.toDateString() === today.toDateString();
+}
+
+function dateLabel(value?: string | null) {
+  if (!value) return "Time unavailable";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Time unavailable";
+  return date.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function statusTone(status?: string) {
+  const value = lower(status);
+  if (["completed", "closed", "resolved"].includes(value)) return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
+  if (["assigned", "scheduled", "in_progress"].includes(value)) return "border-sky-500/20 bg-sky-500/10 text-sky-200";
+  if (["waiting_for_resident", "waiting_for_parts"].includes(value)) return "border-amber-500/20 bg-amber-500/10 text-amber-200";
+  if (value === "cancelled") return "border-white/10 bg-white/5 text-zinc-300";
+  return "border-orange-500/20 bg-orange-500/10 text-orange-200";
+}
+
+function priorityTone(priority?: string | null) {
+  const value = lower(priority || "medium");
+  if (value === "urgent") return "border-red-500/25 bg-red-500/10 text-red-200";
+  if (value === "high") return "border-amber-500/25 bg-amber-500/10 text-amber-200";
+  if (value === "low") return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200";
+  return "border-sky-500/20 bg-sky-500/10 text-sky-200";
+}
+
+function locationOf(item: MaintenanceItem) {
+  return [item.home_name, item.room_name, item.home_id ? `Home ${String(item.home_id).slice(0, 6)}...` : null]
+    .filter(Boolean)
+    .join(" / ") || "Location pending";
+}
+
+function requesterOf(item: MaintenanceItem) {
+  return item.resident_name || item.user_name || item.resident_email || item.user_email || item.resident_id || item.user_id || "Resident pending";
+}
+
+function ownerOf(item: MaintenanceItem) {
+  return item.assigned_operator || item.metadata?.assigned_operator || item.assigned_to || "No operator assigned";
+}
+
+function Metric({ label, value, hint, icon: Icon }: { label: string; value: string | number; hint: string; icon: typeof Wrench }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-white/50">{title}</div>
-          <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
-          {sub ? <div className="mt-2 text-xs text-white/45">{sub}</div> : null}
-        </div>
-        <div
-          className={cn(
-            "h-10 w-10 rounded-xl border border-white/10 bg-black/20 flex items-center justify-center",
-            iconClass
-          )}
-        >
-          <Icon size={18} />
-        </div>
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+        <Icon className="h-4 w-4 text-sky-200" />
       </div>
+      <div className="mt-3 text-2xl font-semibold text-white">{value}</div>
+      <div className="mt-1 text-xs text-zinc-500">{hint}</div>
+    </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+      <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">{label}</div>
+      <div className="mt-1 text-sm text-zinc-200">{value}</div>
     </div>
   );
 }
 
 export default function MaintenancePage() {
   const [items, setItems] = useState<MaintenanceItem[]>([]);
-  const [devices, setDevices] = useState<FacilityDevice[]>([]);
+  const [lane, setLane] = useState<Lane>("active");
   const [loading, setLoading] = useState(false);
-
-  const [lane, setLane] = useState<Lane>("open");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [selected, setSelected] = useState<MaintenanceItem | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<WorkOrderForm>({ status: "assigned", assigned_to: "", schedule_date: "", schedule_time: "", note: "" });
 
   async function load() {
     setLoading(true);
+    setError(null);
     try {
-      const [res, dev] = await Promise.all([
-        maintenanceService.list(lane === "all" ? undefined : { status: lane }),
-        deviceService.list(),
-      ]);
-      setItems(res || []);
-      setDevices(Array.isArray(dev) ? dev : []);
+      setItems(await maintenanceService.list());
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || "Failed to load maintenance requests");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lane]);
+    void load();
+    const onRealtime = (event: Event) => {
+      const name = (event as CustomEvent)?.detail?.event || "";
+      if (/maintenance|notification|audit/.test(name)) void load();
+    };
+    window.addEventListener("facility:realtime-event", onRealtime);
+    return () => window.removeEventListener("facility:realtime-event", onRealtime);
+  }, []);
+
+  function open(item: MaintenanceItem) {
+    setSelected(item);
+    const schedule = scheduledAt(item);
+    const date = schedule && !Number.isNaN(new Date(schedule).getTime()) ? new Date(schedule) : null;
+    setForm({
+      status: String(item.status || "assigned"),
+      assigned_to: String(item.assigned_to || ""),
+      schedule_date: date ? date.toISOString().slice(0, 10) : "",
+      schedule_time: date ? date.toTimeString().slice(0, 5) : "",
+      note: "",
+    });
+  }
+
+  async function saveWorkOrder() {
+    if (!selected) return;
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+    const scheduled_at = form.schedule_date ? `${form.schedule_date}T${form.schedule_time || "09:00"}:00` : undefined;
+    const result = await maintenanceService.update(selected.id, {
+      status: form.status,
+      assigned_to: form.assigned_to.trim() || null,
+      note: form.note.trim() || undefined,
+      scheduled_at,
+      schedule_date: form.schedule_date || undefined,
+      schedule_time: form.schedule_time || undefined,
+      visit_notes: form.note.trim() || undefined,
+    });
+    setSaving(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setNotice("Maintenance request updated.");
+    setSelected(result.request || selected);
+    await load();
+  }
+
+  const filtered = useMemo(() => {
+    if (lane === "all") return items;
+    if (lane === "unassigned") return items.filter((item) => !isClosed(item) && !isAssigned(item));
+    if (lane === "scheduled") return items.filter((item) => !isClosed(item) && Boolean(scheduledAt(item)));
+    if (lane === "waiting") return items.filter(isWaiting);
+    if (lane === "completed") return items.filter(isClosed);
+    return items.filter((item) => !isClosed(item));
+  }, [items, lane]);
 
   const stats = useMemo(() => {
-    const total = items.length;
-    let open = 0,
-      inProg = 0,
-      resolved = 0;
-    let high = 0;
-    let urgent = 0;
-
-    for (const it of items as any[]) {
-      const s = safeLower(it?.status);
-      if (s === "open") open += 1;
-      else if (s === "in_progress") inProg += 1;
-      else if (s === "resolved") resolved += 1;
-
-      const p = safeLower(it?.priority);
-      if (p === "urgent") urgent += 1;
-      if (p === "high" || p === "urgent") high += 1;
-    }
-
-    const pendingTasks = open;
-    const inProgress = inProg;
-    const criticalIssues = urgent;
-
+    const active = items.filter((item) => !isClosed(item));
     return {
-      total,
-      open,
-      inProg,
-      resolved,
-      high,
-      urgent,
-      pendingTasks,
-      inProgress,
-      criticalIssues,
+      open: active.length,
+      assigned: active.filter(isAssigned).length,
+      completed: items.filter(isClosed).length,
+      unassigned: active.filter((item) => !isAssigned(item)).length,
+      escalated: active.filter((item) => ["urgent", "high"].includes(lower(item.priority))).length,
+      waiting: active.filter(isWaiting).length,
+      scheduledToday: active.filter(isScheduledToday).length,
     };
   }, [items]);
 
-  const activeTasks = useMemo(() => {
-    const arr = [...(items as any[])];
-    // prioritize urgent/high, then newest
-    arr.sort((a, b) => {
-      const pa = safeLower(a?.priority);
-      const pb = safeLower(b?.priority);
-      const score = (p: string) =>
-        p === "urgent" ? 3 : p === "high" ? 2 : p === "medium" ? 1 : 0;
-      const s = score(pb) - score(pa);
-      if (s !== 0) return s;
-      const ta = new Date(a?.created_at || 0).getTime();
-      const tb = new Date(b?.created_at || 0).getTime();
-      return tb - ta;
-    });
+  const timeline = selected
+    ? [
+        { label: "Original request", body: selected.description || selected.title || "Maintenance request created.", time: selected.created_at },
+        ...(selected.assigned_to ? [{ label: "Assigned operator", body: ownerOf(selected), time: selected.updated_at || selected.created_at }] : []),
+        ...(scheduledAt(selected) ? [{ label: "Scheduled visit", body: "Visit window recorded for facility follow-up.", time: scheduledAt(selected) }] : []),
+        ...(selected.note || selected.notes ? [{ label: "Operator notes", body: selected.note || selected.notes || "", time: selected.updated_at || selected.created_at }] : []),
+        ...(selected.completion_notes ? [{ label: "Completion notes", body: selected.completion_notes, time: selected.updated_at || selected.created_at }] : []),
+      ]
+    : [];
 
-    return arr.slice(0, 5);
-  }, [items]);
-
-  const recentCompletions = useMemo(() => {
-    const resolved = (items as any[]).filter(
-      (x) => safeLower(x?.status) === "resolved" || safeLower(x?.status) === "closed"
-    );
-    resolved.sort((a, b) => {
-      const ta = new Date(a?.updated_at || a?.resolved_at || a?.created_at || 0).getTime();
-      const tb = new Date(b?.updated_at || b?.resolved_at || b?.created_at || 0).getTime();
-      return tb - ta;
-    });
-    return resolved.slice(0, 4);
-  }, [items]);
-
-  const columns = useMemo<ColumnDef<MaintenanceItem>[]>(
-    () => [
-      {
-        accessorKey: "title",
-        header: "Request",
-        cell: ({ row }) => {
-          const it: any = row.original;
-          const category = it?.category ? String(it.category) : "";
-          const desc = it?.description ? String(it.description) : "";
-          const created = it?.created_at;
-
-          return (
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="font-medium text-zinc-100 truncate">
-                  {String(it?.title ?? "-")}
-                </div>
-                {category ? (
-                  <span className="inline-flex px-2 py-1 rounded-full border border-white/10 bg-white/5 text-[11px] text-zinc-200">
-                    {category}
-                  </span>
-                ) : null}
-              </div>
-
-              {desc ? (
-                <div className="mt-1 text-sm text-zinc-400 line-clamp-2">
-                  {desc}
-                </div>
-              ) : null}
-
-              <div className="mt-2 flex items-center gap-2 flex-wrap text-[11px] text-zinc-400">
-                <span>Created {formatAgo(created)}</span>
-                <span className="text-white/20">•</span>
-                <span className="truncate">From: {getLocationLabel(it)}</span>
-              </div>
-            </div>
-          );
-        },
-      },
-      {
-        id: "priority",
-        header: "Priority",
-        cell: ({ row }) => {
-          const it: any = row.original;
-          const p = it?.priority ?? "medium";
-          return (
-            <span className={cn("px-2 py-1 rounded-full border text-xs", priorityTone(p))}>
-              {String(p)}
-            </span>
-          );
-        },
-      },
-      {
-        accessorKey: "status",
-        header: "Status",
-        cell: ({ row }) => {
-          const it: any = row.original;
-          const s = it?.status ?? "unknown";
-          return (
-            <span className={cn("px-2 py-1 rounded-full border text-xs", statusTone(s))}>
-              {String(s)}
-            </span>
-          );
-        },
-      },
-      {
-        id: "requester",
-        header: "Requester",
-        cell: ({ row }) => {
-          const it: any = row.original;
-          return <div className="text-sm text-zinc-300">{getRequesterLabel(it)}</div>;
-        },
-      },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <div className="flex justify-end">
-            <Button variant="ghost" onClick={() => setSelected(row.original)}>
-              Open
-            </Button>
+  const columns = useMemo<ColumnDef<MaintenanceItem>[]>(() => [
+    {
+      accessorKey: "title",
+      header: "Work order",
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="min-w-[260px]">
+            <div className="font-medium text-white">{item.title || "Maintenance request"}</div>
+            <div className="mt-1 text-xs text-zinc-500">{locationOf(item)} · {dateLabel(item.created_at)}</div>
           </div>
-        ),
+        );
       },
-    ],
-    []
-  );
-
-  const laneTabs: Array<{ key: Lane; label: string; hint: string }> = [
-    { key: "open", label: "Open", hint: "New & unassigned" },
-    { key: "in_progress", label: "In Progress", hint: "Assigned & being worked" },
-    { key: "resolved", label: "Resolved", hint: "Closed tickets" },
-    { key: "all", label: "All", hint: "Everything" },
-  ];
-
-  const selectedAny: any = selected;
-
-  const equipmentStatus = useMemo(() => {
-    const groups = new Map<
-      string,
-      { category: string; total: number; operational: number; maintenance: number; faulty: number }
-    >();
-
-    for (const d of devices as any[]) {
-      const label = String(d?.type || "Devices");
-      const row =
-        groups.get(label) || {
-          category: label,
-          total: 0,
-          operational: 0,
-          maintenance: 0,
-          faulty: 0,
-        };
-
-      row.total += 1;
-      const s = safeLower(d?.status);
-      if (s === "active" || s === "online" || s === "ok") row.operational += 1;
-      else if (s === "offline" || s === "down" || s === "error") row.faulty += 1;
-      else row.maintenance += 1;
-
-      groups.set(label, row);
-    }
-
-    return Array.from(groups.values()).sort((a, b) => b.total - a.total).slice(0, 6);
-  }, [devices]);
+    },
+    { header: "Requester", cell: ({ row }) => <span className="text-sm text-zinc-300">{requesterOf(row.original)}</span> },
+    { header: "Owner", cell: ({ row }) => <span className="text-sm text-zinc-300">{ownerOf(row.original)}</span> },
+    {
+      accessorKey: "priority",
+      header: "Priority",
+      cell: ({ row }) => <span className={cn("rounded-full border px-2 py-1 text-xs", priorityTone(row.original.priority))}>{titleCase(row.original.priority || "medium")}</span>,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => <span className={cn("rounded-full border px-2 py-1 text-xs", statusTone(row.original.status))}>{titleCase(row.original.status)}</span>,
+    },
+    { header: "Schedule", cell: ({ row }) => <span className="text-xs text-zinc-400">{scheduledAt(row.original) ? dateLabel(scheduledAt(row.original)) : "Not scheduled"}</span> },
+    { id: "actions", header: "", cell: ({ row }) => <Button variant="ghost" onClick={() => open(row.original)}>Open</Button> },
+  ], []);
 
   return (
-    <div className="space-y-7">
-      <Topbar
-        title="Facility Maintenance"
-        subtitle="Work orders • assignments • status tracking"
-      />
+    <div className="space-y-6">
+      <Topbar title="Maintenance Operations" subtitle="Work orders, assignment, scheduling, resident communication, and lifecycle control" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />Refresh</Button>} />
+      {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
+      {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
-      {/* Tabs + actions */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          {laneTabs.map((t) => {
-            const active = lane === t.key;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setLane(t.key)}
-                className={cn(
-                  "rounded-full px-3 py-2 text-xs border transition",
-                  active
-                    ? "border-white/20 bg-white/10 text-zinc-100"
-                    : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
-                )}
-                title={t.hint}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <Metric label="Open requests" value={stats.open} hint="Not completed or closed" icon={Wrench} />
+        <Metric label="Assigned" value={stats.assigned} hint="Current owner recorded" icon={UserCog} />
+        <Metric label="Unassigned" value={stats.unassigned} hint="Needs operator assignment" icon={AlertTriangle} />
+        <Metric label="Scheduled today" value={stats.scheduledToday} hint="Visit schedule from backend fields" icon={CalendarClock} />
+        <Metric label="Completed" value={stats.completed} hint="Completed, resolved, or closed" icon={CheckCircle} />
+      </section>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => {}}
-            disabled
-          >
-            <span className="inline-flex items-center gap-2">
-              <Plus size={16} />
-              Create Task Soon
-            </span>
-          </Button>
-
-          <Button variant="ghost" onClick={load} disabled={loading}>
-            {loading ? "Refreshing..." : "Refresh"}
-          </Button>
-        </div>
-      </div>
-
-      {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          title="Pending Tasks"
-          value={stats.pendingTasks}
-          sub={stats.high ? `${stats.high} high priority` : "No high priority"}
-          Icon={Clock}
-          iconClass="text-amber-200"
-        />
-        <MetricCard
-          title="In Progress"
-          value={stats.inProgress}
-          sub={stats.inProgress ? "Active teams working" : "No active work"}
-          Icon={Wrench}
-          iconClass="text-sky-200"
-        />
-        <MetricCard
-          title="Completed"
-          value={stats.resolved}
-          sub="Resolved tickets"
-          Icon={CheckCircle}
-          iconClass="text-emerald-200"
-        />
-        <MetricCard
-          title="Critical Issues"
-          value={stats.criticalIssues}
-          sub={stats.criticalIssues ? "Needs immediate attention" : "No critical issues"}
-          Icon={AlertCircle}
-          iconClass="text-red-200"
-        />
-      </div>
-
-      {/* Main panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Active tasks */}
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-6">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-lg font-semibold text-white">
-                Active Maintenance Tasks
-              </div>
-              <div className="mt-1 text-sm text-white/50">
-                Live work orders being handled by the facility team.
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              onClick={() => {}}
-              disabled
-            >
-              Create Task Soon
-            </Button>
+      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["active", "Active"],
+              ["unassigned", "Unassigned"],
+              ["scheduled", "Scheduled"],
+              ["waiting", "Waiting"],
+              ["completed", "Completed"],
+              ["all", "All"],
+            ] as Array<[Lane, string]>).map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setLane(key)} className={cn("rounded-full border px-3 py-2 text-xs transition", lane === key ? "border-sky-400/40 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white")}>{label}</button>
+            ))}
           </div>
+          <div className="mt-4">
+            <DataTable data={filtered} columns={columns} title="Work Order Registry" searchKey="title" />
+          </div>
+        </div>
 
-          <div className="mt-5 space-y-3">
-            {activeTasks.length === 0 ? (
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
-                No tasks in this lane yet.
+        <aside className="space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+            <h2 className="text-sm font-semibold text-white">Attention lanes</h2>
+            <div className="mt-3 space-y-2 text-sm">
+              <Field label="Unassigned requests" value={stats.unassigned} />
+              <Field label="Waiting for resident" value={items.filter((item) => lower(item.status) === "waiting_for_resident").length} />
+              <Field label="Waiting for parts" value={items.filter((item) => lower(item.status) === "waiting_for_parts").length} />
+              <Field label="Escalated requests" value={stats.escalated} />
+              <Field label="SLA visibility" value="Awaiting SLA configuration" />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+            <h2 className="text-sm font-semibold text-white">Consumer alignment</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">Resident-submitted maintenance requests appear here. Status changes notify the requester through the existing backend maintenance update route.</p>
+            <Link href="/overview" className="mt-3 inline-flex text-sm text-sky-200">Return to overview</Link>
+          </div>
+        </aside>
+      </section>
+
+      {selected ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm">
+          <section className="max-h-[92vh] w-full max-w-5xl overflow-auto rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl">
+            <header className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Work order</p>
+                <h2 className="mt-1 text-xl font-semibold text-white">{selected.title || "Maintenance request"}</h2>
+                <p className="mt-1 text-sm text-zinc-500">{locationOf(selected)} · {dateLabel(selected.created_at)}</p>
               </div>
-            ) : (
-              activeTasks.map((task: any) => {
-                const p = task?.priority ?? "medium";
-                const s = task?.status ?? "open";
-                const id = task?.id ? String(task.id) : "—";
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setSelected(task)}
-                    className="w-full text-left rounded-xl border border-white/10 bg-black/20 hover:bg-black/30 transition p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-white truncate">
-                          {String(task?.title ?? "Maintenance Request")}
-                        </div>
-                        <div className="mt-1 text-xs text-white/45">
-                          ID: {String(id)}
-                          <span className="text-white/20"> • </span>
-                          {getLocationLabel(task)}
+              <button type="button" onClick={() => setSelected(null)} className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:text-white"><X className="h-4 w-4" /></button>
+            </header>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_360px]">
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Status" value={<span className={cn("rounded-full border px-2 py-1 text-xs", statusTone(selected.status))}>{titleCase(selected.status)}</span>} />
+                  <Field label="Priority" value={<span className={cn("rounded-full border px-2 py-1 text-xs", priorityTone(selected.priority))}>{titleCase(selected.priority || "medium")}</span>} />
+                  <Field label="Requester" value={requesterOf(selected)} />
+                  <Field label="Current owner" value={ownerOf(selected)} />
+                  <Field label="Scheduled visit" value={scheduledAt(selected) ? dateLabel(scheduledAt(selected)) : "Not scheduled"} />
+                  <Field label="Assignment history" value="Awaiting assignment history source" />
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <h3 className="text-sm font-semibold text-white">Resident communication timeline</h3>
+                  <div className="mt-4 space-y-3">
+                    {timeline.map((item, index) => (
+                      <div key={`${item.label}-${index}`} className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                        <MessageSquare className="mt-0.5 h-4 w-4 text-sky-200" />
+                        <div>
+                          <div className="text-sm text-white">{item.label}</div>
+                          <div className="mt-1 text-sm text-zinc-400">{item.body}</div>
+                          <div className="mt-1 text-xs text-zinc-600">{dateLabel(item.time)}</div>
                         </div>
                       </div>
-
-                      <span
-                        className={cn(
-                          "px-2 py-1 rounded-full border text-xs shrink-0",
-                          priorityTone(p)
-                        )}
-                      >
-                        {String(p)}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className={cn(
-                            "px-2 py-1 rounded-full border",
-                            statusTone(s)
-                          )}
-                        >
-                          {String(s)}
-                        </span>
-                        <span className="text-white/45">
-                          Requested {formatAgo(task?.created_at)}
-                        </span>
-                      </div>
-                      <span className="text-white/45">Open</span>
-                    </div>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Equipment status */}
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-6">
-          <div className="text-lg font-semibold text-white">Equipment Status</div>
-          <div className="mt-1 text-sm text-white/50">
-            Operational overview from live device inventory.
-          </div>
-
-          <div className="mt-5 space-y-4">
-            {!equipmentStatus.length ? (
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
-                No equipment data available yet.
-              </div>
-            ) : equipmentStatus.map((eq) => {
-              const opW = (eq.operational / eq.total) * 100;
-              const mW = (eq.maintenance / eq.total) * 100;
-              const fW = (eq.faulty / eq.total) * 100;
-
-              return (
-                <div key={eq.category}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-white/90">
-                      {eq.category}
-                    </span>
-                    <span className="text-sm text-white/45">
-                      {eq.operational}/{eq.total}
-                    </span>
-                  </div>
-
-                  <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-white/10">
-                    <div className="bg-emerald-500" style={{ width: `${opW}%` }} />
-                    <div className="bg-amber-500" style={{ width: `${mW}%` }} />
-                    <div className="bg-red-500" style={{ width: `${fW}%` }} />
-                  </div>
-
-                  <div className="flex items-center gap-4 mt-2 text-xs flex-wrap">
-                    <span className="flex items-center gap-1 text-emerald-300">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      {eq.operational} Operational
-                    </span>
-                    {eq.maintenance > 0 ? (
-                      <span className="flex items-center gap-1 text-amber-300">
-                        <span className="w-2 h-2 rounded-full bg-amber-500" />
-                        {eq.maintenance} Maintenance
-                      </span>
-                    ) : null}
-                    {eq.faulty > 0 ? (
-                      <span className="flex items-center gap-1 text-red-300">
-                        <span className="w-2 h-2 rounded-full bg-red-500" />
-                        {eq.faulty} Faulty
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Recently completed (from real items) */}
-      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-6">
-        <div className="flex items-center gap-2">
-          <CheckCircle className="text-emerald-300" size={18} />
-          <div className="text-lg font-semibold text-white">Recently Completed</div>
-        </div>
-        <div className="mt-1 text-sm text-white/50">
-          Closed work orders — quick audit trail.
-        </div>
-
-        <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {recentCompletions.length === 0 ? (
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
-              No completed tasks in this lane yet.
-            </div>
-          ) : (
-            recentCompletions.map((it: any) => (
-              <button
-                key={String(it?.id ?? `${it?.title || "resolved"}-${it?.created_at || ""}`)}
-                type="button"
-                onClick={() => setSelected(it)}
-                className="text-left rounded-xl border border-white/10 bg-black/20 hover:bg-black/30 transition p-4"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                    <CheckCircle className="text-emerald-300" size={16} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-white truncate">
-                      {String(it?.title ?? "Resolved maintenance request")}
-                    </div>
-                    <div className="mt-1 text-xs text-white/45">
-                      {getLocationLabel(it)}
-                      <span className="text-white/20"> • </span>
-                      {formatAgo(it?.updated_at || it?.resolved_at || it?.created_at)}
-                    </div>
-                  </div>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Table (kept exactly) */}
-      <DataTable
-        data={items}
-        columns={columns}
-        title="Maintenance Requests"
-        searchKey={"title"}
-      />
-
-      {/* Details modal (kept exactly, just fits new look) */}
-      {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setSelected(null)} />
-          <div className="relative w-full max-w-3xl rounded-2xl border border-white/10 bg-zinc-950/70 backdrop-blur p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-lg font-semibold text-zinc-100 truncate">
-                  {String((selectedAny?.title ?? "Maintenance Request") as any)}
-                </div>
-                <div className="mt-1 text-sm text-zinc-400">
-                  From:{" "}
-                  <span className="text-zinc-200">{getLocationLabel(selectedAny)}</span>
-                </div>
-              </div>
-
-              <button
-                className="text-zinc-400 hover:text-zinc-200"
-                onClick={() => setSelected(null)}
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="mt-4 flex items-center gap-2 flex-wrap">
-              <span className={cn("px-2 py-1 rounded-full border text-xs", statusTone(selectedAny?.status))}>
-                {String(selectedAny?.status ?? "unknown")}
-              </span>
-              <span className={cn("px-2 py-1 rounded-full border text-xs", priorityTone(selectedAny?.priority ?? "medium"))}>
-                {String(selectedAny?.priority ?? "medium")}
-              </span>
-              {selectedAny?.category ? (
-                <span className="px-2 py-1 rounded-full border border-white/10 bg-white/5 text-xs text-zinc-200">
-                  {String(selectedAny.category)}
-                </span>
-              ) : null}
-              <span className="text-xs text-zinc-400">
-                Created {formatAgo(selectedAny?.created_at)}
-              </span>
-            </div>
-
-            {selectedAny?.description ? (
-              <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-zinc-400">Description</div>
-                <div className="mt-2 text-sm text-zinc-200 leading-6">
-                  {String(selectedAny.description)}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-zinc-400">Requester</div>
-                <div className="mt-2 text-sm text-zinc-200">
-                  {getRequesterLabel(selectedAny)}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-zinc-400">Identifiers</div>
-                <div className="mt-2 text-[12px] text-zinc-300 space-y-1">
-                  <div>
-                    ticket_id:{" "}
-                    <span className="text-zinc-200">{String(selectedAny?.id ?? "-")}</span>
-                  </div>
-                  <div>
-                    estate_id:{" "}
-                    <span className="text-zinc-200">{String(selectedAny?.estate_id ?? "-")}</span>
-                  </div>
-                  <div>
-                    home_id:{" "}
-                    <span className="text-zinc-200">{String(selectedAny?.home_id ?? "-")}</span>
-                  </div>
-                  <div>
-                    room_id:{" "}
-                    <span className="text-zinc-200">{String(selectedAny?.room_id ?? "-")}</span>
+                    ))}
+                    {!timeline.length ? <p className="text-sm text-zinc-500">No timeline source is available for this request.</p> : null}
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mt-5 flex justify-end gap-2 flex-wrap">
-              <Button variant="ghost" onClick={() => {}} disabled>
-                Mark In Progress
-              </Button>
-              <Button variant="ghost" onClick={() => {}} disabled>
-                Assign
-              </Button>
-              <Button onClick={() => {}} disabled>
-                Resolve
-              </Button>
+              <aside className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <h3 className="text-sm font-semibold text-white">Update lifecycle</h3>
+                <div className="mt-4 grid gap-3">
+                  <label className="text-xs text-zinc-400">Status<select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none">{STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                  <label className="text-xs text-zinc-400">Assigned operator ID<input value={form.assigned_to} onChange={(event) => setForm((current) => ({ ...current, assigned_to: event.target.value }))} placeholder="Operator/user ID if available" className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="text-xs text-zinc-400">Schedule date<input type="date" value={form.schedule_date} onChange={(event) => setForm((current) => ({ ...current, schedule_date: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label>
+                    <label className="text-xs text-zinc-400">Time<input type="time" value={form.schedule_time} onChange={(event) => setForm((current) => ({ ...current, schedule_time: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label>
+                  </div>
+                  <label className="text-xs text-zinc-400">Resident / operator note<textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} rows={4} placeholder="Visible update note if backend supports it" className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label>
+                  <Button onClick={() => void saveWorkOrder()} disabled={saving}>{saving ? "Saving" : "Save update"}</Button>
+                  <p className="text-xs leading-5 text-zinc-500">Backend currently persists supported fields: status and assigned operator. Scheduling and notes are sent safely and shown when the backend schema accepts them.</p>
+                </div>
+              </aside>
             </div>
-          </div>
+          </section>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -465,6 +465,41 @@ function OverviewPage() {
         <SummaryCard label="Community reports" value={metric(sources.reports.data.length, sources.reports)} hint="Open moderation queue items" href="/messages" />
       </section>
 
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          label="Maintenance posture"
+          value={metric(openMaintenance.length, sources.maintenance)}
+          hint={sources.maintenance.status === "ready" ? "Open work orders requiring operations" : "Pending maintenance source"}
+          href="/maintenance"
+          tone={openMaintenance.length ? "warn" : "good"}
+        />
+        <SummaryCard
+          label="Utility posture"
+          value={statusLabel(sources.devices) || "Registry source"}
+          hint="Utility telemetry remains explicit inside Utilities"
+          href="/utilities"
+          tone={offlineDevices.length ? "warn" : "neutral"}
+        />
+        <SummaryCard
+          label="Wallet posture"
+          value={
+            sources.overview.status === "ready"
+              ? String((sources.overview.data as any)?.wallet?.outstanding_dues ? "Outstanding due" : "Available")
+              : statusLabel(sources.overview) || "Pending source"
+          }
+          hint="Finance posture from Facility overview wallet source"
+          href="/wallets"
+          tone={(sources.overview.data as any)?.wallet?.outstanding_dues ? "warn" : "neutral"}
+        />
+        <SummaryCard
+          label="Service readiness"
+          value={sources.overview.status === "ready" ? "Review services" : statusLabel(sources.overview) || "Pending source"}
+          hint="Resident-facing services are managed in Services"
+          href="/services"
+          tone="neutral"
+        />
+      </section>
+
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(310px,0.55fr)]">
         <Panel title="Attention Queue" subtitle="Ranked work requiring operator review across connected operational sources.">
           {attention.length ? (
@@ -555,7 +590,7 @@ function OverviewPage() {
             <SourceMessage value={sources.maintenance} empty="No staff actions are queued." />
           )}
         </Panel>
-        <Panel title="Source Integrity" subtitle="Unavailable sources stay visible instead of becoming fake zeroes.">
+        <Panel title="Source Integrity" subtitle="Unavailable sources stay visible instead of becoming synthetic zeroes.">
           <div className="space-y-2">
             {Object.entries(sources).map(([key, value]) => (
               <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-xs">

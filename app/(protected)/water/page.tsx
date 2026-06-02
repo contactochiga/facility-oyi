@@ -1,194 +1,86 @@
 "use client";
 
-import Topbar from "@/components/shell/Topbar";
-import { MetricCard } from "@/components/MetricCard";
-import { Droplets, TrendingDown, AlertTriangle, Waves } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import Topbar from "@/components/shell/Topbar";
+import Button from "@/components/ui/Button";
 import { deviceService, type FacilityDevice } from "@/services/deviceService";
 import { maintenanceService, type MaintenanceItem } from "@/services/maintenanceService";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { Droplets, RefreshCw, Wrench } from "lucide-react";
 
-function safeLower(v: unknown) {
-  return String(v ?? "").toLowerCase();
-}
+function lower(value: unknown) { return String(value || "").toLowerCase(); }
+function isWaterDevice(device: FacilityDevice) { return /water|pump|tank|leak|flow|valve|meter|plumb/.test(`${lower(device.name)} ${lower(device.type)} ${lower(device.category)} ${lower(device.metadata)}`); }
+function isOnline(device: FacilityDevice) { return /online|active|healthy|live/.test(lower(device.status)); }
+function isOpen(ticket: MaintenanceItem) { return !["completed", "closed", "resolved", "cancelled"].includes(lower(ticket.status)); }
+function isWaterTicket(ticket: MaintenanceItem) { return /water|pump|tank|leak|flow|valve|meter|pipe/.test(JSON.stringify(ticket || {}).toLowerCase()); }
+function dateLabel(value?: string | null) { if (!value) return "Time unavailable"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Time unavailable" : d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 
-function isWaterDevice(d: FacilityDevice) {
-  const hay = `${safeLower(d.name)} ${safeLower(d.type)} ${safeLower(d.room)}`;
-  return (
-    hay.includes("water") ||
-    hay.includes("pump") ||
-    hay.includes("tank") ||
-    hay.includes("plumb") ||
-    hay.includes("valve") ||
-    hay.includes("meter")
-  );
-}
-
-function statusBucket(s: string) {
-  const x = safeLower(s);
-  if (x === "active" || x === "online" || x === "ok") return "operational";
-  if (x === "offline" || x === "down" || x === "error") return "faulty";
-  return "unknown";
+function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) {
+  return <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div><div className="mt-3 text-2xl font-semibold text-white">{value}</div><div className="mt-1 text-xs text-zinc-500">{hint}</div></div>;
 }
 
 export default function WaterPage() {
-  const [loading, setLoading] = useState(false);
   const [devices, setDevices] = useState<FacilityDevice[]>([]);
-  const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([]);
+  const [tickets, setTickets] = useState<MaintenanceItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    setLoading(true);
+    setLoading(true); setError(null);
     try {
-      const [d, m] = await Promise.all([deviceService.list(), maintenanceService.list()]);
-      setDevices(Array.isArray(d) ? d : []);
-      setMaintenance(Array.isArray(m) ? m : []);
-    } finally {
-      setLoading(false);
-    }
+      const [deviceRows, ticketRows] = await Promise.all([deviceService.list().catch(() => []), maintenanceService.list().catch(() => [])]);
+      setDevices(Array.isArray(deviceRows) ? deviceRows : []);
+      setTickets(Array.isArray(ticketRows) ? ticketRows : []);
+    } catch (err: any) { setError(err?.message || "Failed to load water operations"); }
+    finally { setLoading(false); }
   }
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { void load(); }, []);
 
   const waterDevices = useMemo(() => devices.filter(isWaterDevice), [devices]);
-
-  const byType = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const d of waterDevices) {
-      const t = String(d.type || "unknown").trim() || "unknown";
-      m.set(t, (m.get(t) || 0) + 1);
-    }
-    return Array.from(m.entries())
-      .map(([type, count]) => ({ type, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
-  }, [waterDevices]);
-
-  const qualityRows = useMemo(() => {
-    const operational = waterDevices.filter((d) => statusBucket(d.status || "") === "operational").length;
-    const faulty = waterDevices.filter((d) => statusBucket(d.status || "") === "faulty").length;
-    const unknown = Math.max(0, waterDevices.length - operational - faulty);
-
-    const openWaterMaintenance = maintenance.filter((x: any) => {
-      const hay = `${safeLower(x?.title)} ${safeLower(x?.description)} ${safeLower(x?.category)}`;
-      const s = safeLower(x?.status);
-      const open = s === "open" || s === "in_progress" || s === "assigned";
-      return open && (hay.includes("water") || hay.includes("pipe") || hay.includes("pump") || hay.includes("leak"));
-    }).length;
-
-    return [
-      { parameter: "Operational Devices", value: String(operational), status: operational > 0 ? "healthy" : "idle", range: `of ${waterDevices.length}` },
-      { parameter: "Faulty Devices", value: String(faulty), status: faulty > 0 ? "attention" : "healthy", range: "offline/error" },
-      { parameter: "Unknown Status", value: String(unknown), status: unknown > 0 ? "review" : "healthy", range: "needs telemetry" },
-      { parameter: "Open Water Tickets", value: String(openWaterMaintenance), status: openWaterMaintenance > 0 ? "attention" : "healthy", range: "maintenance queue" },
-    ];
-  }, [waterDevices, maintenance]);
-
-  const trend = useMemo(() => {
-    return byType.map((x, i) => ({
-      time: `${String(i + 1).padStart(2, "0")}`,
-      usage: x.count,
-    }));
-  }, [byType]);
-
-  const waterSystems = useMemo(() => {
-    const operational = waterDevices.filter((d) => statusBucket(d.status || "") === "operational").length;
-    const faulty = waterDevices.filter((d) => statusBucket(d.status || "") === "faulty").length;
-    const coverage = waterDevices.length ? Math.round((operational / waterDevices.length) * 100) : 0;
-
-    return {
-      coverage,
-      operational,
-      faulty,
-      inventory: waterDevices.length,
-    };
-  }, [waterDevices]);
+  const openWaterTickets = useMemo(() => tickets.filter((ticket) => isOpen(ticket) && isWaterTicket(ticket)), [tickets]);
+  const online = waterDevices.filter(isOnline).length;
+  const offline = waterDevices.filter((device) => /offline|error|unavailable|down/.test(lower(device.status))).length;
 
   return (
-    <div className="space-y-7">
-      <Topbar title="Water Management" subtitle="Live water infrastructure health and maintenance signals" />
+    <div className="space-y-6">
+      <Topbar title="Water Operations" subtitle="Water devices, pump/tank events, leak tickets, and source readiness" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Water Devices" value={String(waterSystems.inventory)} change={loading ? "Refreshing" : "Detected infrastructure"} trend="neutral" icon={Droplets} iconColor="text-blue-500" />
-        <MetricCard title="Operational" value={String(waterSystems.operational)} change={`${waterSystems.coverage}% readiness`} trend="neutral" icon={Waves} iconColor="text-emerald-500" />
-        <MetricCard title="Faulty/Offline" value={String(waterSystems.faulty)} change={waterSystems.faulty ? "Needs maintenance" : "No outage"} trend={waterSystems.faulty ? "up" : "down"} icon={AlertTriangle} iconColor="text-amber-500" />
-        <MetricCard title="Reliability" value={`${waterSystems.coverage}%`} change="Operational ratio" trend="down" icon={TrendingDown} iconColor="text-violet-500" />
-      </div>
+      <section className="grid gap-3 md:grid-cols-4">
+        <Metric label="Water devices" value={waterDevices.length} hint="Registry entries classified as water infrastructure" />
+        <Metric label="Online" value={online} hint="Reported online or active by registry" />
+        <Metric label="Offline / fault" value={offline} hint="Honest status from device registry" />
+        <Metric label="Open tickets" value={openWaterTickets.length} hint="Water-related maintenance requests" />
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-          <h3 className="text-base font-semibold text-zinc-100 mb-4">Device Type Distribution</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={trend}>
-              <defs>
-                <linearGradient id="colorWater" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="time" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
-              <Tooltip contentStyle={{ backgroundColor: "#0b1220", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }} />
-              <Area type="monotone" dataKey="usage" stroke="#06b6d4" strokeWidth={2} fill="url(#colorWater)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-          <h3 className="text-base font-semibold text-zinc-100 mb-4">Infrastructure Signals</h3>
-          <div className="space-y-3">
-            {qualityRows.map((metric) => (
-              <div key={metric.parameter} className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-zinc-100">{metric.parameter}</span>
-                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-300 border border-blue-500/20">{metric.status}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-xl font-semibold text-cyan-400">{metric.value}</span>
-                  <span className="text-zinc-400">{metric.range}</span>
+      <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Droplets className="h-4 w-4 text-sky-200" />Water infrastructure registry</h2>
+          <div className="mt-4 space-y-2">
+            {waterDevices.map((device) => (
+              <div key={device.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div><div className="text-sm font-medium text-white">{device.name || "Unnamed water device"}</div><div className="mt-1 text-xs text-zinc-500">{device.type || device.category || "Unknown type"} · {device.room || "Estate/shared infrastructure"}</div></div>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase text-zinc-300">{device.status || "unknown"}</span>
                 </div>
               </div>
             ))}
+            {!waterDevices.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No water infrastructure devices are registered yet. Awaiting telemetry or device registry assignment.</div> : null}
           </div>
         </div>
-      </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-        <h3 className="text-base font-semibold text-zinc-100 mb-4">Water Device Inventory</h3>
-        {!waterDevices.length ? (
-          <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-300">
-            No water-related devices discovered yet.
+        <aside className="space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Wrench className="h-4 w-4 text-amber-200" />Water event timeline</h2>
+            <div className="mt-4 space-y-2">
+              {openWaterTickets.slice(0, 8).map((ticket) => <Link key={ticket.id} href="/maintenance" className="block rounded-xl border border-white/10 bg-black/20 p-3"><div className="text-sm text-white">{ticket.title}</div><div className="mt-1 text-xs text-zinc-500">{ticket.status} · {dateLabel(ticket.created_at)}</div></Link>)}
+              {!openWaterTickets.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No active water events. No historical records are generated without backend data.</div> : null}
+            </div>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {waterDevices.map((d) => {
-              const s = statusBucket(d.status || "");
-              const tone = s === "operational" ? "text-emerald-300" : s === "faulty" ? "text-red-300" : "text-zinc-300";
-              return (
-                <div key={d.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-zinc-100">{d.name || "Unnamed device"}</p>
-                      <p className="text-xs text-zinc-400 mt-1">{d.type || "unknown"} • {d.room || "Unassigned zone"}</p>
-                    </div>
-                    <span className={`text-sm font-semibold ${tone}`}>{s}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-sm leading-6 text-zinc-400">Live pressure, tank level, and meter readings are pending telemetry integration. This page currently uses device registry state and maintenance events only.</div>
+        </aside>
+      </section>
     </div>
   );
 }

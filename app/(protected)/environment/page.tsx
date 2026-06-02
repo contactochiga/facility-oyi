@@ -1,234 +1,79 @@
 "use client";
 
-import Topbar from "@/components/shell/Topbar";
-import { MetricCard } from "@/components/MetricCard";
-import { Wind, Thermometer, Droplet, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import Topbar from "@/components/shell/Topbar";
+import Button from "@/components/ui/Button";
 import { deviceService, type FacilityDevice } from "@/services/deviceService";
 import { maintenanceService, type MaintenanceItem } from "@/services/maintenanceService";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
+import { Leaf, RefreshCw, Thermometer, Wrench } from "lucide-react";
 
-function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
+function lower(value: unknown) { return String(value || "").toLowerCase(); }
+function isEnvironmentDevice(device: FacilityDevice) { return /sensor|temperature|humidity|air|aqi|hvac|environment|smoke|motion|waste/.test(`${lower(device.name)} ${lower(device.type)} ${lower(device.category)} ${lower(device.metadata)}`); }
+function isOnline(device: FacilityDevice) { return /online|active|healthy|live/.test(lower(device.status)); }
+function isOpen(ticket: MaintenanceItem) { return !["completed", "closed", "resolved", "cancelled"].includes(lower(ticket.status)); }
+function isEnvTicket(ticket: MaintenanceItem) { return /environment|sensor|hvac|air|temperature|humidity|waste|smoke/.test(JSON.stringify(ticket || {}).toLowerCase()); }
+function dateLabel(value?: string | null) { if (!value) return "Time unavailable"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Time unavailable" : d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 
-function safeLower(v: unknown) {
-  return String(v ?? "").toLowerCase();
-}
-
-function isEnvDevice(d: FacilityDevice) {
-  const hay = `${safeLower(d.name)} ${safeLower(d.type)} ${safeLower(d.room)}`;
-  return (
-    hay.includes("sensor") ||
-    hay.includes("temperature") ||
-    hay.includes("humidity") ||
-    hay.includes("air") ||
-    hay.includes("aqi") ||
-    hay.includes("hvac") ||
-    hay.includes("environment")
-  );
-}
-
-function getAQIStatus(score: number) {
-  if (score <= 40) return { label: "Excellent", color: "text-emerald-300", bg: "bg-emerald-500/10 border-emerald-500/20" };
-  if (score <= 70) return { label: "Good", color: "text-blue-300", bg: "bg-blue-500/10 border-blue-500/20" };
-  if (score <= 100) return { label: "Moderate", color: "text-amber-300", bg: "bg-amber-500/10 border-amber-500/20" };
-  return { label: "Poor", color: "text-red-300", bg: "bg-red-500/10 border-red-500/20" };
+function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) {
+  return <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div><div className="mt-3 text-2xl font-semibold text-white">{value}</div><div className="mt-1 text-xs text-zinc-500">{hint}</div></div>;
 }
 
 export default function EnvironmentPage() {
-  const [loading, setLoading] = useState(false);
   const [devices, setDevices] = useState<FacilityDevice[]>([]);
-  const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([]);
+  const [tickets, setTickets] = useState<MaintenanceItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    setLoading(true);
+    setLoading(true); setError(null);
     try {
-      const [d, m] = await Promise.all([deviceService.list(), maintenanceService.list()]);
-      setDevices(Array.isArray(d) ? d : []);
-      setMaintenance(Array.isArray(m) ? m : []);
-    } finally {
-      setLoading(false);
-    }
+      const [deviceRows, ticketRows] = await Promise.all([deviceService.list().catch(() => []), maintenanceService.list().catch(() => [])]);
+      setDevices(Array.isArray(deviceRows) ? deviceRows : []);
+      setTickets(Array.isArray(ticketRows) ? ticketRows : []);
+    } catch (err: any) { setError(err?.message || "Failed to load environment operations"); }
+    finally { setLoading(false); }
   }
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { void load(); }, []);
 
-  const envDevices = useMemo(() => devices.filter(isEnvDevice), [devices]);
-
-  const environmentalData = useMemo(() => {
-    const zones = envDevices.slice(0, 7);
-    return zones.map((d, idx) => {
-      const base = safeLower(d.status).includes("active") || safeLower(d.status).includes("online") ? 1 : 0;
-      return {
-        time: String(idx + 1).padStart(2, "0"),
-        temp: 20 + base * 2 + (idx % 3),
-        humidity: 40 + base * 8 + idx,
-        aqi: 30 + (base ? 10 : 30) + idx * 2,
-      };
-    });
-  }, [envDevices]);
-
-  const sensorLocations = useMemo(() => {
-    return envDevices.slice(0, 8).map((d, i) => {
-      const online = safeLower(d.status).includes("active") || safeLower(d.status).includes("online");
-      const aqi = online ? 35 + i * 3 : 75 + i * 2;
-      return {
-        location: d.room || d.name || `Zone ${i + 1}`,
-        temp: 21 + (i % 6),
-        humidity: 45 + ((i * 5) % 25),
-        aqi,
-      };
-    });
-  }, [envDevices]);
-
-  const airQualityBreakdown = useMemo(() => {
-    const total = envDevices.length || 1;
-    const online = envDevices.filter((d) => safeLower(d.status).includes("active") || safeLower(d.status).includes("online")).length;
-    const offline = envDevices.filter((d) => safeLower(d.status).includes("offline") || safeLower(d.status).includes("error")).length;
-    const unknown = Math.max(0, total - online - offline);
-
-    return [
-      { pollutant: "Online Sensors", value: online, unit: "units", status: "good", limit: total },
-      { pollutant: "Offline Sensors", value: offline, unit: "units", status: offline ? "review" : "good", limit: total },
-      { pollutant: "Unknown Status", value: unknown, unit: "units", status: unknown ? "review" : "good", limit: total },
-      { pollutant: "Coverage", value: online, unit: "zones", status: "good", limit: Math.max(online, 1) },
-    ];
-  }, [envDevices]);
-
-  const openEnvTickets = useMemo(() => {
-    return maintenance.filter((x: any) => {
-      const s = safeLower(x?.status);
-      const hay = `${safeLower(x?.title)} ${safeLower(x?.description)} ${safeLower(x?.category)}`;
-      const open = s === "open" || s === "in_progress" || s === "assigned";
-      return open && (hay.includes("hvac") || hay.includes("air") || hay.includes("sensor") || hay.includes("temperature"));
-    }).length;
-  }, [maintenance]);
-
-  const onlineSensors = envDevices.filter((d) => safeLower(d.status).includes("active") || safeLower(d.status).includes("online")).length;
-  const sensorHealth = envDevices.length ? Math.round((onlineSensors / envDevices.length) * 100) : 0;
-  const estimatedAQI = Math.max(20, Math.min(120, 120 - sensorHealth));
+  const envDevices = useMemo(() => devices.filter(isEnvironmentDevice), [devices]);
+  const openEnvTickets = useMemo(() => tickets.filter((ticket) => isOpen(ticket) && isEnvTicket(ticket)), [tickets]);
+  const online = envDevices.filter(isOnline).length;
+  const unavailable = envDevices.filter((device) => /offline|error|unavailable|down/.test(lower(device.status))).length;
 
   return (
-    <div className="space-y-7">
-      <Topbar title="Environment" subtitle="Live sensor readiness, environmental telemetry, and HVAC-linked alerts" />
+    <div className="space-y-6">
+      <Topbar title="Environment Operations" subtitle="Environmental sensors, HVAC/service events, and telemetry readiness" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Air Quality Index" value={String(estimatedAQI)} change={loading ? "Refreshing" : "Derived from sensor health"} trend="neutral" icon={Wind} iconColor="text-blue-500" />
-        <MetricCard title="Sensors Online" value={`${onlineSensors}/${envDevices.length || 0}`} change="Environmental network" trend="neutral" icon={Thermometer} iconColor="text-orange-500" />
-        <MetricCard title="Sensor Health" value={`${sensorHealth}%`} change="Telemetry coverage" trend="neutral" icon={Droplet} iconColor="text-cyan-500" />
-        <MetricCard title="Open Env Tickets" value={String(openEnvTickets)} change={openEnvTickets ? "Action required" : "No active issues"} trend="neutral" icon={Sun} iconColor="text-yellow-500" />
-      </div>
+      <section className="grid gap-3 md:grid-cols-4">
+        <Metric label="Sensor inventory" value={envDevices.length} hint="Environment-related registry entries" />
+        <Metric label="Online sensors" value={online} hint="Reported active by registry" />
+        <Metric label="Unavailable" value={unavailable} hint="Offline/error registry status" />
+        <Metric label="Open events" value={openEnvTickets.length} hint="Environment-related maintenance" />
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-          <h3 className="text-base font-semibold text-zinc-100 mb-4">Environmental Trend Snapshot</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={environmentalData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="time" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
-              <Tooltip contentStyle={{ backgroundColor: "#0b1220", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }} />
-              <Legend />
-              <Line type="monotone" dataKey="temp" stroke="#f97316" strokeWidth={2} name="Temp" />
-              <Line type="monotone" dataKey="humidity" stroke="#06b6d4" strokeWidth={2} name="Humidity" />
-              <Line type="monotone" dataKey="aqi" stroke="#8b5cf6" strokeWidth={2} name="AQI" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-          <h3 className="text-base font-semibold text-zinc-100 mb-4">Air Quality Signals</h3>
-          <div className="space-y-3">
-            {airQualityBreakdown.map((p) => {
-              const percentage = Math.min(100, Math.round((Number(p.value || 0) / Math.max(1, Number(p.limit || 1))) * 100));
-              return (
-                <div key={p.pollutant} className="rounded-xl border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-zinc-100">{p.pollutant}</span>
-                    <span className="text-sm">
-                      <span className="font-semibold text-zinc-100">{p.value}</span>
-                      <span className="text-zinc-400 ml-1">{p.unit}</span>
-                    </span>
-                  </div>
-                  <div className="w-full bg-white/10 rounded-full h-2">
-                    <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${percentage}%` }} />
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-zinc-400">Limit: {p.limit}</span>
-                    <span className="text-xs text-emerald-300">{p.status}</span>
-                  </div>
-                </div>
-              );
-            })}
+      <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Thermometer className="h-4 w-4 text-sky-200" />Environmental source registry</h2>
+          <div className="mt-4 grid gap-2 md:grid-cols-2">
+            {envDevices.map((device) => (
+              <div key={device.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-start justify-between gap-3"><div><div className="text-sm font-medium text-white">{device.name || "Unnamed sensor"}</div><div className="mt-1 text-xs text-zinc-500">{device.type || device.category || "Unknown type"} · {device.room || "Estate/shared infrastructure"}</div></div><span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase text-zinc-300">{device.status || "unknown"}</span></div>
+              </div>
+            ))}
+            {!envDevices.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500 md:col-span-2">No environmental sensors are registered yet. Awaiting telemetry source.</div> : null}
           </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-          <h3 className="text-base font-semibold text-zinc-100 mb-4">Sensor Network Status</h3>
-          {!sensorLocations.length ? (
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-300">No environmental sensors discovered yet.</div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {sensorLocations.map((s) => {
-                const aqi = getAQIStatus(s.aqi);
-                return (
-                  <div key={s.location} className="rounded-xl border border-white/10 bg-black/20 p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-zinc-100">{s.location}</span>
-                      <span className={cn("px-2 py-1 rounded-full text-xs font-medium border", aqi.bg, aqi.color)}>{aqi.label}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <p className="text-xs text-zinc-400">Temp</p>
-                        <p className="text-lg font-semibold text-orange-400">{s.temp} C</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-zinc-400">Humidity</p>
-                        <p className="text-lg font-semibold text-cyan-400">{s.humidity}%</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-zinc-400">AQI</p>
-                        <p className={cn("text-lg font-semibold", aqi.color)}>{s.aqi}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5">
-          <h3 className="text-base font-semibold text-zinc-100 mb-4">Environment Alerts</h3>
-          <div className="space-y-3">
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-              <div className="text-sm text-zinc-300">Open Environment Tickets</div>
-              <div className="text-2xl font-semibold text-white mt-1">{openEnvTickets}</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-              <div className="text-sm text-zinc-300">Sensor Inventory</div>
-              <div className="text-2xl font-semibold text-white mt-1">{envDevices.length}</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-zinc-400">
-              Forecast and recommendations will populate automatically when weather and external air APIs are connected.
-            </div>
+        <aside className="space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Wrench className="h-4 w-4 text-amber-200" />Environment event timeline</h2>
+            <div className="mt-4 space-y-2">{openEnvTickets.slice(0, 8).map((ticket) => <Link key={ticket.id} href="/maintenance" className="block rounded-xl border border-white/10 bg-black/20 p-3"><div className="text-sm text-white">{ticket.title}</div><div className="mt-1 text-xs text-zinc-500">{ticket.status} · {dateLabel(ticket.created_at)}</div></Link>)}{!openEnvTickets.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No environment events from backend sources.</div> : null}</div>
           </div>
-        </div>
-      </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-sm leading-6 text-zinc-400"><Leaf className="mb-3 h-5 w-5 text-emerald-200" />Temperature, humidity, AQI, waste and external environmental readings remain hidden until a live telemetry source is configured.</div>
+        </aside>
+      </section>
     </div>
   );
 }
