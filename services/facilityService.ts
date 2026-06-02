@@ -247,6 +247,45 @@ export type RegisterDevicePayload = {
   metadata?: any;
 };
 
+export type InfrastructureDevice = {
+  id: string;
+  oyi_id: string;
+  external_id?: string | null;
+  name: string;
+  type: string;
+  category: string;
+  provider: string;
+  adapter: string;
+  status: "online" | "offline" | "unknown" | "pending_assignment" | "error" | string;
+  raw_status: string;
+  online?: boolean | null;
+  last_seen_at?: string | null;
+  last_event_at?: string | null;
+  sync_state: string;
+  bind_state: string;
+  home_id?: string | null;
+  room_id?: string | null;
+  home?: { id: string; name?: string; unit?: string; block?: string } | null;
+  room?: { id: string; name?: string } | null;
+  capabilities: string[];
+  protocols: string[];
+  metadata: Record<string, any>;
+};
+
+export type InfrastructureOperations = {
+  estate: { id: string };
+  registry: InfrastructureDevice[];
+  discovered: Array<Record<string, any>>;
+  homes: Array<Record<string, any>>;
+  rooms: Array<Record<string, any>>;
+  edge_nodes: Array<Record<string, any>>;
+  heartbeats: Array<Record<string, any>>;
+  assignment_history: Array<Record<string, any>>;
+  providers: Array<Record<string, any>>;
+  telemetry: Array<Record<string, any>>;
+  sources: Record<string, { available: boolean; reason?: string; required_source?: string; events?: string[] }>;
+};
+
 function normalizeEmail(email: string) {
   return String(email || "").trim().toLowerCase();
 }
@@ -399,9 +438,24 @@ export const facilityService = {
   },
 
   async attachDevice(deviceId: string, roomId: string): Promise<any> {
-    const res = await API.patch(`/facility/devices/${deviceId}/attach`, {
+    const res = await API.patch(`/facility/devices/${deviceId}/assign`, {
       room_id: roomId,
     });
+    return res.data;
+  },
+
+  async infrastructureOperations(): Promise<InfrastructureOperations> {
+    const res = await API.get("/facility/devices/operations");
+    return res.data;
+  },
+
+  async assignFacilityDevice(deviceId: string, payload: { home_id?: string | null; room_id?: string | null }) {
+    const res = await API.patch(`/facility/devices/${deviceId}/assign`, payload);
+    return res.data;
+  },
+
+  async syncFacilityTuya() {
+    const res = await API.post("/facility/devices/providers/tuya/sync");
     return res.data;
   },
 

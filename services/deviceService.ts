@@ -13,21 +13,19 @@ export type FacilityDevice = {
 
 export const deviceService = {
   async list(): Promise<FacilityDevice[]> {
-    try {
-      const res = await API.get("/facility/devices");
-      const raw = res.data?.devices || res.data || [];
-      return raw.map((d: any) => ({
-        id: d.id || d.externalId || crypto.randomUUID(),
+    const res = await API.get("/facility/devices");
+    const raw = res.data?.devices || res.data || [];
+    return raw
+      .filter((d: any) => Boolean(d?.id))
+      .map((d: any) => ({
+        id: String(d.id),
         name: d.name || d.label || "Unnamed Device",
         type: d.type || d.category || "unknown",
         category: d.category || d.type || "unknown",
-        status: d.status || (d.online ? "active" : "offline"),
-        room: d.room || d.room_name || d.home_name || "—",
-        created_at: d.created_at || new Date().toISOString(),
+        status: d.status || (d.online === true ? "online" : d.online === false ? "offline" : "unknown"),
+        room: d.room || d.room_name || d.home_name || "Unassigned",
+        created_at: d.created_at || undefined,
         metadata: d.metadata || {},
       }));
-    } catch {
-      return [];
-    }
   },
 };
