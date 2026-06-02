@@ -52,7 +52,7 @@ export const FACILITY_MODULES: ModuleDefinition[] = [
   { key: "environment-sensors", label: "Environment & Sensors", href: "/environment", startsWith: ["/environment"], anyOf: ["devices.read"] },
   { key: "traffic-mobility", label: "Traffic & Mobility", href: "/traffic", startsWith: ["/traffic"], anyOf: ["visitors.manage", "estates.read"] },
   { key: "maintenance", label: "Maintenance Operations", href: "/maintenance", startsWith: ["/maintenance", "/alerts"], anyOf: ["support.read", "support.assign"] },
-  { key: "community", label: "Community & Communications", href: "/community", startsWith: ["/community", "/messages"], anyOf: ["community.read", "community.write", "notifications.read"] },
+  { key: "community", label: "Community & Communications", href: "/community", startsWith: ["/community", "/messages"], anyOf: ["community.read", "community.write", "community.moderate", "community.broadcast", "community.manage_announcements", "notifications.read"] },
   { key: "wallets", label: "Wallet Operations", href: "/wallets", startsWith: ["/wallets", "/services"], anyOf: ["wallets.read", "wallets.manage"] },
   { key: "intelligence", label: "Facility Intelligence", href: "/facility-intelligence", startsWith: ["/facility-intelligence"], anyOf: ["estates.read", "audit.read", "notifications.read"] },
   { key: "administration", label: "Facility Administration", href: "/facility-administration", startsWith: ["/facility-administration", "/account", "/super-admin"], anyOf: ["settings.manage", "staff.manage"], adminOnly: true },

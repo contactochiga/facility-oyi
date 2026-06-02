@@ -50,7 +50,7 @@ export type UploadedCommunityMedia = {
 export const communityService = {
   async listByEstate(estateId: string): Promise<CommunityPost[]> {
     const res = await API.get(`/community/posts/estate/${estateId}`);
-    const rows = Array.isArray(res.data) ? res.data : [];
+    const rows = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.posts) ? res.data.posts : Array.isArray(res.data?.items) ? res.data.items : [];
     return rows.map((row: any) => ({
       ...row,
       content: row?.content ?? row?.body ?? null,
@@ -64,6 +64,7 @@ export const communityService = {
     media?: any;
     poll?: any;
     category?: string | null;
+    status?: string | null;
     is_pinned?: boolean | null;
     pinned_until?: string | null;
     audience?: { type?: string | null; ref?: string | null } | null;
@@ -77,6 +78,7 @@ export const communityService = {
       media: input.media ?? null,
       poll: input.poll ?? null,
       category: input.category ?? "notice",
+      status: input.status ?? "active",
       is_pinned: input.is_pinned ?? false,
       pinned_until: input.pinned_until ?? null,
       audience: input.audience ?? null,
@@ -145,6 +147,11 @@ export const communityService = {
 
   async trackView(postId: string): Promise<any> {
     const res = await API.post(`/community/post/${postId}/view`);
+    return res.data as any;
+  },
+
+  async reportPost(postId: string, reason: string): Promise<any> {
+    const res = await API.post(`/community/post/${postId}/report`, { reason });
     return res.data as any;
   },
 };

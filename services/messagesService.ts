@@ -40,6 +40,21 @@ export type MessageLite = {
   is_hidden?: boolean;
 };
 
+export type ModerationReport = {
+  id: string;
+  reason?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  resolved_at?: string | null;
+  moderator_id?: string | null;
+  action?: string | null;
+  note?: string | null;
+  thread_id?: string | null;
+  message_id?: string | null;
+  reporter?: any;
+  message?: any;
+};
+
 export const messagesService = {
   async listResidents(q = ""): Promise<ResidentLite[]> {
     try {
@@ -97,7 +112,7 @@ export const messagesService = {
     }
   },
 
-  async listReports(status = "open", limit = 40) {
+  async listReports(status = "open", limit = 40): Promise<ModerationReport[] | { error: string }> {
     try {
       const res = await API.get("/messages/mod/reports", { params: { status, limit } });
       return res.data?.reports ?? [];
@@ -123,4 +138,3 @@ export const messagesService = {
 };
 
 export default messagesService;
-

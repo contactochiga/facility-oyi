@@ -276,7 +276,7 @@ function OverviewPage() {
     load();
     const onRealtime = (event: Event) => {
       const name = (event as CustomEvent)?.detail?.event || "";
-      if (/device|edge|visitor|maintenance|notification|office|camera|incident|audit/.test(name)) void load();
+      if (/device|edge|visitor|maintenance|notification|office|camera|incident|audit|community|message/.test(name)) void load();
     };
     window.addEventListener("facility:realtime-event", onRealtime);
     return () => window.removeEventListener("facility:realtime-event", onRealtime);
@@ -497,6 +497,30 @@ function OverviewPage() {
           hint="Resident-facing services are managed in Services"
           href="/services"
           tone="neutral"
+        />
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <SummaryCard
+          label="Community posture"
+          value={metric(sources.community.data.length, sources.community)}
+          hint="Published and operational resident communications"
+          href="/community"
+          tone="neutral"
+        />
+        <SummaryCard
+          label="Communication posture"
+          value={metric(sources.reports.data.length, sources.reports)}
+          hint="Resident communication reports requiring review"
+          href="/messages"
+          tone={sources.reports.data.length ? "warn" : "good"}
+        />
+        <SummaryCard
+          label="Moderation posture"
+          value={metric(sources.reports.data.length, sources.reports)}
+          hint="Open reports from real moderation source"
+          href="/community"
+          tone={sources.reports.data.length ? "warn" : "good"}
         />
       </section>
 
