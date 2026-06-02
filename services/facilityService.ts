@@ -286,6 +286,20 @@ export type InfrastructureOperations = {
   sources: Record<string, { available: boolean; reason?: string; required_source?: string; events?: string[] }>;
 };
 
+export type PlatformTwinResponse = {
+  estate_id: string | null;
+  models: any[];
+  placements: any[];
+  sources: Record<string, any>;
+};
+
+export type PlatformListResponse<T = any> = {
+  estate_id?: string | null;
+  items: T[];
+  sources?: Record<string, any>;
+  history?: any[];
+};
+
 function normalizeEmail(email: string) {
   return String(email || "").trim().toLowerCase();
 }
@@ -456,6 +470,41 @@ export const facilityService = {
 
   async syncFacilityTuya() {
     const res = await API.post("/facility/devices/providers/tuya/sync");
+    return res.data;
+  },
+
+  async platformTwin(): Promise<PlatformTwinResponse> {
+    const res = await API.get("/facility/platform/twin");
+    return res.data;
+  },
+
+  async platformUtilityTelemetry(): Promise<PlatformListResponse> {
+    const res = await API.get("/facility/platform/utility-telemetry");
+    return res.data;
+  },
+
+  async platformEdgeHistory(): Promise<PlatformListResponse> {
+    const res = await API.get("/facility/platform/edge/history");
+    return res.data;
+  },
+
+  async platformIncidents(): Promise<PlatformListResponse> {
+    const res = await API.get("/facility/platform/incidents");
+    return res.data;
+  },
+
+  async platformCameraInfrastructure(): Promise<PlatformListResponse> {
+    const res = await API.get("/facility/platform/camera-infrastructure");
+    return res.data;
+  },
+
+  async platformRealtimeAudit(): Promise<{ domains: any[] }> {
+    const res = await API.get("/facility/platform/realtime-audit");
+    return res.data;
+  },
+
+  async platformDeploymentReadiness(): Promise<{ checks: any[] }> {
+    const res = await API.get("/facility/platform/deployment-readiness");
     return res.data;
   },
 

@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import API from "@/services/api";
 import { facilityService, type EstateMembershipRow, type InfrastructureOperations } from "@/services/facilityService";
 import { notificationService, type AlertItem } from "@/services/notificationService";
 import superAdminService from "@/services/superAdminService";
@@ -150,6 +149,22 @@ function sourceArray(data: any, keys: string[]) {
   return [];
 }
 
+function readinessCheck(data: any, name: string) {
+  return sourceArray(data, ["checks"]).find((item: any) => lower(item.name) === lower(name));
+}
+
+function readinessStatus(data: any, name: string) {
+  const check = readinessCheck(data, name);
+  if (!check) return "Pending configuration";
+  if (lower(check.status) === "healthy") return "Connected";
+  if (lower(check.status) === "missing") return "No configuration";
+  return text(check.status, "Pending configuration");
+}
+
+function readinessDetail(data: any, name: string) {
+  return text(readinessCheck(data, name)?.detail, "Backend readiness source unavailable.");
+}
+
 export default function FacilityAdministrationModule() {
   const { user } = useSessionStore();
   const [tab, setTab] = useState<Tab>("operators");
@@ -177,7 +192,7 @@ export default function FacilityAdministrationModule() {
       canAudit ? loadSource(superAdminService.auditLogs(160).then((res) => res.items || []), []) : Promise.resolve(source<any[]>([], "permission", "Permission required")),
       loadSource(facilityService.infrastructureOperations(), null),
       canNotifications ? loadSource(notificationService.unread(), []) : Promise.resolve(source<AlertItem[]>([], "permission", "Permission required")),
-      loadSource(API.get("/push/readiness").then((res) => res.data), null),
+      loadSource(facilityService.platformDeploymentReadiness(), null),
     ]);
     setOperators(operatorState);
     setEstates(estateState);
@@ -225,8 +240,8 @@ export default function FacilityAdministrationModule() {
       { name: "Oyi Edge", status: edgeNodes.length ? "Connected" : "Pending configuration", detail: edgeNodes.length ? `${edgeNodes.length} node(s) registered` : "Awaiting Edge registration and heartbeat." },
       { name: "Camera providers", status: cameraSource?.available ? "Connected" : "No configuration", detail: cameraSource?.reason || "Camera source appears when ONVIF/Edge cameras are bound." },
       { name: "Notification providers", status: pushReadiness.status === "ready" ? "Configured" : "Pending configuration", detail: pushReadiness.status === "ready" ? "Provider readiness source loaded." : sourceLabel(pushReadiness, "No configuration") },
-      { name: "APNs", status: pushReadiness.data?.apnsConfigured ? "Connected" : "No configuration", detail: pushReadiness.data?.apnsEnvironment || "Backend readiness endpoint unavailable." },
-      { name: "FCM", status: pushReadiness.data?.fcmConfigured ? "Connected" : "No configuration", detail: pushReadiness.data?.fcmConfigured ? "FCM configured" : "Backend readiness endpoint unavailable or FCM missing." },
+      { name: "APNs", status: readinessStatus(pushReadiness.data, "APNs"), detail: readinessDetail(pushReadiness.data, "APNs") },
+      { name: "FCM", status: readinessStatus(pushReadiness.data, "FCM"), detail: readinessDetail(pushReadiness.data, "FCM") },
       { name: "Future providers", status: "Pending configuration", detail: "Matter, MQTT expansion and additional providers remain future integrations." },
     ];
   }, [infra.data, pushReadiness]);
@@ -299,7 +314,7 @@ function IntegrationsSection({ rows, infra }: { rows: Array<{ name: string; stat
 }
 
 function NotificationsSection({ notifications, push }: { notifications: Source<AlertItem[]>; push: Source<any> }) {
-  return <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]"><Panel title="Notification Controls" subtitle="Push, email and SMS readiness. Delivery metrics are shown only when a backend source exists."><div className="grid gap-3 lg:grid-cols-2"><Field label="Unread notifications" value={notifications.status === "ready" ? String(notifications.data.length) : sourceLabel(notifications)} /><Field label="Push readiness" value={push.status === "ready" ? "Readiness source loaded" : sourceLabel(push, "Pending configuration")} /><Field label="Email readiness" value="Pending configuration" /><Field label="SMS readiness" value="Pending configuration" /><Field label="APNs" value={push.data?.apnsConfigured ? `Connected · ${push.data?.apnsEnvironment || "environment unavailable"}` : "No configuration"} /><Field label="FCM" value={push.data?.fcmConfigured ? "Connected" : "No configuration"} /></div></Panel><Panel title="Notification Audit" subtitle="Configuration inspection only until provider configuration contracts exist."><p className="text-sm leading-6 text-zinc-400">Provider state is displayed from available readiness sources. Delivery counts, delivery success rates and campaign metrics are not shown because no Facility delivery analytics contract is available.</p></Panel></section>;
+  return <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]"><Panel title="Notification Controls" subtitle="Push, email and SMS readiness. Delivery metrics are shown only when a backend source exists."><div className="grid gap-3 lg:grid-cols-2"><Field label="Unread notifications" value={notifications.status === "ready" ? String(notifications.data.length) : sourceLabel(notifications)} /><Field label="Push readiness" value={push.status === "ready" ? "Readiness source loaded" : sourceLabel(push, "Pending configuration")} /><Field label="Email readiness" value="Pending configuration" /><Field label="SMS readiness" value="Pending configuration" /><Field label="APNs" value={`${readinessStatus(push.data, "APNs")} · ${readinessDetail(push.data, "APNs")}`} /><Field label="FCM" value={`${readinessStatus(push.data, "FCM")} · ${readinessDetail(push.data, "FCM")}`} /></div></Panel><Panel title="Notification Audit" subtitle="Configuration inspection only until provider configuration contracts exist."><p className="text-sm leading-6 text-zinc-400">Provider state is displayed from available readiness sources. Delivery counts, delivery success rates and campaign metrics are not shown because no Facility delivery analytics contract is available.</p></Panel></section>;
 }
 
 function SecuritySection({ userRole, canSettings, canAudit, audit, operators }: { userRole: string; canSettings: boolean; canAudit: boolean; audit: Source<any[]>; operators: Source<EstateMembershipRow[]> }) {

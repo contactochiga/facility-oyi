@@ -180,6 +180,11 @@ export default function DigitalTwinPage() {
   const [twin, setTwin] = useState<LoadState<TwinResource | null>>(state(null));
   const [model, setModel] = useState<LoadState<TwinResource | null>>(state(null));
   const [render, setRender] = useState<LoadState<TwinResource | null>>(state(null));
+  const [placements, setPlacements] = useState<LoadState<any[]>>(state([]));
+  const [utilityTelemetry, setUtilityTelemetry] = useState<LoadState<any[]>>(state([]));
+  const [platformIncidents, setPlatformIncidents] = useState<LoadState<any[]>>(state([]));
+  const [edgeHistory, setEdgeHistory] = useState<LoadState<any[]>>(state([]));
+  const [cameraInfrastructure, setCameraInfrastructure] = useState<LoadState<any[]>>(state([]));
   const [activeLayer, setActiveLayer] = useState<LayerKey>("estate");
   const [visible, setVisible] = useState<Record<LayerKey, boolean>>(() => Object.fromEntries(LAYERS.map((layer) => [layer, true])) as Record<LayerKey, boolean>);
   const [query, setQuery] = useState("");
@@ -195,12 +200,14 @@ export default function DigitalTwinPage() {
     setEstateId(nextEstateId);
     setEstateName(firstEstate?.name || "Estate Command Center");
 
-    const [structure, operations, twinState, modelState, renderState, maintenanceState, visitorState, notificationState, cameraState] = await Promise.all([
+    const [structure, operations, platformTwin, utilityState, incidentsState, edgeHistoryState, cameraInfraState, maintenanceState, visitorState, notificationState, cameraState] = await Promise.all([
       loadSource(facilityService.estateStructure(nextEstateId || undefined), null),
       loadSource(facilityService.infrastructureOperations(), null),
-      loadSource(API.get("/spaces/twin").then((res) => res.data), null),
-      loadSource(API.get("/spaces/model").then((res) => res.data), null),
-      loadSource(API.get("/spaces/render").then((res) => res.data), null),
+      loadSource(facilityService.platformTwin(), null),
+      loadSource(facilityService.platformUtilityTelemetry(), { items: [] }),
+      loadSource(facilityService.platformIncidents(), { items: [] }),
+      loadSource(facilityService.platformEdgeHistory(), { items: [] }),
+      loadSource(facilityService.platformCameraInfrastructure(), { items: [], history: [] }),
       loadSource(maintenanceService.list(), []),
       loadSource(visitorService.listToday(), []),
       loadSource(API.get("/notifications", { params: { unread: true } }).then((res) => res.data?.items || res.data?.data || []), []),
@@ -209,9 +216,16 @@ export default function DigitalTwinPage() {
 
     setEstate(structure);
     setInfra(operations);
-    setTwin(twinState);
-    setModel(modelState);
-    setRender(renderState);
+    const models = platformTwin.data?.models || [];
+    const activeModel = models[0] || null;
+    setTwin(platformTwin.status === "ready" ? state(platformTwin.data as any, "ready") : state(null, platformTwin.status, platformTwin.message));
+    setModel(platformTwin.status === "ready" ? state(activeModel ? { ...activeModel, configured: true, model_url: activeModel.file_url, source: activeModel.source_type } : { configured: false, source: null, model_url: null }, "ready") : state(null, platformTwin.status, platformTwin.message));
+    setRender(platformTwin.status === "ready" ? state(activeModel?.metadata?.render_url ? { configured: true, render_url: activeModel.metadata.render_url, source: "registered_model" } : { configured: false, source: null, render_url: null }, "ready") : state(null, platformTwin.status, platformTwin.message));
+    setPlacements(platformTwin.status === "ready" ? state(platformTwin.data?.placements || [], "ready") : state([], platformTwin.status, platformTwin.message));
+    setUtilityTelemetry(utilityState.status === "ready" ? state(utilityState.data?.items || [], "ready") : state([], utilityState.status, utilityState.message));
+    setPlatformIncidents(incidentsState.status === "ready" ? state(incidentsState.data?.items || [], "ready") : state([], incidentsState.status, incidentsState.message));
+    setEdgeHistory(edgeHistoryState.status === "ready" ? state(edgeHistoryState.data?.items || [], "ready") : state([], edgeHistoryState.status, edgeHistoryState.message));
+    setCameraInfrastructure(cameraInfraState.status === "ready" ? state(cameraInfraState.data?.items || [], "ready") : state([], cameraInfraState.status, cameraInfraState.message));
     setMaintenance(maintenanceState);
     setVisitors(visitorState);
     setNotifications(notificationState);
@@ -225,7 +239,7 @@ export default function DigitalTwinPage() {
     void load();
     const onRealtime = (event: Event) => {
       const name = (event as CustomEvent)?.detail?.event || "";
-      if (/device|edge|visitor|maintenance|community|notification|audit|camera|incident/.test(name)) void load();
+      if (/device|edge|visitor|maintenance|community|notification|audit|camera|incident|twin|utility/.test(name)) void load();
     };
     window.addEventListener("facility:realtime-event", onRealtime);
     return () => window.removeEventListener("facility:realtime-event", onRealtime);
@@ -235,11 +249,13 @@ export default function DigitalTwinPage() {
   const homes = estate.data?.homes || infra.data?.homes || [];
   const rooms = infra.data?.rooms || [];
   const edgeNodes = infra.data?.edge_nodes || [];
-  const heartbeats = infra.data?.heartbeats || [];
+  const heartbeats = edgeHistory.data.length ? edgeHistory.data : infra.data?.heartbeats || [];
   const openMaintenance = maintenance.data.filter(maintenanceOpen);
   const offlineDevices = registry.filter((device) => /offline|error|unavailable/.test(lower(device.status)));
   const cameraAttention = cameras.data.filter((camera) => /offline|error|degraded|unavailable|unknown/.test(lower(cameraStatus(camera))));
   const edgeAttention = edgeNodes.filter((node) => /offline|degraded|unreachable|failed|unknown/.test(lower(node.status || node.sync_status)));
+  const placementFor = (entityType: string, entityId: any) => placements.data.find((placement) => lower(placement.entity_type) === lower(entityType) && String(placement.entity_id) === String(entityId));
+  const locationState = (entityType: string, entityId: any) => text(placementFor(entityType, entityId)?.location_state, "location_pending").replace(/_/g, " ");
   const visitorIncidents = visitors.data.filter((visitor) => /pending|denied|expired/.test(lower(visitor.status)));
 
   const twinStatus: TwinStatus = loading
@@ -253,7 +269,7 @@ export default function DigitalTwinPage() {
           : "No model loaded";
 
   const sourceRows = [
-    ["Twin", twin.status === "ready" ? text(twin.data?.source, twinStatus) : sourceLabel(twin, "Awaiting Twin source")],
+    ["Twin", twin.status === "ready" ? twinStatus : sourceLabel(twin, "Awaiting Twin source")],
     ["Model", model.status === "ready" ? (model.data?.configured ? "Model available" : "No model loaded") : sourceLabel(model, "No model loaded")],
     ["Render", render.status === "ready" ? (render.data?.render_url ? "Render available" : "Render unavailable") : sourceLabel(render, "Render unavailable")],
     ["Registry", infra.status === "ready" ? `${registry.length} registry entities` : sourceLabel(infra, "Pending source")],
@@ -264,30 +280,32 @@ export default function DigitalTwinPage() {
   const entities = useMemo(() => {
     const rows: Detail[] = [];
     if (visible.estate) {
-      for (const home of homes) rows.push({ type: "Home", title: text(home.name || home.unit || home.id, "Home"), subtitle: [home.block, home.unit].filter(Boolean).join(" / ") || "Estate structure", rows: [["Occupancy", text(home.occupancy_status || home.status, "Pending source")], ["Assigned devices", String(registry.filter((d) => String(d.home_id || d.home?.id || "") === String(home.id)).length)], ["Assigned cameras", String(cameras.data.filter((c) => String(c.metadata?.home_id || c.edge_node_id || "") === String(home.id)).length)], ["Maintenance", String(maintenance.data.filter((m) => String(m.home_id || "") === String(home.id)).length)]], href: `/homes/${home.id}/users` });
-      for (const room of rooms) rows.push({ type: "Room", title: text(room.name || room.id, "Room"), subtitle: `Home ${text(room.home_id, "unassigned")}`, rows: [["Type", text(room.type, "Not configured")], ["Floor", text(room.floor, "Not configured")], ["Devices", String(registry.filter((d) => String(d.room_id || d.room?.id || "") === String(room.id)).length)]], href: room.home_id ? `/homes/${room.home_id}/rooms` : "/homes" });
+      for (const home of homes) rows.push({ type: "Home", title: text(home.name || home.unit || home.id, "Home"), subtitle: [home.block, home.unit].filter(Boolean).join(" / ") || "Estate structure", rows: [["Occupancy", text(home.occupancy_status || home.status, "Pending source")], ["Location", locationState("home", home.id)], ["Assigned devices", String(registry.filter((d) => String(d.home_id || d.home?.id || "") === String(home.id)).length)], ["Assigned cameras", String(cameras.data.filter((c) => String(c.metadata?.home_id || c.edge_node_id || "") === String(home.id)).length)], ["Maintenance", String(maintenance.data.filter((m) => String(m.home_id || "") === String(home.id)).length)]], href: `/homes/${home.id}/users` });
+      for (const room of rooms) rows.push({ type: "Room", title: text(room.name || room.id, "Room"), subtitle: `Home ${text(room.home_id, "unassigned")}`, rows: [["Type", text(room.type, "Not configured")], ["Location", locationState("room", room.id)], ["Floor", text(room.floor, "Not configured")], ["Devices", String(registry.filter((d) => String(d.room_id || d.room?.id || "") === String(room.id)).length)]], href: room.home_id ? `/homes/${room.home_id}/rooms` : "/homes" });
     }
     if (visible.devices) {
-      for (const device of registry) rows.push({ type: "Device", title: text(device.name || device.oyi_id, "Device"), subtitle: deviceLocation(device), rows: [["Status", text(device.status, "unknown")], ["Provider", text(device.provider || device.adapter)], ["Protocol", text((device.protocols || []).join(", "), "Unavailable")], ["External ID", text(device.external_id, "Unavailable")]], href: "/hardware-devices" });
+      for (const device of registry) rows.push({ type: "Device", title: text(device.name || device.oyi_id, "Device"), subtitle: deviceLocation(device), rows: [["Status", text(device.status, "unknown")], ["Location", locationState("device", device.id)], ["Provider", text(device.provider || device.adapter)], ["Protocol", text((device.protocols || []).join(", "), "Unavailable")], ["External ID", text(device.external_id, "Unavailable")]], href: "/hardware-devices" });
     }
     if (visible.cameras) {
-      for (const camera of cameras.data) rows.push({ type: "Camera", title: text(camera.name || camera.ip, "Camera"), subtitle: text(camera.ip || camera.edge_node_id, "No location source"), rows: [["Health", cameraStatus(camera)], ["Last seen", when(camera.last_seen_at)], ["AI profile", "Open Camera Center"], ["Edge", text(camera.edge_node_id, "No Edge node")]], href: "/cameras" });
+      for (const camera of cameras.data) rows.push({ type: "Camera", title: text(camera.name || camera.ip, "Camera"), subtitle: text(camera.ip || camera.edge_node_id, "No location source"), rows: [["Health", cameraStatus(camera)], ["Location", locationState("camera", camera.id)], ["Zone", text(cameraInfrastructure.data.find((item) => String(item.camera_id) === String(camera.id))?.zone, "Location pending")], ["Last seen", when(camera.last_seen_at)], ["AI profile", "Open Camera Center"], ["Edge", text(camera.edge_node_id, "No Edge node")]], href: "/cameras" });
     }
     if (visible.edge) {
-      for (const node of edgeNodes) rows.push({ type: "Edge", title: text(node.name || node.node_id, "Oyi Edge node"), subtitle: text(node.ip_address || node.estate_id, "No location source"), rows: [["Status", text(node.status, "unknown")], ["Version", text(node.version)], ["Heartbeat", when(node.last_heartbeat_at)], ["Queue", text(node.queue_depth, "Awaiting telemetry")], ["Devices", text(node.device_count, "Awaiting telemetry")]], href: "/hardware-devices?tab=edge" });
+      for (const node of edgeNodes) rows.push({ type: "Edge", title: text(node.name || node.node_id, "Oyi Edge node"), subtitle: text(node.ip_address || node.estate_id, "No location source"), rows: [["Status", text(node.status, "unknown")], ["Location", locationState("edge_node", node.id)], ["Version", text(node.version)], ["Heartbeat", when(node.last_heartbeat_at)], ["Queue", text(node.queue_depth, "Awaiting telemetry")], ["Devices", text(node.device_count, "Awaiting telemetry")]], href: "/hardware-devices?tab=edge" });
     }
     if (visible.maintenance) {
-      for (const item of maintenance.data) rows.push({ type: "Maintenance", title: text(item.title, "Maintenance request"), subtitle: text(item.room_name || item.home_name || item.category, "No location source"), rows: [["Status", text(item.status)], ["Priority", text(item.priority)], ["Assigned", text(item.assigned_operator || item.assigned_to, "Unassigned")], ["Created", when(item.created_at)]], href: "/maintenance" });
+      for (const item of maintenance.data) rows.push({ type: "Maintenance", title: text(item.title, "Maintenance request"), subtitle: text(item.room_name || item.home_name || item.category, "No location source"), rows: [["Status", text(item.status)], ["Location", locationState("maintenance", item.id)], ["Priority", text(item.priority)], ["Assigned", text(item.assigned_operator || item.assigned_to, "Unassigned")], ["Created", when(item.created_at)]], href: "/maintenance" });
     }
     if (visible.incidents) {
+      for (const item of platformIncidents.data) rows.push({ type: "Incident", title: text(item.title, "Operational incident"), subtitle: text(item.location?.label || item.source, "No incident location"), rows: [["Severity", text(item.severity, "unknown")], ["State", text(item.status, "open")], ["Location", locationState("incident", item.id)], ["Assigned", text(item.assigned_to, "Unassigned")], ["Time", when(item.created_at)]], href: "/alerts" });
       for (const item of notifications.data) rows.push({ type: "Incident", title: text(item.title || item.message, "Operational alert"), subtitle: text(item.location || item.domain, "No incident location"), rows: [["Severity", text(item.severity || item.priority, "unknown")], ["State", text(item.status, "new")], ["Time", when(item.created_at)], ["Source", text(item.source || item.type, "notification")]], href: "/alerts" });
       for (const visitor of visitorIncidents) rows.push({ type: "Visitor Incident", title: text(visitor.visitor_name, "Visitor"), subtitle: text(visitor.purpose || visitor.home_id, "No gate location"), rows: [["Status", text(visitor.status)], ["Time", when(visitor.created_at)], ["Home", text(visitor.home_id, "No home source")]], href: "/visitors" });
     }
     if (visible.utilities) {
+      for (const item of utilityTelemetry.data) rows.push({ type: "Utility", title: text(item.utility_type, "Utility telemetry"), subtitle: text(item.source, "Awaiting telemetry"), rows: [["State", text(item.state, "awaiting telemetry")], ["Value", item.value === null || item.value === undefined ? "Awaiting telemetry" : `${item.value} ${text(item.unit, "")}`], ["Observed", when(item.observed_at)], ["Source", text(item.source, "No source configured")]], href: "/utilities" });
       for (const home of homes.filter((h: any) => h.electricity_meter || h.water_meter || h.internet_id)) rows.push({ type: "Utility", title: text(home.name || home.unit, "Utility endpoint"), subtitle: "Estate/home utility identifiers", rows: [["Power", home.electricity_meter ? "Configured" : "Not configured"], ["Water", home.water_meter ? "Configured" : "Not configured"], ["Network", home.internet_id ? "Configured" : "Not configured"]], href: "/utilities" });
     }
     return rows;
-  }, [visible, homes, rooms, registry, cameras.data, edgeNodes, maintenance.data, notifications.data, visitorIncidents]);
+  }, [visible, homes, rooms, registry, cameras.data, cameraInfrastructure.data, edgeNodes, maintenance.data, notifications.data, platformIncidents.data, utilityTelemetry.data, visitorIncidents, placements.data]);
 
   const filteredEntities = entities.filter((item) => {
     const needle = query.trim().toLowerCase();
@@ -300,6 +318,8 @@ export default function DigitalTwinPage() {
     ...cameraAttention.map((camera) => ({ label: text(camera.name || camera.ip), domain: "Camera Health", status: cameraStatus(camera), href: "/cameras" })),
     ...edgeAttention.map((node) => ({ label: text(node.name || node.node_id), domain: "Edge Health", status: text(node.status || node.sync_status), href: "/hardware-devices?tab=edge" })),
     ...openMaintenance.map((item) => ({ label: text(item.title), domain: "Maintenance Queue", status: text(item.status), href: "/maintenance" })),
+    ...platformIncidents.data.map((item) => ({ label: text(item.title), domain: "Incident Queue", status: text(item.status, "open"), href: "/alerts" })),
+    ...utilityTelemetry.data.filter((item) => /degraded|offline/.test(lower(item.state))).map((item) => ({ label: text(item.utility_type), domain: "Utility Health", status: text(item.state), href: "/utilities" })),
     ...notifications.data.map((item) => ({ label: text(item.title || item.message), domain: "Incident Queue", status: text(item.status || item.severity, "new"), href: "/alerts" })),
   ].slice(0, 12);
 
@@ -431,10 +451,11 @@ export default function DigitalTwinPage() {
         </Panel>
         <Panel title="Spatial Data Integrity" subtitle="Current placement readiness by entity type.">
           <div className="space-y-2 text-sm text-zinc-400">
+            <p>Placements persisted: {placements.data.length}</p>
             <p>Devices with assignment: {registry.filter(hasLocation).length}</p>
-            <p>Cameras with Edge/source identity: {cameras.data.filter((camera) => camera.edge_node_id || camera.ip).length}</p>
+            <p>Cameras with infrastructure records: {cameraInfrastructure.data.length}</p>
             <p>Maintenance with location: {maintenance.data.filter(hasLocation).length}</p>
-            <p>Incidents with location: {notifications.data.filter(hasLocation).length}</p>
+            <p>Incidents with location: {platformIncidents.data.filter(hasLocation).length}</p>
           </div>
         </Panel>
       </section>

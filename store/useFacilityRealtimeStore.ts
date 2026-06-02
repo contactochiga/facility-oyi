@@ -28,6 +28,8 @@ function domainFor(event: string) {
   if (/camera/.test(event)) return "cameras";
   if (/security|incident|alert/.test(event)) return "security";
   if (/maintenance/.test(event)) return "maintenance";
+  if (/twin/.test(event)) return "twin";
+  if (/utility/.test(event)) return "utility";
   if (/community/.test(event)) return "community";
   if (/notification|office/.test(event)) return "notifications";
   return "system";
