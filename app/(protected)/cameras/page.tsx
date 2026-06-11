@@ -55,6 +55,21 @@ function privacyLabel(scope?: string | null) {
   return "Estate";
 }
 
+function playbackErrorMessage(requestError: any) {
+  const data = requestError?.response?.data || {};
+  const raw = String(data.message || data.error || data.reason || requestError?.message || "").toLowerCase();
+  const edgeStatus = String(data.edge_status || data.playback?.edge_status || "").toLowerCase();
+  const streamStatus = String(data.stream_status || data.playback?.stream_status || "").toLowerCase();
+  if (
+    /stream runtime unavailable|hls missing|missing hls|waiting_for_edge_runtime|private network|edge/.test(raw) ||
+    /missing_hls|offline|unavailable/.test(edgeStatus) ||
+    /pending_stream_details|waiting_for_edge_runtime/.test(streamStatus)
+  ) {
+    return "This camera source is on a private network. Deploy an Oyi Edge node on the same LAN.";
+  }
+  return data.error || data.message || requestError?.message || "Playback unavailable for this camera.";
+}
+
 export default function CamerasPage() {
   const [estateId, setEstateId] = useState("");
   const [items, setItems] = useState<BoundCamera[]>([]);
@@ -237,7 +252,7 @@ export default function CamerasPage() {
     try {
       await cameraService.getPlayback(camera.id);
     } catch (requestError: any) {
-      setError(requestError?.response?.data?.error || requestError?.message || "Playback unavailable for this camera.");
+      setError(playbackErrorMessage(requestError));
     }
   }
 
