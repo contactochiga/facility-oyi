@@ -23,7 +23,12 @@ export type BoundCamera = {
   status?: string | null;
   health_status?: string | null;
   stream_status?: string | null;
+  edge_status?: string | null;
   edge_node_id?: string | null;
+  location?: string | null;
+  nvr_id?: string | null;
+  channel?: string | null;
+  credential_ref?: string | null;
   last_seen_at?: string | null;
   created_at?: string | null;
   metadata?: Record<string, any> | null;
@@ -77,6 +82,15 @@ export const cameraService = {
     rtsp_url: string;
     username?: string;
     password?: string;
+    location?: string;
+    camera_type?: "ip_camera" | "dvr_channel" | "nvr_channel";
+    privacy_scope?: "facility" | "home" | "office";
+    access_policy?: Record<string, any>;
+    edge_node_id?: string;
+    dvr_id?: string;
+    channel_number?: string | number;
+    credential_ref?: string;
+    enabled?: boolean;
   }) {
     const res = await API.post("/cameras/bind", payload);
     return res.data as { ok: boolean; camera: BoundCamera };
@@ -97,7 +111,11 @@ export const cameraService = {
         params: { rewind },
       });
       if (res?.data?.url) {
-        return res.data as { ok: boolean; type: "hls"; url: string; rewind: number };
+        return {
+          ...res.data,
+          url: res.data.hls_url || res.data.url,
+          type: res.data.playback_type || res.data.type || "hls",
+        } as { ok: boolean; type: "hls"; url: string; rewind: number; hls_url?: string; edge_status?: string; stream_status?: string; message?: string };
       }
     } catch (err: any) {
       const status = Number(err?.response?.status || 0);
