@@ -480,6 +480,11 @@ function OverviewPage() {
     : unresolvedSourceCount
     ? "Awaiting sources"
     : "Stable";
+  const facilityAwareness = attention.length
+    ? `${attention.length} item${attention.length === 1 ? "" : "s"} need attention`
+    : estateState === "Awaiting sources"
+    ? "Operational sources are syncing"
+    : "Estate operating normally";
 
   async function createEstate() {
     if (estateForm.name.trim().length < 2) return;
@@ -521,24 +526,48 @@ function OverviewPage() {
 
   return (
     <div className="space-y-4 overflow-x-hidden pb-8 sm:space-y-6 sm:overflow-visible sm:pb-0">
-      <Topbar
-        title="Facility Overview"
-        subtitle="Estate health, attention, and staff action queue"
-        rightSlot={
-          <Button variant="ghost" onClick={load} disabled={loading} className="gap-2">
+      <div className="flex items-center justify-between gap-3 sm:hidden">
+        <div className="min-w-0">
+          <h1 className="truncate text-[24px] font-semibold tracking-[-0.055em] text-white">Facility Overview</h1>
+          <p className="mt-1 text-xs text-zinc-500">Operational attention center</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={load} disabled={loading} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-sky-200 shadow-[0_10px_30px_rgba(0,0,0,0.28)] backdrop-blur-2xl disabled:opacity-50" aria-label="Refresh overview">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline">{loading ? "Refreshing" : "Refresh"}</span>
-          </Button>
-        }
-      />
+          </button>
+          <Link href="/messages" className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-sky-200 shadow-[0_10px_30px_rgba(0,0,0,0.28)] backdrop-blur-2xl" aria-label="Open messages">
+            <Users className="h-4 w-4" />
+          </Link>
+          <Link href="/alerts" className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-sky-200 shadow-[0_10px_30px_rgba(0,0,0,0.28)] backdrop-blur-2xl" aria-label="Open notifications">
+            <ShieldAlert className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
 
-      <section className="rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_30%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-3 sm:rounded-2xl sm:p-5">
+      <div className="hidden sm:block">
+        <Topbar
+          title="Facility Overview"
+          subtitle="Estate health, attention, and staff action queue"
+          rightSlot={
+            <Button variant="ghost" onClick={load} disabled={loading} className="gap-2">
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">{loading ? "Refreshing" : "Refresh"}</span>
+            </Button>
+          }
+        />
+      </div>
+
+      <section className="rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.16),transparent_32%),linear-gradient(145deg,rgba(255,255,255,0.058),rgba(255,255,255,0.018))] p-4 text-center shadow-[0_18px_55px_rgba(0,0,0,0.30)] sm:rounded-2xl sm:p-5 sm:text-left">
         <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Active estate context</p>
-            <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-white sm:mt-2 sm:text-2xl">{estateName}</h1>
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.055em] text-white sm:mt-2 sm:text-2xl">{estateName}</h1>
+            <p className="mx-auto mt-2 max-w-[280px] text-[18px] font-semibold leading-tight tracking-[-0.05em] text-white/88 sm:mx-0 sm:max-w-none sm:text-sm sm:font-normal sm:tracking-normal sm:text-zinc-400">
+              <span className="sm:hidden">{facilityAwareness}</span>
+              <span className="hidden sm:inline">Operator role: <span className="text-zinc-200">{String(user?.role || "operator").replace(/_/g, " ")}</span></span>
+            </p>
             <p className="mt-1.5 text-xs text-zinc-400 sm:mt-2 sm:text-sm">
-              Operator role: <span className="text-zinc-200">{String(user?.role || "operator").replace(/_/g, " ")}</span>
+              <span className="sm:hidden">Tap a strip below to open the right workflow.</span>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-500 sm:gap-2 sm:text-xs">
@@ -560,8 +589,6 @@ function OverviewPage() {
           </div>
         </Panel>
       ) : null}
-
-      <MobileMetricStrip items={mobileMetrics} />
 
       <MobileQuickActionStrip items={mobileQuickActions} />
 
@@ -609,7 +636,7 @@ function OverviewPage() {
         />
       </section>
 
-      <section className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-3">
+      <section className="hidden gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-3">
         <SummaryCard
           className="min-w-[168px] snap-start sm:min-w-0"
           label="Community posture"
@@ -680,6 +707,35 @@ function OverviewPage() {
             </div>
           </Panel>
         </div>
+      </section>
+
+      <MobileMetricStrip items={mobileMetrics} />
+
+      <section className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:hidden">
+        <SummaryCard
+          className="min-w-[168px] snap-start"
+          label="Community"
+          value={metric(sources.community.data.length, sources.community)}
+          hint="Resident communications"
+          href="/community"
+          tone="neutral"
+        />
+        <SummaryCard
+          className="min-w-[168px] snap-start"
+          label="Reports"
+          value={metric(sources.reports.data.length, sources.reports)}
+          hint="Moderation and messages"
+          href="/messages"
+          tone={sources.reports.data.length ? "warn" : "good"}
+        />
+        <SummaryCard
+          className="min-w-[168px] snap-start"
+          label="Security"
+          value={metric(pendingVisitors.length, sources.visitors)}
+          hint="Visitor and access review"
+          href="/security-access"
+          tone={pendingVisitors.length ? "warn" : "good"}
+        />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-3">
