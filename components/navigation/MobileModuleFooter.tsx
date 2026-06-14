@@ -22,6 +22,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
   const pathname = usePathname() || "/overview";
   const activeKey = useMemo(() => items.find((item) => isActive(pathname, item))?.key || "", [items, pathname]);
   const intelligenceActive = routeMatches(pathname, "/facility-intelligence");
+  const modulePages = useMemo(() => [items.slice(0, 5), items.slice(5, 10)].filter((page) => page.length > 0), [items]);
 
   return (
     <nav
@@ -30,36 +31,38 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
     >
       <div className="pointer-events-auto mx-auto w-[92vw] max-w-[430px] overflow-hidden rounded-[30px] border border-white/[0.08] bg-zinc-950/82 px-2 py-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
         <div className="flex snap-x snap-mandatory gap-1 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {items.map((item) => {
-            const Icon = item.icon;
-            const active = activeKey === item.key;
-            return (
-              <Link
-                key={item.key}
-                href={item.href}
-                style={{ minWidth: "calc((100% - 16px) / 5)" }}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative flex shrink-0 snap-start flex-col items-center justify-center rounded-[24px] px-2 py-1.5 text-center transition-all duration-300 active:scale-[0.98]",
-                  active
-                    ? "bg-[radial-gradient(circle_at_50%_12%,rgba(255,255,255,0.18),rgba(56,189,248,0.13)_42%,rgba(255,255,255,0.055)_100%)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_28px_rgba(56,189,248,0.22)]"
-                    : "text-white/50 hover:bg-white/[0.04] hover:text-white/80"
-                )}
-              >
-                <span className={cn("grid h-9 w-9 place-items-center rounded-[16px] transition-all duration-300", active ? "text-sky-100" : "text-white/58")}>
-                  <Icon size={18} />
-                </span>
-                <span className={cn("mt-0.5 max-w-full truncate text-[10px] font-medium tracking-[-0.02em]", active ? "text-white" : "text-white/48")}>{item.label}</span>
-              </Link>
-            );
-          })}
+          {modulePages.map((page, index) => (
+            <div key={`module-page-${index}`} className="grid min-w-full shrink-0 snap-start grid-cols-5 gap-1">
+              {page.map((item) => {
+                const Icon = item.icon;
+                const active = activeKey === item.key;
+                return (
+                  <Link
+                    key={item.key}
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "relative flex min-w-0 flex-col items-center justify-center rounded-[24px] px-2 py-1.5 text-center transition-all duration-300 active:scale-[0.98]",
+                      active
+                        ? "bg-[radial-gradient(circle_at_50%_12%,rgba(255,255,255,0.18),rgba(56,189,248,0.13)_42%,rgba(255,255,255,0.055)_100%)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_28px_rgba(56,189,248,0.22)]"
+                        : "text-white/50 hover:bg-white/[0.04] hover:text-white/80"
+                    )}
+                  >
+                    <span className={cn("grid h-9 w-9 place-items-center rounded-[16px] transition-all duration-300", active ? "text-sky-100" : "text-white/58")}>
+                      <Icon size={18} />
+                    </span>
+                    <span className={cn("mt-0.5 block w-full truncate text-[10px] font-medium tracking-[-0.02em]", active ? "text-white" : "text-white/48")}>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
           <Link
             href="/facility-intelligence"
-            style={{ minWidth: "100%" }}
             aria-label="Message Oyi Facility"
             aria-current={intelligenceActive ? "page" : undefined}
             className={cn(
-              "flex shrink-0 snap-start items-center gap-3 rounded-[24px] border border-sky-300/15 bg-[radial-gradient(circle_at_14%_18%,rgba(56,189,248,0.18),rgba(255,255,255,0.052)_42%,rgba(255,255,255,0.025)_100%)] px-3 py-2.5 text-left text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_30px_rgba(56,189,248,0.18)] transition active:scale-[0.99]",
+              "flex min-w-full shrink-0 snap-start items-center gap-3 rounded-[24px] border border-sky-300/15 bg-[radial-gradient(circle_at_14%_18%,rgba(56,189,248,0.18),rgba(255,255,255,0.052)_42%,rgba(255,255,255,0.025)_100%)] px-3 py-2.5 text-left text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_30px_rgba(56,189,248,0.18)] transition active:scale-[0.99]",
               intelligenceActive && "border-sky-200/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_0_34px_rgba(56,189,248,0.26)]"
             )}
           >
