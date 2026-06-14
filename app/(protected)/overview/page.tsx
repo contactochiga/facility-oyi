@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ComponentType } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
+  BarChart3,
+  Brain,
   Camera,
   ChevronRight,
   CircleHelp,
@@ -38,6 +41,24 @@ type AttentionItem = {
   href: string;
   action: string;
   time?: string | null;
+};
+
+type MobileMetricItem = {
+  label: string;
+  value: string | number;
+  icon: ComponentType<{ className?: string }>;
+  color?: string;
+  href?: string;
+};
+
+type MobileQuickActionItem = {
+  label: string;
+  value: string;
+  icon: ComponentType<{ className?: string }>;
+  href?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  iconClass?: string;
 };
 
 type OverviewSources = {
@@ -148,6 +169,73 @@ function SummaryCard({
       <div className="mt-2 text-xl font-semibold tracking-tight text-white sm:mt-3 sm:text-2xl">{value}</div>
       <div className="mt-1.5 text-[11px] leading-4 text-zinc-500 sm:mt-2 sm:text-xs sm:leading-5">{hint}</div>
     </Link>
+  );
+}
+
+function MobileMetricStrip({ items }: { items: MobileMetricItem[] }) {
+  return (
+    <section className="rounded-[20px] border border-white/[0.07] bg-[linear-gradient(145deg,rgba(255,255,255,0.046),rgba(255,255,255,0.012))] p-2.5 shadow-[0_12px_38px_rgba(0,0,0,0.30)] backdrop-blur-2xl sm:hidden">
+      <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const content = (
+            <>
+              <div className={`mx-auto flex items-center justify-center gap-1.5 ${item.color || "text-sky-300"}`}>
+                <Icon className="h-4 w-4" />
+                <span className="text-[20px] font-semibold tracking-[-0.05em]">{item.value}</span>
+              </div>
+              <div className="mt-1 text-[11px] text-white/48">{item.label}</div>
+            </>
+          );
+          const className = "min-w-[86px] shrink-0 snap-start rounded-[16px] border border-white/[0.055] bg-white/[0.026] px-2 py-2 text-center transition hover:border-sky-400/25 hover:bg-white/[0.05]";
+          return item.href ? (
+            <Link key={item.label} href={item.href} className={className}>
+              {content}
+            </Link>
+          ) : (
+            <div key={item.label} className={className}>
+              {content}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function MobileQuickActionStrip({ items }: { items: MobileQuickActionItem[] }) {
+  return (
+    <section className="rounded-[20px] border border-white/[0.07] bg-[linear-gradient(145deg,rgba(255,255,255,0.044),rgba(255,255,255,0.012))] p-2.5 shadow-[0_12px_38px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:hidden">
+      <div className="flex snap-x gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const content = (
+            <>
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[14px] border border-white/[0.07] bg-white/[0.045]">
+                <Icon className={`h-4 w-4 ${item.iconClass || "text-sky-300 drop-shadow-[0_0_12px_rgba(56,189,248,0.55)]"}`} />
+              </span>
+              <span className="min-w-0 text-left">
+                <span className="block text-[11px] font-medium text-white/82">{item.label}</span>
+                <span className="block max-w-[118px] truncate text-[10px] text-white/42">{item.value}</span>
+              </span>
+            </>
+          );
+          const className = "flex min-w-[148px] shrink-0 snap-start items-center gap-2 rounded-[17px] border border-white/[0.055] bg-black/20 px-2.5 py-2 transition hover:border-sky-400/25 hover:bg-white/[0.045] disabled:opacity-50";
+          if (item.onClick) {
+            return (
+              <button key={item.label} type="button" onClick={item.onClick} disabled={item.disabled} className={className}>
+                {content}
+              </button>
+            );
+          }
+          return (
+            <Link key={item.label} href={item.href || "/overview"} className={className}>
+              {content}
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -415,6 +503,21 @@ function OverviewPage() {
 
   const metric = (value: number, sourceState: Source<unknown>) =>
     statusLabel(sourceState) || String(value);
+  const mobileMetrics: MobileMetricItem[] = [
+    { label: "Estate", value: estateState, icon: ShieldAlert, color: attention.length ? "text-amber-300" : "text-emerald-300", href: "/alerts" },
+    { label: "Open", value: metric(openMaintenance.length, sources.maintenance), icon: Wrench, color: openMaintenance.length ? "text-amber-300" : "text-sky-300", href: "/maintenance" },
+    { label: "Visitors", value: metric(activeVisitors.length, sources.visitors), icon: Users, color: "text-violet-300", href: "/visitors" },
+    { label: "Devices", value: metric(offlineDevices.length, sources.devices), icon: Zap, color: offlineDevices.length ? "text-amber-300" : "text-cyan-300", href: "/devices" },
+    { label: "Reports", value: metric(sources.reports.data.length, sources.reports), icon: BarChart3, color: sources.reports.data.length ? "text-amber-300" : "text-blue-300", href: "/messages" },
+  ];
+  const mobileQuickActions: MobileQuickActionItem[] = [
+    { label: "Refresh", value: loading ? "Syncing" : dateLabel(lastRefresh), icon: RefreshCw, onClick: load, disabled: loading, iconClass: loading ? "animate-spin text-sky-200" : "text-sky-300 drop-shadow-[0_0_12px_rgba(56,189,248,0.55)]" },
+    { label: "Visitors", value: activeVisitors.length ? `${activeVisitors.length} active` : "Access queue", icon: DoorOpen, href: "/visitors", iconClass: "text-violet-300 drop-shadow-[0_0_12px_rgba(167,139,250,0.55)]" },
+    { label: "Maintenance", value: openMaintenance.length ? `${openMaintenance.length} open` : "No open work", icon: Wrench, href: "/maintenance", iconClass: "text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)]" },
+    { label: "Devices", value: offlineDevices.length ? `${offlineDevices.length} attention` : "Registry", icon: Router, href: "/hardware-devices", iconClass: "text-cyan-300 drop-shadow-[0_0_12px_rgba(34,211,238,0.5)]" },
+    { label: "Reports", value: sources.reports.data.length ? `${sources.reports.data.length} open` : "Operations", icon: BarChart3, href: "/alerts", iconClass: "text-blue-300 drop-shadow-[0_0_12px_rgba(96,165,250,0.55)]" },
+    { label: "AI", value: "Intelligence", icon: Brain, href: "/facility-intelligence", iconClass: "text-sky-200 drop-shadow-[0_0_14px_rgba(125,211,252,0.68)]" },
+  ];
 
   return (
     <div className="space-y-4 overflow-x-hidden sm:space-y-6 sm:overflow-visible">
@@ -458,18 +561,21 @@ function OverviewPage() {
         </Panel>
       ) : null}
 
-      <section className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-6">
-        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Estate state" value={estateState} hint="Derived from available operational sources" href="/alerts" tone={attention.length ? "warn" : "good"} />
-        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Open maintenance" value={metric(openMaintenance.length, sources.maintenance)} hint="Requests not yet resolved" href="/maintenance" tone={openMaintenance.length ? "warn" : "neutral"} />
-        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Active visitors" value={metric(activeVisitors.length, sources.visitors)} hint="Today's active access records" href="/visitors" />
-        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Device attention" value={metric(offlineDevices.length, sources.devices)} hint="Offline or unavailable registry entries" href="/devices" tone={offlineDevices.length ? "warn" : "neutral"} />
-        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Unread notices" value={metric(sources.notifications.data.length, sources.notifications)} hint="Operator notification queue" href="/alerts" />
-        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Community reports" value={metric(sources.reports.data.length, sources.reports)} hint="Open moderation queue items" href="/messages" />
+      <MobileMetricStrip items={mobileMetrics} />
+
+      <MobileQuickActionStrip items={mobileQuickActions} />
+
+      <section className="hidden gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-6">
+        <SummaryCard label="Estate state" value={estateState} hint="Derived from available operational sources" href="/alerts" tone={attention.length ? "warn" : "good"} />
+        <SummaryCard label="Open maintenance" value={metric(openMaintenance.length, sources.maintenance)} hint="Requests not yet resolved" href="/maintenance" tone={openMaintenance.length ? "warn" : "neutral"} />
+        <SummaryCard label="Active visitors" value={metric(activeVisitors.length, sources.visitors)} hint="Today's active access records" href="/visitors" />
+        <SummaryCard label="Device attention" value={metric(offlineDevices.length, sources.devices)} hint="Offline or unavailable registry entries" href="/devices" tone={offlineDevices.length ? "warn" : "neutral"} />
+        <SummaryCard label="Unread notices" value={metric(sources.notifications.data.length, sources.notifications)} hint="Operator notification queue" href="/alerts" />
+        <SummaryCard label="Community reports" value={metric(sources.reports.data.length, sources.reports)} hint="Open moderation queue items" href="/messages" />
       </section>
 
-      <section className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4">
+      <section className="hidden gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
-          className="min-w-[170px] snap-start sm:min-w-0"
           label="Maintenance posture"
           value={metric(openMaintenance.length, sources.maintenance)}
           hint={sources.maintenance.status === "ready" ? "Open work orders requiring operations" : "Pending maintenance source"}
@@ -477,7 +583,6 @@ function OverviewPage() {
           tone={openMaintenance.length ? "warn" : "good"}
         />
         <SummaryCard
-          className="min-w-[170px] snap-start sm:min-w-0"
           label="Utility posture"
           value={statusLabel(sources.devices) || "Registry source"}
           hint="Utility telemetry remains explicit inside Utilities"
@@ -485,7 +590,6 @@ function OverviewPage() {
           tone={offlineDevices.length ? "warn" : "neutral"}
         />
         <SummaryCard
-          className="min-w-[170px] snap-start sm:min-w-0"
           label="Wallet posture"
           value={
             sources.overview.status === "ready"
@@ -497,7 +601,6 @@ function OverviewPage() {
           tone={(sources.overview.data as any)?.wallet?.outstanding_dues ? "warn" : "neutral"}
         />
         <SummaryCard
-          className="min-w-[170px] snap-start sm:min-w-0"
           label="Service readiness"
           value={sources.overview.status === "ready" ? "Review services" : statusLabel(sources.overview) || "Pending source"}
           hint="Resident-facing services are managed in Services"
@@ -554,24 +657,26 @@ function OverviewPage() {
           )}
         </Panel>
 
-        <Panel title="Quick Actions" subtitle="Open the real workflow before taking operational action.">
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:overflow-visible sm:px-0 sm:pb-0">
-            {[
-              ["Add Home", "/homes", Home],
-              ["Invite Resident", "/homes", UserPlus],
-              ["Discover Device", "/devices", Router],
-              ["Verify Visitor", "/visitors", DoorOpen],
-              ["Open Camera Center", "/cameras", Camera],
-              ["Open Maintenance", "/maintenance", Wrench],
-            ].map(([label, href, Icon]) => (
-              <Link key={String(label)} href={String(href)} className="flex min-w-[142px] shrink-0 snap-start items-center gap-2 rounded-full border border-white/10 bg-black/15 px-3 py-2 text-xs text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.05] hover:text-white sm:min-w-0 sm:rounded-xl sm:py-2.5 sm:text-sm">
-                <Icon className="h-4 w-4 text-sky-200" />
-                <span className="flex-1 whitespace-nowrap">{String(label)}</span>
-                <ChevronRight className="hidden h-4 w-4 text-zinc-600 sm:block" />
-              </Link>
-            ))}
-          </div>
-        </Panel>
+        <div className="hidden sm:block">
+          <Panel title="Quick Actions" subtitle="Open the real workflow before taking operational action.">
+            <div className="grid gap-2">
+              {[
+                ["Add Home", "/homes", Home],
+                ["Invite Resident", "/homes", UserPlus],
+                ["Discover Device", "/devices", Router],
+                ["Verify Visitor", "/visitors", DoorOpen],
+                ["Open Camera Center", "/cameras", Camera],
+                ["Open Maintenance", "/maintenance", Wrench],
+              ].map(([label, href, Icon]) => (
+                <Link key={String(label)} href={String(href)} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-2.5 text-sm text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.05] hover:text-white">
+                  <Icon className="h-4 w-4 text-sky-200" />
+                  <span className="flex-1">{String(label)}</span>
+                  <ChevronRight className="h-4 w-4 text-zinc-600" />
+                </Link>
+              ))}
+            </div>
+          </Panel>
+        </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-3">
