@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
-import { Bot } from "lucide-react";
-import MobileAiChip from "./MobileAiChip";
+import { Mic } from "lucide-react";
 import { facilityMobileModules, type MobileModuleItem } from "./mobileNavConfig";
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -22,6 +21,7 @@ function isActive(pathname: string, item: MobileModuleItem) {
 export default function MobileModuleFooter({ items = facilityMobileModules }: { items?: MobileModuleItem[] }) {
   const pathname = usePathname() || "/overview";
   const activeKey = useMemo(() => items.find((item) => isActive(pathname, item))?.key || "", [items, pathname]);
+  const intelligenceActive = routeMatches(pathname, "/facility-intelligence");
 
   return (
     <nav
@@ -33,7 +33,6 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
           {items.map((item) => {
             const Icon = item.icon;
             const active = activeKey === item.key;
-            const isAi = item.key === "ai";
             return (
               <Link
                 key={item.key}
@@ -47,17 +46,34 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
                     : "text-white/50 hover:bg-white/[0.04] hover:text-white/80"
                 )}
               >
-                {isAi ? (
-                  <MobileAiChip icon={Bot} active={active} />
-                ) : (
-                  <span className={cn("grid h-9 w-9 place-items-center rounded-[16px] transition-all duration-300", active ? "text-sky-100" : "text-white/58")}>
-                    <Icon size={18} />
-                  </span>
-                )}
+                <span className={cn("grid h-9 w-9 place-items-center rounded-[16px] transition-all duration-300", active ? "text-sky-100" : "text-white/58")}>
+                  <Icon size={18} />
+                </span>
                 <span className={cn("mt-0.5 max-w-full truncate text-[10px] font-medium tracking-[-0.02em]", active ? "text-white" : "text-white/48")}>{item.label}</span>
               </Link>
             );
           })}
+          <Link
+            href="/facility-intelligence"
+            style={{ minWidth: "100%" }}
+            aria-label="Message Oyi Facility"
+            aria-current={intelligenceActive ? "page" : undefined}
+            className={cn(
+              "flex shrink-0 snap-start items-center gap-3 rounded-[24px] border border-sky-300/15 bg-[radial-gradient(circle_at_14%_18%,rgba(56,189,248,0.18),rgba(255,255,255,0.052)_42%,rgba(255,255,255,0.025)_100%)] px-3 py-2.5 text-left text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_30px_rgba(56,189,248,0.18)] transition active:scale-[0.99]",
+              intelligenceActive && "border-sky-200/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_0_34px_rgba(56,189,248,0.26)]"
+            )}
+          >
+            <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full border border-sky-200/20 bg-sky-400/12 shadow-[0_0_24px_rgba(56,189,248,0.28)]">
+              <span className="h-4 w-4 rounded-full bg-sky-200 shadow-[0_0_22px_rgba(125,211,252,0.95)]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-medium tracking-[-0.02em] text-white/86">Message Oyi Facility...</span>
+              <span className="mt-0.5 block text-[10px] text-white/42">Ask about visitors, maintenance, security, or operations</span>
+            </span>
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.055] text-sky-100 shadow-[0_0_20px_rgba(56,189,248,0.16)]">
+              <Mic size={16} />
+            </span>
+          </Link>
         </div>
       </div>
     </nav>

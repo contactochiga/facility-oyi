@@ -4,7 +4,6 @@ import {
   Bot,
   Building2,
   Car,
-  CreditCard,
   Cpu,
   Droplets,
   FileText,
@@ -37,9 +36,6 @@ export const facilityMobileModules: MobileModuleItem[] = [
   { key: "traffic-mobility", label: "Traffic & Mobility", href: "/traffic", icon: Car, activeRoutes: ["/traffic"] },
   { key: "maintenance", label: "Maintenance Operations", href: "/maintenance", icon: Wrench, activeRoutes: ["/maintenance", "/alerts"] },
   { key: "community", label: "Community & Communications", href: "/community", icon: MessageSquare, activeRoutes: ["/community", "/messages"] },
-  { key: "wallets", label: "Wallet Operations", href: "/wallets", icon: CreditCard, activeRoutes: ["/wallets", "/services"] },
-  { key: "administration", label: "Facility Administration", href: "/facility-administration", icon: UserRoundCog, activeRoutes: ["/facility-administration", "/account", "/super-admin"] },
-  { key: "ai", label: "Facility Intelligence", href: "/facility-intelligence", icon: Bot, activeRoutes: ["/facility-intelligence"] },
 ];
 
 export const officeMobileModules = [
