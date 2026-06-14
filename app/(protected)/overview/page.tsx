@@ -124,12 +124,14 @@ function SummaryCard({
   hint,
   href,
   tone = "neutral",
+  className = "",
 }: {
   label: string;
   value: string | number;
   hint: string;
   href: string;
   tone?: "neutral" | "good" | "warn";
+  className?: string;
 }) {
   const color =
     tone === "good"
@@ -140,11 +142,11 @@ function SummaryCard({
   return (
     <Link
       href={href}
-      className={`rounded-2xl border p-4 transition hover:border-sky-400/30 hover:bg-white/[0.055] ${color}`}
+      className={`rounded-[20px] border p-3 transition hover:border-sky-400/30 hover:bg-white/[0.055] sm:rounded-2xl sm:p-4 ${color} ${className}`}
     >
       <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <div className="mt-3 text-2xl font-semibold tracking-tight text-white">{value}</div>
-      <div className="mt-2 text-xs leading-5 text-zinc-500">{hint}</div>
+      <div className="mt-2 text-xl font-semibold tracking-tight text-white sm:mt-3 sm:text-2xl">{value}</div>
+      <div className="mt-1.5 text-[11px] leading-4 text-zinc-500 sm:mt-2 sm:text-xs sm:leading-5">{hint}</div>
     </Link>
   );
 }
@@ -159,10 +161,10 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:p-5">
+    <section className="rounded-[22px] border border-white/10 bg-white/[0.035] p-3 sm:rounded-2xl sm:p-5">
       <h2 className="text-sm font-semibold text-zinc-100">{title}</h2>
       {subtitle ? <p className="mt-1 text-xs leading-5 text-zinc-500">{subtitle}</p> : null}
-      <div className="mt-4">{children}</div>
+      <div className="mt-3 sm:mt-4">{children}</div>
     </section>
   );
 }
@@ -415,7 +417,7 @@ function OverviewPage() {
     statusLabel(sourceState) || String(value);
 
   return (
-    <div className="space-y-5 sm:space-y-6">
+    <div className="space-y-4 overflow-x-hidden sm:space-y-6 sm:overflow-visible">
       <Topbar
         title="Facility Overview"
         subtitle="Estate health, attention, and staff action queue"
@@ -427,20 +429,20 @@ function OverviewPage() {
         }
       />
 
-      <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_30%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+      <section className="rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_30%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-3 sm:rounded-2xl sm:p-5">
+        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Active estate context</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">{estateName}</h1>
-            <p className="mt-2 text-sm text-zinc-400">
+            <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-white sm:mt-2 sm:text-2xl">{estateName}</h1>
+            <p className="mt-1.5 text-xs text-zinc-400 sm:mt-2 sm:text-sm">
               Operator role: <span className="text-zinc-200">{String(user?.role || "operator").replace(/_/g, " ")}</span>
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-500 sm:gap-2 sm:text-xs">
+            <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 sm:px-3 sm:py-1.5">
               Estate state: <span className="text-zinc-200">{estateState}</span>
             </span>
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+            <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 sm:px-3 sm:py-1.5">
               Refreshed: <span className="text-zinc-200">{dateLabel(lastRefresh)}</span>
             </span>
           </div>
@@ -456,17 +458,18 @@ function OverviewPage() {
         </Panel>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <SummaryCard label="Estate state" value={estateState} hint="Derived from available operational sources" href="/alerts" tone={attention.length ? "warn" : "good"} />
-        <SummaryCard label="Open maintenance" value={metric(openMaintenance.length, sources.maintenance)} hint="Requests not yet resolved" href="/maintenance" tone={openMaintenance.length ? "warn" : "neutral"} />
-        <SummaryCard label="Active visitors" value={metric(activeVisitors.length, sources.visitors)} hint="Today's active access records" href="/visitors" />
-        <SummaryCard label="Device attention" value={metric(offlineDevices.length, sources.devices)} hint="Offline or unavailable registry entries" href="/devices" tone={offlineDevices.length ? "warn" : "neutral"} />
-        <SummaryCard label="Unread notices" value={metric(sources.notifications.data.length, sources.notifications)} hint="Operator notification queue" href="/alerts" />
-        <SummaryCard label="Community reports" value={metric(sources.reports.data.length, sources.reports)} hint="Open moderation queue items" href="/messages" />
+      <section className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-6">
+        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Estate state" value={estateState} hint="Derived from available operational sources" href="/alerts" tone={attention.length ? "warn" : "good"} />
+        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Open maintenance" value={metric(openMaintenance.length, sources.maintenance)} hint="Requests not yet resolved" href="/maintenance" tone={openMaintenance.length ? "warn" : "neutral"} />
+        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Active visitors" value={metric(activeVisitors.length, sources.visitors)} hint="Today's active access records" href="/visitors" />
+        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Device attention" value={metric(offlineDevices.length, sources.devices)} hint="Offline or unavailable registry entries" href="/devices" tone={offlineDevices.length ? "warn" : "neutral"} />
+        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Unread notices" value={metric(sources.notifications.data.length, sources.notifications)} hint="Operator notification queue" href="/alerts" />
+        <SummaryCard className="min-w-[154px] snap-start sm:min-w-0" label="Community reports" value={metric(sources.reports.data.length, sources.reports)} hint="Open moderation queue items" href="/messages" />
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4">
         <SummaryCard
+          className="min-w-[170px] snap-start sm:min-w-0"
           label="Maintenance posture"
           value={metric(openMaintenance.length, sources.maintenance)}
           hint={sources.maintenance.status === "ready" ? "Open work orders requiring operations" : "Pending maintenance source"}
@@ -474,6 +477,7 @@ function OverviewPage() {
           tone={openMaintenance.length ? "warn" : "good"}
         />
         <SummaryCard
+          className="min-w-[170px] snap-start sm:min-w-0"
           label="Utility posture"
           value={statusLabel(sources.devices) || "Registry source"}
           hint="Utility telemetry remains explicit inside Utilities"
@@ -481,6 +485,7 @@ function OverviewPage() {
           tone={offlineDevices.length ? "warn" : "neutral"}
         />
         <SummaryCard
+          className="min-w-[170px] snap-start sm:min-w-0"
           label="Wallet posture"
           value={
             sources.overview.status === "ready"
@@ -492,6 +497,7 @@ function OverviewPage() {
           tone={(sources.overview.data as any)?.wallet?.outstanding_dues ? "warn" : "neutral"}
         />
         <SummaryCard
+          className="min-w-[170px] snap-start sm:min-w-0"
           label="Service readiness"
           value={sources.overview.status === "ready" ? "Review services" : statusLabel(sources.overview) || "Pending source"}
           hint="Resident-facing services are managed in Services"
@@ -549,7 +555,7 @@ function OverviewPage() {
         </Panel>
 
         <Panel title="Quick Actions" subtitle="Open the real workflow before taking operational action.">
-          <div className="grid gap-2">
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:overflow-visible sm:px-0 sm:pb-0">
             {[
               ["Add Home", "/homes", Home],
               ["Invite Resident", "/homes", UserPlus],
@@ -558,10 +564,10 @@ function OverviewPage() {
               ["Open Camera Center", "/cameras", Camera],
               ["Open Maintenance", "/maintenance", Wrench],
             ].map(([label, href, Icon]) => (
-              <Link key={String(label)} href={String(href)} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-2.5 text-sm text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.05] hover:text-white">
+              <Link key={String(label)} href={String(href)} className="flex min-w-[142px] shrink-0 snap-start items-center gap-2 rounded-full border border-white/10 bg-black/15 px-3 py-2 text-xs text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.05] hover:text-white sm:min-w-0 sm:rounded-xl sm:py-2.5 sm:text-sm">
                 <Icon className="h-4 w-4 text-sky-200" />
-                <span className="flex-1">{String(label)}</span>
-                <ChevronRight className="h-4 w-4 text-zinc-600" />
+                <span className="flex-1 whitespace-nowrap">{String(label)}</span>
+                <ChevronRight className="hidden h-4 w-4 text-zinc-600 sm:block" />
               </Link>
             ))}
           </div>
