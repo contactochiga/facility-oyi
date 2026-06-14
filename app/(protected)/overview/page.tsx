@@ -516,12 +516,12 @@ function OverviewPage() {
     { label: "Reports", value: metric(sources.reports.data.length, sources.reports), icon: BarChart3, color: sources.reports.data.length ? "text-amber-300" : "text-blue-300", href: "/messages" },
   ];
   const mobileQuickActions: MobileQuickActionItem[] = [
-    { label: "Refresh", value: loading ? "Syncing" : dateLabel(lastRefresh), icon: RefreshCw, onClick: load, disabled: loading, iconClass: loading ? "animate-spin text-sky-200" : "text-sky-300 drop-shadow-[0_0_12px_rgba(56,189,248,0.55)]" },
-    { label: "Visitors", value: activeVisitors.length ? `${activeVisitors.length} active` : "Access queue", icon: DoorOpen, href: "/visitors", iconClass: "text-violet-300 drop-shadow-[0_0_12px_rgba(167,139,250,0.55)]" },
     { label: "Maintenance", value: openMaintenance.length ? `${openMaintenance.length} open` : "No open work", icon: Wrench, href: "/maintenance", iconClass: "text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)]" },
-    { label: "Devices", value: offlineDevices.length ? `${offlineDevices.length} attention` : "Registry", icon: Router, href: "/hardware-devices", iconClass: "text-cyan-300 drop-shadow-[0_0_12px_rgba(34,211,238,0.5)]" },
-    { label: "Reports", value: sources.reports.data.length ? `${sources.reports.data.length} open` : "Operations", icon: BarChart3, href: "/alerts", iconClass: "text-blue-300 drop-shadow-[0_0_12px_rgba(96,165,250,0.55)]" },
-    { label: "AI", value: "Intelligence", icon: Brain, href: "/facility-intelligence", iconClass: "text-sky-200 drop-shadow-[0_0_14px_rgba(125,211,252,0.68)]" },
+    { label: "Visitor Access", value: pendingVisitors.length ? `${pendingVisitors.length} awaiting` : activeVisitors.length ? `${activeVisitors.length} active` : "Clear", icon: DoorOpen, href: "/security-access", iconClass: "text-violet-300 drop-shadow-[0_0_12px_rgba(167,139,250,0.55)]" },
+    { label: "Security", value: attention.some((item) => item.domain === "Security") ? "Review alert" : "No critical alert", icon: Siren, href: "/security-access", iconClass: "text-red-300 drop-shadow-[0_0_12px_rgba(248,113,113,0.5)]" },
+    { label: "Operations", value: sources.reports.data.length ? `${sources.reports.data.length} reports` : "Reports clear", icon: BarChart3, href: "/alerts", iconClass: "text-blue-300 drop-shadow-[0_0_12px_rgba(96,165,250,0.55)]" },
+    { label: "Resident Access", value: pendingInvites.length ? `${pendingInvites.length} pending` : "Invites clear", icon: UserPlus, href: "/facility-administration", iconClass: "text-emerald-300 drop-shadow-[0_0_12px_rgba(52,211,153,0.48)]" },
+    { label: "Oyi Intelligence", value: attention.length ? "Needs review" : "Estate calm", icon: Brain, href: "/facility-intelligence", iconClass: "text-sky-200 drop-shadow-[0_0_14px_rgba(125,211,252,0.68)]" },
   ];
 
   return (
