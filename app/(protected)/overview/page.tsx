@@ -520,7 +520,7 @@ function OverviewPage() {
   ];
 
   return (
-    <div className="space-y-4 overflow-x-hidden sm:space-y-6 sm:overflow-visible">
+    <div className="space-y-4 overflow-x-hidden pb-8 sm:space-y-6 sm:overflow-visible sm:pb-0">
       <Topbar
         title="Facility Overview"
         subtitle="Estate health, attention, and staff action queue"
@@ -609,8 +609,9 @@ function OverviewPage() {
         />
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <section className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-3">
         <SummaryCard
+          className="min-w-[168px] snap-start sm:min-w-0"
           label="Community posture"
           value={metric(sources.community.data.length, sources.community)}
           hint="Published and operational resident communications"
@@ -618,6 +619,7 @@ function OverviewPage() {
           tone="neutral"
         />
         <SummaryCard
+          className="min-w-[168px] snap-start sm:min-w-0"
           label="Communication posture"
           value={metric(sources.reports.data.length, sources.reports)}
           hint="Resident communication reports requiring review"
@@ -625,6 +627,7 @@ function OverviewPage() {
           tone={sources.reports.data.length ? "warn" : "good"}
         />
         <SummaryCard
+          className="min-w-[168px] snap-start sm:min-w-0"
           label="Moderation posture"
           value={metric(sources.reports.data.length, sources.reports)}
           hint="Open reports from real moderation source"
