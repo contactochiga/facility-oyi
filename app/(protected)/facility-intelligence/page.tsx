@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUp, Bot, ChevronRight, Mic, ShieldCheck, Sparkles } from "lucide-react";
 import { useSessionStore } from "@/store/useSessionStore";
-import { oyiService, type OyiChatResponse } from "@/services/oyiService";
+import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
 
 type ChatMessage = {
   id: string;
@@ -18,6 +18,17 @@ type ChatMessage = {
 
 function id() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function messageFromThread(row: OyiThreadMessage): ChatMessage {
+  return {
+    id: row.id,
+    role: row.role === "user" ? "user" : "assistant",
+    content: row.content || "",
+    cards: row.cards || [],
+    sources: row.sources || [],
+    suggested_actions: row.suggested_actions || [],
+  };
 }
 
 function OyiOrb() {
@@ -90,6 +101,29 @@ export default function FacilityIntelligenceModule() {
     () => ["What’s happening?", "What needs attention?", "What should I do next?", "Show maintenance issues", "Show visitor access", "Show camera events"],
     []
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    async function hydrateLatestThread() {
+      if (!(user as any)?.id) return;
+      try {
+        const threads = await oyiService.listThreads({ estate_id: (user as any)?.estate_id || null, limit: 1 });
+        const thread = threads.threads?.[0];
+        if (!thread?.id || cancelled) return;
+        const res = await oyiService.getThreadMessages(thread.id);
+        if (cancelled) return;
+        const nextMessages = (res.messages || []).map(messageFromThread);
+        if (nextMessages.length) {
+          setThreadId(thread.id);
+          setMessages(nextMessages);
+        }
+      } catch {
+        // Keep the local starter prompt if backend history is unavailable.
+      }
+    }
+    void hydrateLatestThread();
+    return () => { cancelled = true; };
+  }, [user]);
 
   async function send(text?: string) {
     const message = (text || input).trim();

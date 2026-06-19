@@ -26,6 +26,7 @@ import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import API from "@/services/api";
 import { facilityService, type HomeInviteRow } from "@/services/facilityService";
+import { oyiService, type OyiAwareness } from "@/services/oyiService";
 import { useSessionStore } from "@/store/useSessionStore";
 import type { FacilityOverview } from "@/types/facility";
 
@@ -296,6 +297,7 @@ function OverviewPage() {
   const [creating, setCreating] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [estateForm, setEstateForm] = useState({ name: "", address: "", type: "estate" });
+  const [backendAwareness, setBackendAwareness] = useState<OyiAwareness | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -315,12 +317,13 @@ function OverviewPage() {
 
     if (!nextEstateId) {
       setSources({ ...emptySources(), overview: overviewState });
+      setBackendAwareness(null);
       setLoading(false);
       setLastRefresh(new Date().toISOString());
       return;
     }
 
-    const [homes, devices, maintenance, visitors, notifications, cameras, reports, community] =
+    const [homes, devices, maintenance, visitors, notifications, cameras, reports, community, awareness] =
       await Promise.all([
         loadSource(facilityService.listHomes(nextEstateId).then((res) => res.homes || []), []),
         loadSource(API.get("/facility/devices").then((res) => listFrom(res.data, ["devices", "items"])), []),
@@ -330,7 +333,10 @@ function OverviewPage() {
         loadSource(API.get(`/cameras/estate/${encodeURIComponent(nextEstateId)}`).then((res) => listFrom(res.data, ["items", "cameras"])), []),
         loadSource(API.get("/messages/mod/reports", { params: { status: "open", limit: 40 } }).then((res) => listFrom(res.data, ["reports", "items"])), []),
         loadSource(API.get(`/community/posts/estate/${encodeURIComponent(nextEstateId)}`).then((res) => listFrom(res.data, ["posts", "items"])), []),
+        oyiService.awareness({ estate_id: nextEstateId }).catch(() => null),
       ]);
+
+    setBackendAwareness(awareness?.headline ? awareness : null);
 
     let invites: Source<HomeInviteRow[]> = source([], homes.status === "ready" ? "ready" : homes.status);
     if (homes.status === "ready" && homes.data.length) {
@@ -485,6 +491,7 @@ function OverviewPage() {
     : estateState === "Awaiting sources"
     ? "Operational sources are syncing"
     : "Estate operating normally";
+  const displayedFacilityAwareness = backendAwareness?.headline || facilityAwareness;
 
   async function createEstate() {
     if (estateForm.name.trim().length < 2) return;
@@ -563,7 +570,7 @@ function OverviewPage() {
             <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Active estate context</p>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.055em] text-white sm:mt-2 sm:text-2xl">{estateName}</h1>
             <p className="mx-auto mt-2 max-w-[280px] text-[18px] font-semibold leading-tight tracking-[-0.05em] text-white/88 sm:mx-0 sm:max-w-none sm:text-sm sm:font-normal sm:tracking-normal sm:text-zinc-400">
-              <span className="sm:hidden">{facilityAwareness}</span>
+              <span className="sm:hidden">{displayedFacilityAwareness}</span>
               <span className="hidden sm:inline">Operator role: <span className="text-zinc-200">{String(user?.role || "operator").replace(/_/g, " ")}</span></span>
             </p>
             <p className="mt-1.5 text-xs text-zinc-400 sm:mt-2 sm:text-sm">
