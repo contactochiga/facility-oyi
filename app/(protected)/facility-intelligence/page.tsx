@@ -17,6 +17,7 @@ type ChatMessage = {
   intent?: string;
   understood?: string;
   execution?: Record<string, any>;
+  display_mode?: "conversation" | "list" | "detail" | "audit" | "report" | "awareness";
 };
 
 function id() {
@@ -35,6 +36,7 @@ function messageFromThread(row: OyiThreadMessage): ChatMessage {
     intent: typeof metadata.intent === "string" ? metadata.intent : undefined,
     understood: typeof metadata.understood === "string" ? metadata.understood : undefined,
     execution: metadata.execution && typeof metadata.execution === "object" ? metadata.execution as Record<string, any> : undefined,
+    display_mode: typeof metadata.display_mode === "string" ? metadata.display_mode as ChatMessage["display_mode"] : "conversation",
   };
 }
 
@@ -120,6 +122,7 @@ function SuggestedActions({ actions }: { actions?: Array<Record<string, any>> })
 }
 
 function awarenessCards(response: OyiChatResponse) {
+  if (!["list", "detail", "audit", "report", "awareness"].includes(String(response.display_mode || "conversation"))) return [];
   const cards = Array.isArray(response.cards) ? response.cards : [];
   const awareness = response.awareness;
   if (!awareness?.headline) return cards;
@@ -209,6 +212,7 @@ export default function FacilityIntelligenceModule() {
         intent: response.intent,
         understood: response.understood,
         execution: response.execution,
+        display_mode: response.display_mode || "conversation",
       } : item));
     } catch (error: any) {
       setMessages(base.map((item) => item.id === pendingId ? { ...item, pending: false, content: error?.response?.data?.error || "Oyi Facility is unavailable right now." } : item));
@@ -262,7 +266,7 @@ export default function FacilityIntelligenceModule() {
               <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[92%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_14px_40px_rgba(0,0,0,0.22)] ${mine ? "bg-sky-400 text-slate-950" : "border border-white/[0.07] bg-white/[0.045] text-zinc-100"}`}>
                   <p className={message.pending ? "animate-pulse text-zinc-400" : ""}>{message.content}</p>
-                  {!mine ? <CardStack cards={message.cards} /> : null}
+                  {!mine && ["list", "detail", "audit", "report", "awareness"].includes(String(message.display_mode || "conversation")) ? <CardStack cards={message.cards} /> : null}
                   {!mine ? <OperatingStatus execution={message.execution} /> : null}
                   {!mine ? <SuggestedActions actions={message.suggested_actions} /> : null}
                 </div>
