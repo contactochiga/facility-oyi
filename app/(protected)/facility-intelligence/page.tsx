@@ -48,10 +48,11 @@ function OyiOrb() {
 }
 
 function CardStack({ cards }: { cards?: Array<Record<string, any>> }) {
-  if (!cards?.length) return null;
+  const visibleCards = (cards || []).filter((card) => !["capability", "capability_registry"].includes(String(card?.type || "")));
+  if (!visibleCards.length) return null;
   return (
     <div className="mt-3 grid gap-2">
-      {cards.slice(0, 4).map((card, index) => {
+      {visibleCards.slice(0, 3).map((card, index) => {
         const items = Array.isArray(card.items) ? card.items : [];
         return (
           <div key={`${card.type || card.title || "card"}-${index}`} className="rounded-[22px] border border-white/[0.075] bg-white/[0.045] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
@@ -61,9 +62,9 @@ function CardStack({ cards }: { cards?: Array<Record<string, any>> }) {
             {items.length ? (
               <div className="mt-2 grid gap-1.5">
                 {items.slice(0, 4).map((item: any, itemIndex: number) => (
-                  <div key={itemIndex} className="flex items-center justify-between gap-3 rounded-2xl bg-black/18 px-3 py-2 text-xs">
-                    <span className="min-w-0 truncate text-zinc-300">{item.title || item.label || "Item"}</span>
-                    <span className="shrink-0 text-zinc-500">{item.status || item.occurred_at?.slice?.(0, 10) || ""}</span>
+                  <div key={itemIndex} className="flex items-start justify-between gap-3 rounded-2xl bg-black/18 px-3 py-2 text-xs">
+                    <span className="min-w-0 break-words text-zinc-300">{item.title || item.label || "Item"}</span>
+                    <span className="max-w-[48%] shrink-0 break-words text-right text-zinc-500">{item.status || item.occurred_at?.slice?.(0, 10) || ""}</span>
                   </div>
                 ))}
               </div>
@@ -75,13 +76,20 @@ function CardStack({ cards }: { cards?: Array<Record<string, any>> }) {
   );
 }
 
-function OperatingStatus({ intent, understood, execution }: { intent?: string; understood?: string; execution?: Record<string, any> }) {
-  if (!intent && !execution) return null;
+function OperatingStatus({ execution }: { intent?: string; understood?: string; execution?: Record<string, any> }) {
   const results = Array.isArray(execution?.results) ? execution.results : [];
   const first = results[0] || {};
-  const status = String(first.status || execution?.status || (intent === "capability_query" ? "available" : "ready")).replace(/_/g, " ");
-  const safeMode = execution?.safe_mode;
-  const provider = execution?.provider ? String(execution.provider).replace(/_/g, " ") : "";
+  const rawStatus = String(first.status || "").replace(/_/g, " ");
+  if (!rawStatus) return null;
+  const status = /denied/.test(rawStatus)
+    ? "Action not available"
+    : /failed|error/.test(rawStatus)
+      ? "Action could not be completed"
+      : /confirmation|pending/.test(rawStatus)
+        ? "Confirmation needed"
+        : /executed|success/.test(rawStatus)
+          ? "Action completed"
+          : "Action update";
   const tone =
     /denied|failed|error/.test(status)
       ? "border-rose-300/15 bg-rose-400/[0.055] text-rose-50/80"
@@ -90,19 +98,8 @@ function OperatingStatus({ intent, understood, execution }: { intent?: string; u
         : "border-sky-300/14 bg-sky-400/[0.055] text-sky-50/82";
   return (
     <div className={`mt-3 rounded-[20px] border p-3 ${tone}`}>
-      <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.18em] opacity-70">
-        <span>{String(intent || "operation").replace(/_/g, " ")}</span>
-        <span className="h-1 w-1 rounded-full bg-current opacity-50" />
-        <span>{status}</span>
-      </div>
-      {understood ? <p className="mt-1.5 text-xs leading-5 opacity-80">{understood}</p> : null}
+      <div className="text-[10px] font-medium uppercase tracking-[0.18em] opacity-75">{status}</div>
       {first.summary || first.error ? <p className="mt-1 text-xs leading-5 opacity-90">{String(first.summary || first.error)}</p> : null}
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {provider ? <span className="rounded-full bg-black/18 px-2 py-1 text-[10px] opacity-75">{provider}</span> : null}
-        {safeMode !== undefined ? <span className="rounded-full bg-black/18 px-2 py-1 text-[10px] opacity-75">safe mode {safeMode ? "on" : "off"}</span> : null}
-        {results.length ? <span className="rounded-full bg-black/18 px-2 py-1 text-[10px] opacity-75">{results.length} result{results.length === 1 ? "" : "s"}</span> : null}
-        {execution?.scope ? <span className="rounded-full bg-black/18 px-2 py-1 text-[10px] opacity-75">{String(execution.scope)} scope</span> : null}
-      </div>
     </div>
   );
 }
@@ -266,7 +263,7 @@ export default function FacilityIntelligenceModule() {
                 <div className={`max-w-[92%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_14px_40px_rgba(0,0,0,0.22)] ${mine ? "bg-sky-400 text-slate-950" : "border border-white/[0.07] bg-white/[0.045] text-zinc-100"}`}>
                   <p className={message.pending ? "animate-pulse text-zinc-400" : ""}>{message.content}</p>
                   {!mine ? <CardStack cards={message.cards} /> : null}
-                  {!mine ? <OperatingStatus intent={message.intent} understood={message.understood} execution={message.execution} /> : null}
+                  {!mine ? <OperatingStatus execution={message.execution} /> : null}
                   {!mine ? <SuggestedActions actions={message.suggested_actions} /> : null}
                 </div>
               </div>
