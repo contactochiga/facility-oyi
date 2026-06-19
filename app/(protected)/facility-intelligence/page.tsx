@@ -83,6 +83,23 @@ function SuggestedActions({ actions }: { actions?: Array<Record<string, any>> })
   );
 }
 
+function awarenessCards(response: OyiChatResponse) {
+  const cards = Array.isArray(response.cards) ? response.cards : [];
+  const awareness = response.awareness;
+  if (!awareness?.headline) return cards;
+  const primaryCard = {
+    type: awareness.severity === "normal" ? "normal" : "attention",
+    title: awareness.headline,
+    summary: awareness.summary || awareness.body || awareness.recommended_action || "Oyi ranked this as the current operational state.",
+    items: awareness.recommended_action
+      ? [{ title: "Recommended action", status: awareness.recommended_action }]
+      : [],
+    score: awareness.awareness_score ?? awareness.score,
+  };
+  const remaining = cards.filter((card) => String(card?.title || "") !== awareness.headline);
+  return [primaryCard, ...remaining];
+}
+
 export default function FacilityIntelligenceModule() {
   const { user } = useSessionStore();
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -150,7 +167,7 @@ export default function FacilityIntelligenceModule() {
         ...item,
         pending: false,
         content: response.message || "Oyi did not return a response.",
-        cards: response.cards || [],
+        cards: awarenessCards(response),
         sources: response.sources || [],
         suggested_actions: response.suggested_actions || [],
       } : item));

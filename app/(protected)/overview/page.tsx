@@ -298,6 +298,7 @@ function OverviewPage() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [estateForm, setEstateForm] = useState({ name: "", address: "", type: "estate" });
   const [backendAwareness, setBackendAwareness] = useState<OyiAwareness | null>(null);
+  const [awarenessStatus, setAwarenessStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -318,11 +319,14 @@ function OverviewPage() {
     if (!nextEstateId) {
       setSources({ ...emptySources(), overview: overviewState });
       setBackendAwareness(null);
+      setAwarenessStatus("idle");
       setLoading(false);
       setLastRefresh(new Date().toISOString());
       return;
     }
 
+    setAwarenessStatus("loading");
+    setBackendAwareness(null);
     const [homes, devices, maintenance, visitors, notifications, cameras, reports, community, awareness] =
       await Promise.all([
         loadSource(facilityService.listHomes(nextEstateId).then((res) => res.homes || []), []),
@@ -337,6 +341,7 @@ function OverviewPage() {
       ]);
 
     setBackendAwareness(awareness?.headline ? awareness : null);
+    setAwarenessStatus(awareness?.headline ? "ready" : "error");
 
     let invites: Source<HomeInviteRow[]> = source([], homes.status === "ready" ? "ready" : homes.status);
     if (homes.status === "ready" && homes.data.length) {
@@ -491,8 +496,13 @@ function OverviewPage() {
     : estateState === "Awaiting sources"
     ? "Operational sources are syncing"
     : "Estate operating normally";
-  const displayedFacilityAwareness = backendAwareness?.headline || facilityAwareness;
-  const displayedFacilityAction = backendAwareness?.recommended_action || backendAwareness?.summary || "Tap a strip below to open the right workflow.";
+  const displayedFacilityAwareness = awarenessStatus === "loading" ? "Checking Oyi awareness" : backendAwareness?.headline || facilityAwareness;
+  const displayedFacilityAction =
+    awarenessStatus === "loading"
+      ? "Ranking operational signals now."
+      : awarenessStatus === "error"
+      ? "Oyi awareness is unavailable, showing local operational context."
+      : backendAwareness?.recommended_action || backendAwareness?.summary || "Tap a strip below to open the right workflow.";
 
   async function createEstate() {
     if (estateForm.name.trim().length < 2) return;
