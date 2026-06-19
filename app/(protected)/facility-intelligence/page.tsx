@@ -266,9 +266,11 @@ export default function FacilityIntelligenceModule() {
               <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[92%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_14px_40px_rgba(0,0,0,0.22)] ${mine ? "bg-sky-400 text-slate-950" : "border border-white/[0.07] bg-white/[0.045] text-zinc-100"}`}>
                   <p className={message.pending ? "animate-pulse text-zinc-400" : ""}>{message.content}</p>
-                  {!mine && ["list", "detail", "audit", "report", "awareness"].includes(String(message.display_mode || "conversation")) ? <CardStack cards={message.cards} /> : null}
-                  {!mine ? <OperatingStatus execution={message.execution} /> : null}
-                  {!mine ? <SuggestedActions actions={message.suggested_actions} /> : null}
+                  {!mine && ["list", "detail", "audit", "report", "awareness"].includes(String(message.display_mode || "conversation")) ? <>
+                    <CardStack cards={message.cards} />
+                    <OperatingStatus execution={message.execution} />
+                    <SuggestedActions actions={message.suggested_actions} />
+                  </> : null}
                 </div>
               </div>
             );
