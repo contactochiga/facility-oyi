@@ -492,6 +492,7 @@ function OverviewPage() {
     ? "Operational sources are syncing"
     : "Estate operating normally";
   const displayedFacilityAwareness = backendAwareness?.headline || facilityAwareness;
+  const displayedFacilityAction = backendAwareness?.recommended_action || backendAwareness?.summary || "Tap a strip below to open the right workflow.";
 
   async function createEstate() {
     if (estateForm.name.trim().length < 2) return;
@@ -574,7 +575,7 @@ function OverviewPage() {
               <span className="hidden sm:inline">Operator role: <span className="text-zinc-200">{String(user?.role || "operator").replace(/_/g, " ")}</span></span>
             </p>
             <p className="mt-1.5 text-xs text-zinc-400 sm:mt-2 sm:text-sm">
-              <span className="sm:hidden">Tap a strip below to open the right workflow.</span>
+              <span className="sm:hidden">{displayedFacilityAction}</span>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-500 sm:gap-2 sm:text-xs">

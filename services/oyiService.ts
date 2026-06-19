@@ -1,13 +1,17 @@
 import API from "./api";
 
-export type OyiSeverity = "normal" | "info" | "attention" | "critical";
+export type OyiSeverity = "normal" | "info" | "attention" | "warning" | "critical";
 export type OyiAwareness = {
   headline: string;
+  summary?: string;
   body?: string;
   severity: OyiSeverity;
+  recommended_action?: string;
   destination: string;
   cards?: Array<Record<string, any>>;
   sources?: Array<Record<string, any>>;
+  suggested_actions?: Array<Record<string, any>>;
+  awareness_score?: number;
   score?: number;
   generated_at?: string;
 };
