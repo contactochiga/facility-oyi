@@ -20,6 +20,11 @@ type ChatMessage = {
   display_mode?: "conversation" | "list" | "detail" | "audit" | "report" | "awareness";
 };
 
+const SUPPORT_DISPLAY_MODES = new Set(["list", "detail", "audit", "report", "awareness"]);
+function shouldRenderSupport(displayMode?: string) {
+  return SUPPORT_DISPLAY_MODES.has(String(displayMode || "conversation"));
+}
+
 function id() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -150,6 +155,14 @@ export default function FacilityIntelligenceModule() {
   ]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    messages.filter((message) => message.role === "assistant" && !message.pending).forEach((message) => {
+      const support = shouldRenderSupport(message.display_mode);
+      console.debug("[oyi-chat-render]", { display_mode: message.display_mode || "conversation", cards_rendered: support && Boolean(message.cards?.length), support_panels_rendered: support });
+    });
+  }, [messages]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -266,7 +279,7 @@ export default function FacilityIntelligenceModule() {
               <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[92%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_14px_40px_rgba(0,0,0,0.22)] ${mine ? "bg-sky-400 text-slate-950" : "border border-white/[0.07] bg-white/[0.045] text-zinc-100"}`}>
                   <p className={message.pending ? "animate-pulse text-zinc-400" : ""}>{message.content}</p>
-                  {!mine && ["list", "detail", "audit", "report", "awareness"].includes(String(message.display_mode || "conversation")) ? <>
+                  {!mine && shouldRenderSupport(message.display_mode) ? <>
                     <CardStack cards={message.cards} />
                     <OperatingStatus execution={message.execution} />
                     <SuggestedActions actions={message.suggested_actions} />
