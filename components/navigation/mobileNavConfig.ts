@@ -26,16 +26,16 @@ export type MobileModuleItem = {
 };
 
 export const facilityMobileModules: MobileModuleItem[] = [
-  { key: "overview", label: "Facility Overview", href: "/overview", icon: LayoutDashboard, activeRoutes: ["/overview"] },
-  { key: "live-infrastructure", label: "Live Infrastructure", href: "/live-infrastructure", icon: RadioTower, activeRoutes: ["/live-infrastructure", "/digital-twin"] },
-  { key: "estate-structure", label: "Estate Structure", href: "/estate-structure", icon: Building2, activeRoutes: ["/estate-structure", "/homes", "/occupancy"] },
-  { key: "hardware-devices", label: "Hardware Devices", href: "/hardware-devices", icon: Cpu, activeRoutes: ["/hardware-devices", "/devices"] },
-  { key: "security-access", label: "Security & Access", href: "/security-access", icon: ShieldCheck, activeRoutes: ["/security-access", "/security", "/visitors", "/cameras"] },
+  { key: "overview", label: "Overview", href: "/overview", icon: LayoutDashboard, activeRoutes: ["/overview"] },
+  { key: "live-infrastructure", label: "Live", href: "/live-infrastructure", icon: RadioTower, activeRoutes: ["/live-infrastructure", "/digital-twin"] },
+  { key: "estate-structure", label: "Estate", href: "/estate-structure", icon: Building2, activeRoutes: ["/estate-structure", "/homes", "/occupancy"] },
+  { key: "hardware-devices", label: "Devices", href: "/hardware-devices", icon: Cpu, activeRoutes: ["/hardware-devices", "/devices"] },
+  { key: "security-access", label: "Security", href: "/security-access", icon: ShieldCheck, activeRoutes: ["/security-access", "/security", "/visitors", "/cameras"] },
   { key: "utilities", label: "Utilities", href: "/utilities", icon: Droplets, activeRoutes: ["/utilities", "/water"] },
-  { key: "environment-sensors", label: "Environment & Sensors", href: "/environment", icon: Leaf, activeRoutes: ["/environment"] },
-  { key: "traffic-mobility", label: "Traffic & Mobility", href: "/traffic", icon: Car, activeRoutes: ["/traffic"] },
-  { key: "maintenance", label: "Maintenance Operations", href: "/maintenance", icon: Wrench, activeRoutes: ["/maintenance", "/alerts"] },
-  { key: "community", label: "Community & Communications", href: "/community", icon: MessageSquare, activeRoutes: ["/community", "/messages"] },
+  { key: "environment-sensors", label: "Sensors", href: "/environment", icon: Leaf, activeRoutes: ["/environment"] },
+  { key: "traffic-mobility", label: "Traffic", href: "/traffic", icon: Car, activeRoutes: ["/traffic"] },
+  { key: "maintenance", label: "Maintenance", href: "/maintenance", icon: Wrench, activeRoutes: ["/maintenance", "/alerts"] },
+  { key: "community", label: "Community", href: "/community", icon: MessageSquare, activeRoutes: ["/community", "/messages"] },
 ];
 
 export const officeMobileModules = [
