@@ -19,6 +19,9 @@ export type OyiAwareness = {
 export type OyiChatResponse = {
   ok?: boolean;
   message: string;
+  intent?: string;
+  understood?: string;
+  execution?: Record<string, any>;
   cards?: Array<Record<string, any>>;
   sources?: Array<Record<string, any>>;
   suggested_actions?: Array<Record<string, any>>;

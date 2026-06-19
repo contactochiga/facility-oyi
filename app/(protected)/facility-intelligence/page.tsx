@@ -14,6 +14,9 @@ type ChatMessage = {
   cards?: Array<Record<string, any>>;
   sources?: Array<Record<string, any>>;
   suggested_actions?: Array<Record<string, any>>;
+  intent?: string;
+  understood?: string;
+  execution?: Record<string, any>;
 };
 
 function id() {
@@ -21,6 +24,7 @@ function id() {
 }
 
 function messageFromThread(row: OyiThreadMessage): ChatMessage {
+  const metadata = row.metadata || {};
   return {
     id: row.id,
     role: row.role === "user" ? "user" : "assistant",
@@ -28,6 +32,9 @@ function messageFromThread(row: OyiThreadMessage): ChatMessage {
     cards: row.cards || [],
     sources: row.sources || [],
     suggested_actions: row.suggested_actions || [],
+    intent: typeof metadata.intent === "string" ? metadata.intent : undefined,
+    understood: typeof metadata.understood === "string" ? metadata.understood : undefined,
+    execution: metadata.execution && typeof metadata.execution === "object" ? metadata.execution as Record<string, any> : undefined,
   };
 }
 
@@ -64,6 +71,38 @@ function CardStack({ cards }: { cards?: Array<Record<string, any>> }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function OperatingStatus({ intent, understood, execution }: { intent?: string; understood?: string; execution?: Record<string, any> }) {
+  if (!intent && !execution) return null;
+  const results = Array.isArray(execution?.results) ? execution.results : [];
+  const first = results[0] || {};
+  const status = String(first.status || execution?.status || (intent === "capability_query" ? "available" : "ready")).replace(/_/g, " ");
+  const safeMode = execution?.safe_mode;
+  const provider = execution?.provider ? String(execution.provider).replace(/_/g, " ") : "";
+  const tone =
+    /denied|failed|error/.test(status)
+      ? "border-rose-300/15 bg-rose-400/[0.055] text-rose-50/80"
+      : /confirmation|pending/.test(status)
+        ? "border-amber-300/16 bg-amber-400/[0.06] text-amber-50/82"
+        : "border-sky-300/14 bg-sky-400/[0.055] text-sky-50/82";
+  return (
+    <div className={`mt-3 rounded-[20px] border p-3 ${tone}`}>
+      <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.18em] opacity-70">
+        <span>{String(intent || "operation").replace(/_/g, " ")}</span>
+        <span className="h-1 w-1 rounded-full bg-current opacity-50" />
+        <span>{status}</span>
+      </div>
+      {understood ? <p className="mt-1.5 text-xs leading-5 opacity-80">{understood}</p> : null}
+      {first.summary || first.error ? <p className="mt-1 text-xs leading-5 opacity-90">{String(first.summary || first.error)}</p> : null}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {provider ? <span className="rounded-full bg-black/18 px-2 py-1 text-[10px] opacity-75">{provider}</span> : null}
+        {safeMode !== undefined ? <span className="rounded-full bg-black/18 px-2 py-1 text-[10px] opacity-75">safe mode {safeMode ? "on" : "off"}</span> : null}
+        {results.length ? <span className="rounded-full bg-black/18 px-2 py-1 text-[10px] opacity-75">{results.length} result{results.length === 1 ? "" : "s"}</span> : null}
+        {execution?.scope ? <span className="rounded-full bg-black/18 px-2 py-1 text-[10px] opacity-75">{String(execution.scope)} scope</span> : null}
+      </div>
     </div>
   );
 }
@@ -115,7 +154,7 @@ export default function FacilityIntelligenceModule() {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const quickPrompts = useMemo(
-    () => ["What’s happening?", "What needs attention?", "What should I do next?", "Show maintenance issues", "Show visitor access", "Show camera events"],
+    () => ["What can facility control?", "What needs attention today?", "Show offline estate devices", "Show pending visitors", "Show open maintenance", "Generate today’s estate report", "Who did what?"],
     []
   );
 
@@ -170,6 +209,9 @@ export default function FacilityIntelligenceModule() {
         cards: awarenessCards(response),
         sources: response.sources || [],
         suggested_actions: response.suggested_actions || [],
+        intent: response.intent,
+        understood: response.understood,
+        execution: response.execution,
       } : item));
     } catch (error: any) {
       setMessages(base.map((item) => item.id === pendingId ? { ...item, pending: false, content: error?.response?.data?.error || "Oyi Facility is unavailable right now." } : item));
@@ -224,6 +266,7 @@ export default function FacilityIntelligenceModule() {
                 <div className={`max-w-[92%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_14px_40px_rgba(0,0,0,0.22)] ${mine ? "bg-sky-400 text-slate-950" : "border border-white/[0.07] bg-white/[0.045] text-zinc-100"}`}>
                   <p className={message.pending ? "animate-pulse text-zinc-400" : ""}>{message.content}</p>
                   {!mine ? <CardStack cards={message.cards} /> : null}
+                  {!mine ? <OperatingStatus intent={message.intent} understood={message.understood} execution={message.execution} /> : null}
                   {!mine ? <SuggestedActions actions={message.suggested_actions} /> : null}
                 </div>
               </div>
