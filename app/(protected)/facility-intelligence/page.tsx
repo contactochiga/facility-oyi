@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUp, Bot, ChevronRight, Copy, Mic, ShieldCheck, Sparkles, ThumbsUp, Volume2 } from "lucide-react";
+import { ArrowLeft, ArrowUp, Bot, ChevronRight, Copy, History, Mic, Plus, ThumbsUp, Volume2, X } from "lucide-react";
 import { useSessionStore } from "@/store/useSessionStore";
 import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
 
@@ -148,16 +148,12 @@ function awarenessCards(response: OyiChatResponse) {
 export default function FacilityIntelligenceModule() {
   const router = useRouter();
   const { user } = useSessionStore();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: id(),
-      role: "assistant",
-      content: "Ask Oyi what is happening across the estate, what needs attention, or what you should do next. I’ll use facility context and keep actions read-only unless confirmation is explicitly required.",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [helpfulResponses, setHelpfulResponses] = useState<Record<string, boolean>>({});
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [threads, setThreads] = useState<Array<{ id: string; title?: string | null; updated_at?: string }>>([]);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return;
@@ -168,11 +164,7 @@ export default function FacilityIntelligenceModule() {
   }, [messages]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  const quickPrompts = useMemo(
-    () => ["What can facility control?", "What needs attention today?", "Show offline estate devices", "Show pending visitors", "Show open maintenance", "Generate today’s estate report", "Who did what?"],
-    []
-  );
+  const bottomRef = useRef<HTMLDivElement | null>(null);
 
   async function copyResponse(content: string) {
     try {
@@ -197,8 +189,11 @@ export default function FacilityIntelligenceModule() {
     async function hydrateLatestThread() {
       if (!(user as any)?.id) return;
       try {
-        const threads = await oyiService.listThreads({ estate_id: (user as any)?.estate_id || null, limit: 1 });
-        const thread = threads.threads?.[0];
+        const result = await oyiService.listThreads({ estate_id: (user as any)?.estate_id || null, limit: 24 });
+        if (cancelled) return;
+        const availableThreads = result.threads || [];
+        setThreads(availableThreads);
+        const thread = availableThreads[0];
         if (!thread?.id || cancelled) return;
         const res = await oyiService.getThreadMessages(thread.id);
         if (cancelled) return;
@@ -213,7 +208,31 @@ export default function FacilityIntelligenceModule() {
     }
     void hydrateLatestThread();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [(user as any)?.id, (user as any)?.estate_id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [messages]);
+
+  async function restoreThread(nextThreadId: string) {
+    try {
+      const result = await oyiService.getThreadMessages(nextThreadId);
+      const restored = (result.messages || []).map(messageFromThread);
+      setThreadId(nextThreadId);
+      setMessages(restored);
+      setHistoryOpen(false);
+    } catch {
+      // Keep the active conversation when a historic thread cannot be loaded.
+    }
+  }
+
+  function startNewChat() {
+    setThreadId(null);
+    setMessages([]);
+    setInput("");
+    setHistoryOpen(false);
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  }
 
   async function send(text?: string) {
     const message = (text || input).trim();
@@ -236,6 +255,9 @@ export default function FacilityIntelligenceModule() {
         thread_id: threadId,
       });
       if (response.thread_id) setThreadId(response.thread_id);
+      if (response.thread_id) {
+        setThreads((current) => [{ id: response.thread_id!, title: message.slice(0, 96), updated_at: new Date().toISOString() }, ...current.filter((thread) => thread.id !== response.thread_id)].slice(0, 24));
+      }
       setMessages(base.map((item) => item.id === pendingId ? {
         ...item,
         pending: false,
@@ -261,40 +283,24 @@ export default function FacilityIntelligenceModule() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-150px)] max-w-5xl flex-col gap-4 overflow-x-hidden pb-6 text-white">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <button type="button" onClick={() => router.back()} className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] text-zinc-200 transition active:scale-95 xl:hidden" aria-label="Back to Facility modules"><ArrowLeft className="h-4 w-4" /></button>
-          <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/12 bg-sky-400/[0.06] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-sky-100/60">
-            <Sparkles className="h-3.5 w-3.5" /> Facility Intelligence
+    <div className="mx-auto flex min-h-[calc(100dvh-2rem)] max-w-5xl flex-col overflow-x-hidden pb-[calc(92px+env(safe-area-inset-bottom))] text-white xl:pb-5">
+      <header className="flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <button type="button" onClick={() => router.back()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-zinc-200 transition active:scale-95" aria-label="Back to Facility modules"><ArrowLeft className="h-4 w-4" /></button>
+          <div className="min-w-0">
+            <h1 className="truncate text-[18px] font-semibold tracking-[-0.04em] text-white">Facility Intelligence</h1>
+            <p className="mt-0.5 text-xs text-zinc-500">Ask what’s happening across your facility.</p>
           </div>
-          <h1 className="mt-3 text-[28px] font-semibold tracking-[-0.055em] text-white sm:text-4xl">Ask Oyi Facility</h1>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-400">Awareness, operations, infrastructure and intelligence in one conversation.</p>
         </div>
-        <div className="hidden rounded-[24px] border border-white/10 bg-white/[0.045] p-3 text-zinc-300 shadow-[0_18px_60px_rgba(0,0,0,0.25)] sm:flex">
-          <ShieldCheck className="h-5 w-5 text-sky-200" />
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={() => setHistoryOpen(true)} className="grid h-10 w-10 place-items-center rounded-full border border-sky-300/14 bg-sky-300/[0.055] text-sky-50/82 transition active:scale-95" aria-label="Recent conversations"><History className="h-4 w-4" /></button>
+          <button type="button" onClick={startNewChat} className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.09] bg-white/[0.045] text-white/78 transition active:scale-95" aria-label="New chat"><Plus className="h-4 w-4" /></button>
         </div>
       </header>
 
-      <section className="rounded-[32px] border border-white/[0.075] bg-[radial-gradient(circle_at_20%_0%,rgba(56,189,248,0.12),rgba(255,255,255,0.045)_44%,rgba(255,255,255,0.025)_100%)] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-2xl sm:p-5">
-        <div className="flex items-center gap-3">
-          <OyiOrb />
-          <div className="min-w-0">
-            <div className="text-[15px] font-semibold tracking-[-0.03em] text-white">Oyi Facility is listening</div>
-            <div className="text-xs leading-5 text-zinc-400">Ask about visitors, maintenance, security, cameras, utilities, workflows, or operational attention.</div>
-          </div>
-        </div>
-        <div className="mt-4 flex snap-x gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {quickPrompts.map((prompt) => (
-            <button key={prompt} type="button" onClick={() => send(prompt)} disabled={busy} className="shrink-0 snap-start rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-xs font-medium text-zinc-200 transition active:scale-95 disabled:opacity-50">
-              {prompt}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="min-h-[360px] flex-1 rounded-[32px] border border-white/[0.07] bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-4">
+      <section className="min-h-0 flex-1 py-4">
         <div className="space-y-3">
+          {!messages.length ? <p className="pt-[18vh] text-center text-sm text-zinc-500">Ask Oyi about operations, infrastructure, or attention.</p> : null}
           {messages.map((message) => {
             const mine = message.role === "user";
             return (
@@ -317,10 +323,12 @@ export default function FacilityIntelligenceModule() {
               </div>
             );
           })}
+          <div ref={bottomRef} className="h-1" />
         </div>
       </section>
 
-      <form onSubmit={onSubmit} className="sticky bottom-[calc(92px+env(safe-area-inset-bottom))] z-10 rounded-[28px] border border-white/[0.08] bg-zinc-950/86 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl xl:bottom-4">
+      <form onSubmit={onSubmit} className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-5xl px-3 pb-[calc(10px+env(safe-area-inset-bottom))] xl:sticky xl:bottom-0 xl:px-0 xl:pb-0">
+        <div className="rounded-[28px] border border-white/[0.08] bg-zinc-950/90 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => inputRef.current?.focus()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-400/12 text-sky-100">
             <Bot className="h-5 w-5" />
@@ -339,7 +347,18 @@ export default function FacilityIntelligenceModule() {
             <ArrowUp className="h-4 w-4" />
           </button>
         </div>
+        </div>
       </form>
+      {historyOpen ? (
+        <div className="fixed inset-0 z-40 flex items-end bg-black/60 p-3 backdrop-blur-sm xl:items-center xl:justify-center">
+          <section className="w-full rounded-[28px] border border-white/[0.08] bg-zinc-950 p-4 shadow-2xl xl:max-w-md">
+            <div className="flex items-center justify-between"><h2 className="text-base font-semibold text-white">Recent conversations</h2><button type="button" onClick={() => setHistoryOpen(false)} className="grid h-9 w-9 place-items-center rounded-full text-zinc-400 hover:bg-white/[0.06]" aria-label="Close history"><X className="h-4 w-4" /></button></div>
+            <div className="mt-3 max-h-[55vh] space-y-2 overflow-y-auto">
+              {threads.length ? threads.map((thread) => <button key={thread.id} type="button" onClick={() => void restoreThread(thread.id)} className="block w-full rounded-2xl border border-white/[0.07] bg-white/[0.035] px-3 py-3 text-left text-sm text-zinc-200 transition hover:bg-white/[0.06]"><span className="block truncate">{thread.title || "Oyi conversation"}</span><span className="mt-1 block text-[11px] text-zinc-500">{thread.updated_at ? new Date(thread.updated_at).toLocaleString() : ""}</span></button>) : <p className="px-1 py-5 text-sm text-zinc-500">No saved conversations yet.</p>}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

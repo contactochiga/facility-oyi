@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useMemo, useRef } from "react";
 import { Mic } from "lucide-react";
 import { facilityMobileModules, type MobileModuleItem } from "./mobileNavConfig";
 
@@ -20,9 +20,25 @@ function isActive(pathname: string, item: MobileModuleItem) {
 
 export default function MobileModuleFooter({ items = facilityMobileModules }: { items?: MobileModuleItem[] }) {
   const pathname = usePathname() || "/overview";
+  const router = useRouter();
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const openingIntelligenceRef = useRef(false);
   const activeKey = useMemo(() => items.find((item) => isActive(pathname, item))?.key || "", [items, pathname]);
   const intelligenceActive = routeMatches(pathname, "/facility-intelligence");
   const modulePages = useMemo(() => [items.slice(0, 5), items.slice(5, 10)].filter((page) => page.length > 0), [items]);
+
+  function openIntelligence() {
+    if (openingIntelligenceRef.current || intelligenceActive) return;
+    openingIntelligenceRef.current = true;
+    router.push("/facility-intelligence");
+  }
+
+  function handleRailScroll() {
+    const rail = railRef.current;
+    if (!rail || openingIntelligenceRef.current) return;
+    // The third snap page is the Oyi composer: reaching it opens the conversation directly.
+    if (rail.scrollLeft >= rail.clientWidth * 1.8) openIntelligence();
+  }
 
   return (
     <nav
@@ -30,7 +46,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(10px+env(safe-area-inset-bottom))] xl:hidden"
     >
       <div className="pointer-events-auto mx-auto w-[92vw] max-w-[430px] overflow-hidden rounded-[30px] border border-white/[0.08] bg-zinc-950/82 px-2 py-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
-        <div className="flex snap-x snap-mandatory gap-1 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div ref={railRef} onScroll={handleRailScroll} className="flex snap-x snap-mandatory gap-1 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {modulePages.map((page, index) => (
             <div key={`module-page-${index}`} className="grid min-w-full shrink-0 snap-start grid-cols-5 gap-1">
               {page.map((item) => {
@@ -57,8 +73,9 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
               })}
             </div>
           ))}
-          <Link
-            href="/facility-intelligence"
+          <button
+            type="button"
+            onClick={openIntelligence}
             aria-label="Message Oyi Facility"
             aria-current={intelligenceActive ? "page" : undefined}
             className={cn(
@@ -76,7 +93,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.055] text-sky-100 shadow-[0_0_20px_rgba(56,189,248,0.16)]">
               <Mic size={16} />
             </span>
-          </Link>
+          </button>
         </div>
       </div>
     </nav>
