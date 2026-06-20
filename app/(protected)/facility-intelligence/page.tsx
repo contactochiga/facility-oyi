@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUp, Bot, ChevronRight, Mic, ShieldCheck, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ArrowUp, Bot, ChevronRight, Copy, Mic, ShieldCheck, Sparkles, ThumbsUp, Volume2 } from "lucide-react";
 import { useSessionStore } from "@/store/useSessionStore";
 import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
 
@@ -145,6 +146,7 @@ function awarenessCards(response: OyiChatResponse) {
 }
 
 export default function FacilityIntelligenceModule() {
+  const router = useRouter();
   const { user } = useSessionStore();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -155,6 +157,7 @@ export default function FacilityIntelligenceModule() {
   ]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [helpfulResponses, setHelpfulResponses] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return;
@@ -170,6 +173,24 @@ export default function FacilityIntelligenceModule() {
     () => ["What can facility control?", "What needs attention today?", "Show offline estate devices", "Show pending visitors", "Show open maintenance", "Generate today’s estate report", "Who did what?"],
     []
   );
+
+  async function copyResponse(content: string) {
+    try {
+      await navigator.clipboard?.writeText(content);
+    } catch {
+      // Clipboard permissions can be unavailable in embedded app shells.
+    }
+  }
+
+  function speakResponse(content: string) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(content));
+  }
+
+  function markHelpful(messageId: string) {
+    setHelpfulResponses((current) => ({ ...current, [messageId]: true }));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -243,6 +264,7 @@ export default function FacilityIntelligenceModule() {
     <div className="mx-auto flex min-h-[calc(100vh-150px)] max-w-5xl flex-col gap-4 overflow-x-hidden pb-6 text-white">
       <header className="flex items-start justify-between gap-4">
         <div>
+          <button type="button" onClick={() => router.back()} className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] text-zinc-200 transition active:scale-95 xl:hidden" aria-label="Back to Facility modules"><ArrowLeft className="h-4 w-4" /></button>
           <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/12 bg-sky-400/[0.06] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-sky-100/60">
             <Sparkles className="h-3.5 w-3.5" /> Facility Intelligence
           </div>
@@ -284,6 +306,13 @@ export default function FacilityIntelligenceModule() {
                     <OperatingStatus execution={message.execution} />
                     <SuggestedActions actions={message.suggested_actions} />
                   </> : null}
+                  {!mine && !message.pending ? (
+                    <div className="mt-2.5 flex items-center gap-1.5 border-t border-white/[0.055] pt-2">
+                      <button type="button" onClick={() => void copyResponse(message.content)} className="grid h-7 w-7 place-items-center rounded-full text-white/30 transition hover:bg-white/[0.055] hover:text-white/72 active:scale-95" aria-label="Copy Oyi response"><Copy className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => speakResponse(message.content)} className="grid h-7 w-7 place-items-center rounded-full text-white/30 transition hover:bg-white/[0.055] hover:text-white/72 active:scale-95" aria-label="Listen to Oyi response"><Volume2 className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => markHelpful(message.id)} className={`grid h-7 w-7 place-items-center rounded-full transition hover:bg-white/[0.055] active:scale-95 ${helpfulResponses[message.id] ? "text-sky-200" : "text-white/30 hover:text-white/72"}`} aria-label="Mark Oyi response helpful"><ThumbsUp className={`h-3.5 w-3.5 ${helpfulResponses[message.id] ? "fill-current" : ""}`} /></button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             );

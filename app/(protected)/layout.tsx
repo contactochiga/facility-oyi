@@ -80,10 +80,10 @@ export default function ProtectedLayout({
 
         <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
           <FacilityShellProvider openMenu={() => setMobileOpen(true)}>
-            <main className="flex-1 min-h-0 overflow-y-auto p-4 pb-[calc(112px+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(118px+env(safe-area-inset-bottom))] xl:p-8">
+            <main className={`flex-1 min-h-0 overflow-y-auto p-4 ${pathname === "/facility-intelligence" ? "pb-4 sm:pb-6" : "pb-[calc(112px+env(safe-area-inset-bottom))] sm:pb-[calc(118px+env(safe-area-inset-bottom))]"} sm:p-6 xl:p-8`}>
               {children}
             </main>
-            <MobileModuleFooter />
+            {pathname !== "/facility-intelligence" ? <MobileModuleFooter /> : null}
           </FacilityShellProvider>
         </div>
       </div>
