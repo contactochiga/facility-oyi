@@ -37,12 +37,13 @@ export type VisitorTimelineEvent = {
 };
 
 function pickError(err: any, fallback: string) {
-  return (
-    err?.response?.data?.error ||
-    err?.response?.data?.message ||
-    err?.message ||
-    fallback
-  );
+  const status = Number(err?.response?.status || 0);
+  const message = String(err?.response?.data?.error || err?.response?.data?.message || err?.message || "").trim();
+  if (status === 401) return "Your session has expired. Please sign in again.";
+  if (status === 403) return "You do not have access to this visitor operation under your current role.";
+  if (status === 404) return /code/i.test(message) ? "That visitor access code is invalid or has expired." : "That visitor record is no longer available.";
+  if (/supabase|postgres|database|relation|column|schema|jwt|sql/i.test(message)) return fallback;
+  return message && message.length < 180 ? message : fallback;
 }
 
 function normalizeItem(x: any): VisitorItem {
@@ -99,7 +100,7 @@ export const visitorService = {
   async verify(code: string) {
     try {
       const res = await API.post("/facility/visitors/verify", { code });
-      return res.data as { valid?: boolean; visitor?: any; error?: string };
+      return { ...res.data, visitor: res.data?.visitor ? normalizeItem(res.data.visitor) : undefined } as { valid?: boolean; visitor?: VisitorItem; error?: string };
     } catch (err: any) {
       return { error: pickError(err, "Failed to verify code") };
     }

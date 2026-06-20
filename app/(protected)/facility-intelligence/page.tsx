@@ -283,7 +283,7 @@ export default function FacilityIntelligenceModule() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-2rem)] max-w-5xl flex-col overflow-x-hidden pb-[calc(92px+env(safe-area-inset-bottom))] text-white xl:pb-5">
+    <div className="mx-auto flex h-[calc(100dvh-2rem)] max-w-5xl flex-col overflow-hidden pb-[calc(92px+env(safe-area-inset-bottom))] text-white xl:pb-5">
       <header className="flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
         <div className="flex min-w-0 items-center gap-3">
           <button type="button" onClick={() => router.back()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-zinc-200 transition active:scale-95" aria-label="Back to Facility modules"><ArrowLeft className="h-4 w-4" /></button>
@@ -298,7 +298,7 @@ export default function FacilityIntelligenceModule() {
         </div>
       </header>
 
-      <section className="min-h-0 flex-1 py-4">
+      <section className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-4 pr-1">
         <div className="space-y-3">
           {!messages.length ? <p className="pt-[18vh] text-center text-sm text-zinc-500">Ask Oyi about operations, infrastructure, or attention.</p> : null}
           {messages.map((message) => {

@@ -100,9 +100,10 @@ export default function VisitorsPage() {
     else {
       const verified = "valid" in result ? result.valid : false;
       const visitor = "visitor" in result ? result.visitor : null;
-      setNotice(verified ? `Access code verified for ${value(visitor?.visitor_name || visitor?.name, "visitor")}.` : "Access code could not be verified.");
+      setNotice(verified ? `Access code verified for ${value(visitor?.visitor_name, "visitor")}.` : "Access code could not be verified.");
       setVerifyOpen(false);
       setVerifyCode("");
+      if (verified && visitor) void openVisitor(visitor);
       await load();
     }
   }

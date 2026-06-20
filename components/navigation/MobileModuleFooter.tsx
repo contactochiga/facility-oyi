@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useRef } from "react";
 import { Mic } from "lucide-react";
 import { facilityMobileModules, type MobileModuleItem } from "./mobileNavConfig";
+import { useSessionStore } from "@/store/useSessionStore";
+import { FACILITY_MODULES, visibleModules } from "@/lib/moduleRegistry";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -21,11 +23,14 @@ function isActive(pathname: string, item: MobileModuleItem) {
 export default function MobileModuleFooter({ items = facilityMobileModules }: { items?: MobileModuleItem[] }) {
   const pathname = usePathname() || "/overview";
   const router = useRouter();
+  const { user } = useSessionStore();
   const railRef = useRef<HTMLDivElement | null>(null);
   const openingIntelligenceRef = useRef(false);
-  const activeKey = useMemo(() => items.find((item) => isActive(pathname, item))?.key || "", [items, pathname]);
+  const visibleKeys = useMemo(() => new Set(visibleModules(user, FACILITY_MODULES).map((module) => module.key)), [user]);
+  const visibleItems = useMemo(() => items.filter((item) => visibleKeys.has(item.key)), [items, visibleKeys]);
+  const activeKey = useMemo(() => visibleItems.find((item) => isActive(pathname, item))?.key || "", [pathname, visibleItems]);
   const intelligenceActive = routeMatches(pathname, "/facility-intelligence");
-  const modulePages = useMemo(() => [items.slice(0, 5), items.slice(5, 10)].filter((page) => page.length > 0), [items]);
+  const modulePages = useMemo(() => [visibleItems.slice(0, 5), visibleItems.slice(5, 10)].filter((page) => page.length > 0), [visibleItems]);
 
   function openIntelligence() {
     if (openingIntelligenceRef.current || intelligenceActive) return;
