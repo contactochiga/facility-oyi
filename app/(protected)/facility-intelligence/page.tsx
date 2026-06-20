@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowUp, Bot, ChevronRight, Copy, History, Mic, Plus, ThumbsUp, Volume2, X } from "lucide-react";
 import { useSessionStore } from "@/store/useSessionStore";
 import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
@@ -147,6 +147,7 @@ function awarenessCards(response: OyiChatResponse) {
 
 export default function FacilityIntelligenceModule() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useSessionStore();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -163,8 +164,12 @@ export default function FacilityIntelligenceModule() {
     });
   }, [messages]);
   const [threadId, setThreadId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const moduleContext = searchParams.get("module") || "facility-intelligence";
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const scrollerRef = useRef<HTMLElement | null>(null);
+  const composerRef = useRef<HTMLFormElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [composerHeight, setComposerHeight] = useState(92);
 
   async function copyResponse(content: string) {
     try {
@@ -211,8 +216,40 @@ export default function FacilityIntelligenceModule() {
   }, [(user as any)?.id, (user as any)?.estate_id]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [messages]);
+    const frame = requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }));
+    return () => cancelAnimationFrame(frame);
+  }, [messages, composerHeight]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let frame = 0;
+    const measure = () => {
+      const next = Math.ceil(composerRef.current?.getBoundingClientRect().height || 92);
+      setComposerHeight((current) => (Math.abs(current - next) > 2 ? next : current));
+    };
+    const keepLatestVisible = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        measure();
+        bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+      });
+    };
+    measure();
+    const observer = typeof ResizeObserver !== "undefined" && composerRef.current ? new ResizeObserver(measure) : null;
+    if (observer && composerRef.current) observer.observe(composerRef.current);
+    window.visualViewport?.addEventListener("resize", keepLatestVisible);
+    window.visualViewport?.addEventListener("scroll", keepLatestVisible);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.visualViewport?.removeEventListener("resize", keepLatestVisible);
+      window.visualViewport?.removeEventListener("scroll", keepLatestVisible);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.get("focus") === "1") window.setTimeout(() => inputRef.current?.focus(), 80);
+  }, [searchParams]);
 
   async function restoreThread(nextThreadId: string) {
     try {
@@ -250,7 +287,7 @@ export default function FacilityIntelligenceModule() {
       const response: OyiChatResponse = await oyiService.chat({
         message,
         estate_id: (user as any)?.estate_id || null,
-        module: "facility-intelligence",
+        module: moduleContext,
         role: (user as any)?.role || null,
         thread_id: threadId,
       });
@@ -283,7 +320,7 @@ export default function FacilityIntelligenceModule() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-2rem)] max-w-5xl flex-col overflow-hidden pb-[calc(92px+env(safe-area-inset-bottom))] text-white xl:pb-5">
+    <div className="mx-auto flex h-[calc(100dvh-2rem)] max-w-5xl flex-col overflow-hidden text-white xl:pb-5">
       <header className="flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
         <div className="flex min-w-0 items-center gap-3">
           <button type="button" onClick={() => router.back()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-zinc-200 transition active:scale-95" aria-label="Back to Facility modules"><ArrowLeft className="h-4 w-4" /></button>
@@ -298,15 +335,15 @@ export default function FacilityIntelligenceModule() {
         </div>
       </header>
 
-      <section className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-4 pr-1">
+      <section ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-4 pr-1" style={{ paddingBottom: `calc(${composerHeight + 18}px + env(safe-area-inset-bottom))`, scrollPaddingBottom: `calc(${composerHeight + 24}px + env(safe-area-inset-bottom))`, WebkitOverflowScrolling: "touch" }}>
         <div className="space-y-3">
           {!messages.length ? <p className="pt-[18vh] text-center text-sm text-zinc-500">Ask Oyi about operations, infrastructure, or attention.</p> : null}
           {messages.map((message) => {
             const mine = message.role === "user";
             return (
               <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[92%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_14px_40px_rgba(0,0,0,0.22)] ${mine ? "bg-sky-400 text-slate-950" : "border border-white/[0.07] bg-white/[0.045] text-zinc-100"}`}>
-                  <p className={message.pending ? "animate-pulse text-zinc-400" : ""}>{message.content}</p>
+                <div className={`max-w-[94%] overflow-hidden rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_14px_40px_rgba(0,0,0,0.22)] sm:max-w-[88%] ${mine ? "bg-sky-400 text-slate-950" : "border border-white/[0.07] bg-white/[0.045] text-zinc-100"}`}>
+                  <p className={`whitespace-pre-wrap break-words ${message.pending ? "animate-pulse text-zinc-400" : ""}`}>{message.content}</p>
                   {!mine && shouldRenderSupport(message.display_mode) ? <>
                     <CardStack cards={message.cards} />
                     <OperatingStatus execution={message.execution} />
@@ -327,18 +364,25 @@ export default function FacilityIntelligenceModule() {
         </div>
       </section>
 
-      <form onSubmit={onSubmit} className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-5xl px-3 pb-[calc(10px+env(safe-area-inset-bottom))] xl:sticky xl:bottom-0 xl:px-0 xl:pb-0">
+      <form ref={composerRef} onSubmit={onSubmit} className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-5xl px-3 pb-[calc(10px+env(safe-area-inset-bottom))] xl:sticky xl:bottom-0 xl:px-0 xl:pb-0">
         <div className="rounded-[28px] border border-white/[0.08] bg-zinc-950/90 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => inputRef.current?.focus()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-400/12 text-sky-100">
             <Bot className="h-5 w-5" />
           </button>
-          <input
+          <textarea
             ref={inputRef}
             value={input}
             onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void send();
+              }
+            }}
+            rows={1}
             placeholder="Message Oyi Facility..."
-            className="min-w-0 flex-1 bg-transparent px-1 text-sm text-white outline-none placeholder:text-zinc-500"
+            className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1 py-2.5 text-sm leading-5 text-white outline-none placeholder:text-zinc-500"
           />
           <button type="button" onClick={() => inputRef.current?.focus()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-300">
             <Mic className="h-4 w-4" />

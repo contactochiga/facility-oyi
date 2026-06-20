@@ -35,7 +35,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
   function openIntelligence() {
     if (openingIntelligenceRef.current || intelligenceActive) return;
     openingIntelligenceRef.current = true;
-    router.push("/facility-intelligence");
+    router.push("/facility-intelligence?module=mobile-footer&focus=1");
   }
 
   function handleRailScroll() {
