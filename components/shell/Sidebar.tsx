@@ -60,7 +60,7 @@ export default function Sidebar({
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 xl:hidden"
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
           onClick={onClose}
         />
       )}
@@ -69,7 +69,7 @@ export default function Sidebar({
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-[280px]
           bg-zinc-950 border-r border-white/10
-          transform transition-transform duration-200 ease-out xl:hidden
+          transform transition-transform duration-200 ease-out md:hidden
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >

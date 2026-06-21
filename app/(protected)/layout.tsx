@@ -9,6 +9,7 @@ import { useSessionStore } from "@/store/useSessionStore";
 import { usePathname, useRouter } from "next/navigation";
 import { connectFacilityRealtime, disconnectFacilityRealtime } from "@/services/facilityRealtime";
 import MobileModuleFooter from "@/components/navigation/MobileModuleFooter";
+import TabletModuleRail from "@/components/navigation/TabletModuleRail";
 
 export default function ProtectedLayout({
   children,
@@ -77,10 +78,11 @@ export default function ProtectedLayout({
 
       <div className="relative flex h-screen overflow-hidden">
         <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+        <TabletModuleRail />
 
         <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
           <FacilityShellProvider openMenu={() => setMobileOpen(true)}>
-            <main className={`flex-1 min-h-0 overflow-y-auto p-4 ${pathname === "/facility-intelligence" ? "pb-4 sm:pb-6" : "pb-[calc(112px+env(safe-area-inset-bottom))] sm:pb-[calc(118px+env(safe-area-inset-bottom))]"} sm:p-6 xl:p-8`}>
+            <main className={`flex-1 min-h-0 overflow-y-auto p-4 ${pathname === "/facility-intelligence" ? "pb-4 md:pb-6" : "pb-[calc(112px+env(safe-area-inset-bottom))] md:pb-6"} sm:p-6 xl:p-8`}>
               {children}
             </main>
             {pathname !== "/facility-intelligence" ? <MobileModuleFooter /> : null}

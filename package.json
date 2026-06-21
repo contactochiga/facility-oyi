@@ -6,11 +6,16 @@
   "scripts": {
     "dev": "NEXT_BUILD_DIR=.next-dev next dev",
     "build": "next build",
+    "build:native-shell": "node scripts/build-native-shell.mjs",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "node scripts/lint-source.mjs",
+    "lint:eslint": "eslint . --max-warnings=0",
     "cap:add:ios": "npx cap add ios",
-    "cap:sync:ios": "npx cap sync ios",
-    "cap:open:ios": "npx cap open ios"
+    "cap:sync:ios": "npm run build:native-shell && npx cap sync ios",
+    "cap:sync:android": "npm run build:native-shell && npx cap sync android",
+    "cap:open:ios": "npx cap open ios",
+    "cap:open:android": "npx cap open android",
+    "cap:add:android": "npx cap add android"
   },
   "dependencies": {
     "@capacitor/core": "^6.1.0",

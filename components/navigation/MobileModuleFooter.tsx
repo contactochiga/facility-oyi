@@ -48,7 +48,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
   return (
     <nav
       aria-label="Facility mobile modules"
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(10px+env(safe-area-inset-bottom))] xl:hidden"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(10px+env(safe-area-inset-bottom))] md:hidden"
     >
       <div className="pointer-events-auto mx-auto w-[92vw] max-w-[430px] overflow-hidden rounded-[30px] border border-white/[0.08] bg-zinc-950/82 px-2 py-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
         <div ref={railRef} onScroll={handleRailScroll} className="flex snap-x snap-mandatory gap-1 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

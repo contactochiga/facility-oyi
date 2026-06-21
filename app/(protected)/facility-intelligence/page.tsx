@@ -160,7 +160,6 @@ export default function FacilityIntelligenceModule() {
     if (process.env.NODE_ENV !== "development") return;
     messages.filter((message) => message.role === "assistant" && !message.pending).forEach((message) => {
       const support = shouldRenderSupport(message.display_mode);
-      console.debug("[oyi-chat-render]", { display_mode: message.display_mode || "conversation", cards_rendered: support && Boolean(message.cards?.length), support_panels_rendered: support });
     });
   }, [messages]);
   const [threadId, setThreadId] = useState<string | null>(null);

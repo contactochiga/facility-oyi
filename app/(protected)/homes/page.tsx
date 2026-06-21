@@ -354,9 +354,9 @@ export default function HomesPage() {
         </label>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {filteredHomes.slice(0, 4).map((home) => (
-          <div key={`${home.id}:overview`} className="glass border border-white/10 rounded-2xl p-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {filteredHomes.map((home, index) => (
+          <div key={`${home.id}:overview`} className={`glass rounded-2xl border border-white/10 p-5 ${index > 3 ? "xl:hidden" : ""}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-base font-semibold text-white truncate">{home.name}</div>
@@ -420,7 +420,7 @@ export default function HomesPage() {
       )}
 
       {/* TABLE */}
-      <div className="glass border border-white/10 rounded-2xl overflow-hidden">
+      <div className="hidden overflow-hidden rounded-2xl border border-white/10 md:block">
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
           <div className="text-sm font-medium">Homes ({filteredHomes.length})</div>
           <div className="text-xs text-zinc-500">

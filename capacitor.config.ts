@@ -5,12 +5,14 @@ const serverUrl = process.env.CAP_SERVER_URL?.trim();
 const config: CapacitorConfig = {
   appId: "com.ochiga.oyifacility",
   appName: "Oyi Facility",
-  webDir: "out",
+  // Facility uses authenticated Next routes and dynamic home detail pages. Native
+  // builds therefore load the HTTPS release host instead of an unsafe static export.
+  webDir: "native-shell",
   ...(serverUrl
     ? {
         server: {
           url: serverUrl,
-          cleartext: true,
+          cleartext: serverUrl.startsWith("http://"),
         },
       }
     : {}),

@@ -6,6 +6,7 @@ import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
 import { maintenanceService, type MaintenanceItem, type MaintenanceStatus } from "@/services/maintenanceService";
+import { facilityService, type EstateMembershipRow } from "@/services/facilityService";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AlertTriangle, CalendarClock, CheckCircle, Clock, MessageSquare, RefreshCw, UserCog, Wrench, X } from "lucide-react";
 
@@ -134,6 +135,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function MaintenancePage() {
   const [items, setItems] = useState<MaintenanceItem[]>([]);
+  const [operators, setOperators] = useState<EstateMembershipRow[]>([]);
   const [lane, setLane] = useState<Lane>("active");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +148,9 @@ export default function MaintenancePage() {
     setLoading(true);
     setError(null);
     try {
-      setItems(await maintenanceService.list());
+      const [requests, estateUsers] = await Promise.all([maintenanceService.list(), facilityService.listEstateUsers().catch(() => ({ users: [] }))]);
+      setItems(requests);
+      setOperators((estateUsers.users || []).filter((member) => !["disabled", "suspended", "removed"].includes(lower(member.status))));
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || "Failed to load maintenance requests");
     } finally {
@@ -292,9 +296,10 @@ export default function MaintenancePage() {
               <button key={key} type="button" onClick={() => setLane(key)} className={cn("rounded-full border px-3 py-2 text-xs transition", lane === key ? "border-sky-400/40 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white")}>{label}</button>
             ))}
           </div>
-          <div className="mt-4">
+          <div className="mt-4 hidden md:block">
             <DataTable data={filtered} columns={columns} title="Work Order Registry" searchKey="title" />
           </div>
+          <div className="mt-4 space-y-2 md:hidden">{filtered.map((item) => <button key={item.id} type="button" onClick={() => open(item)} className="block w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-left"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-white">{item.title || "Maintenance request"}</p><p className="mt-1 truncate text-xs text-zinc-500">{locationOf(item)} · {dateLabel(item.created_at)}</p></div><span className={cn("shrink-0 rounded-full border px-2 py-1 text-[10px]", statusTone(item.status))}>{titleCase(item.status)}</span></div><div className="mt-3 flex items-center justify-between text-xs"><span className="text-zinc-400">{ownerOf(item)}</span><span className={cn("rounded-full border px-2 py-1", priorityTone(item.priority))}>{titleCase(item.priority || "medium")}</span></div></button>)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No requests in this lane.</p> : null}</div>
         </div>
 
         <aside className="space-y-4">
@@ -336,7 +341,9 @@ export default function MaintenancePage() {
                   <Field label="Requester" value={requesterOf(selected)} />
                   <Field label="Current owner" value={ownerOf(selected)} />
                   <Field label="Scheduled visit" value={scheduledAt(selected) ? dateLabel(scheduledAt(selected)) : "Not scheduled"} />
-                  <Field label="Assignment history" value="Awaiting assignment history source" />
+                  <Field label="Assignment history" value={selected.assigned_to ? `Assigned to ${ownerOf(selected)} on ${dateLabel(selected.updated_at || selected.created_at)}` : "No assignment recorded"} />
+                  <Field label="Request age" value={dateLabel(selected.created_at)} />
+                  <Field label="Completion proof" value="Pending backend evidence upload" />
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -361,14 +368,14 @@ export default function MaintenancePage() {
                 <h3 className="text-sm font-semibold text-white">Update lifecycle</h3>
                 <div className="mt-4 grid gap-3">
                   <label className="text-xs text-zinc-400">Status<select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none">{STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-                  <label className="text-xs text-zinc-400">Assigned operator ID<input value={form.assigned_to} onChange={(event) => setForm((current) => ({ ...current, assigned_to: event.target.value }))} placeholder="Operator/user ID if available" className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label>
+                  <label className="text-xs text-zinc-400">Assigned operator<select value={form.assigned_to} onChange={(event) => setForm((current) => ({ ...current, assigned_to: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none"><option value="">Unassigned</option>{operators.map((operator) => <option key={operator.id} value={operator.users?.id || ""}>{operator.users?.full_name || operator.users?.username || operator.users?.email || "Unnamed operator"} · {String(operator.role || "operator").replace(/_/g, " ")}</option>)}</select></label>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="text-xs text-zinc-400">Schedule date<input type="date" value={form.schedule_date} onChange={(event) => setForm((current) => ({ ...current, schedule_date: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label>
                     <label className="text-xs text-zinc-400">Time<input type="time" value={form.schedule_time} onChange={(event) => setForm((current) => ({ ...current, schedule_time: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label>
                   </div>
                   <label className="text-xs text-zinc-400">Resident / operator note<textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} rows={4} placeholder="Visible update note if backend supports it" className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label>
                   <Button onClick={() => void saveWorkOrder()} disabled={saving}>{saving ? "Saving" : "Save update"}</Button>
-                  <p className="text-xs leading-5 text-zinc-500">Backend currently persists supported fields: status and assigned operator. Scheduling and notes are sent safely and shown when the backend schema accepts them.</p>
+                  <p className="text-xs leading-5 text-zinc-500">Backend persists status and assigned operator. Technician acknowledgement and completion proof remain pending backend workflow support.</p>
                 </div>
               </aside>
             </div>

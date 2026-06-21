@@ -55,7 +55,7 @@ export const FACILITY_MODULES: ModuleDefinition[] = [
   { key: "community", label: "Community & Communications", href: "/community", startsWith: ["/community", "/messages"], anyOf: ["community.read", "community.write", "community.moderate", "community.broadcast", "community.manage_announcements", "notifications.read"] },
   { key: "wallets", label: "Wallet Operations", href: "/wallets", startsWith: ["/wallets", "/services"], anyOf: ["wallets.read", "wallets.manage"] },
   { key: "intelligence", label: "Facility Intelligence", href: "/facility-intelligence", startsWith: ["/facility-intelligence"], anyOf: ["estates.read", "audit.read", "notifications.read"] },
-  { key: "administration", label: "Facility Administration", href: "/facility-administration", startsWith: ["/facility-administration", "/account", "/super-admin"], anyOf: ["settings.manage", "staff.manage"], adminOnly: true },
+  { key: "administration", label: "Facility Administration", href: "/facility-administration", startsWith: ["/facility-administration", "/account"], anyOf: ["settings.manage", "staff.manage"] },
 ];
 
 export const FACILITY_TABS: Record<string, TabDefinition[]> = {

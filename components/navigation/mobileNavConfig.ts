@@ -7,7 +7,6 @@ import {
   Cpu,
   Droplets,
   FileText,
-  Leaf,
   LayoutDashboard,
   MessageSquare,
   RadioTower,
@@ -32,10 +31,10 @@ export const facilityMobileModules: MobileModuleItem[] = [
   { key: "hardware-devices", label: "Devices", href: "/hardware-devices", icon: Cpu, activeRoutes: ["/hardware-devices", "/devices"] },
   { key: "security-access", label: "Security", href: "/security-access", icon: ShieldCheck, activeRoutes: ["/security-access", "/security", "/visitors", "/cameras"] },
   { key: "utilities", label: "Utilities", href: "/utilities", icon: Droplets, activeRoutes: ["/utilities", "/water"] },
-  { key: "environment-sensors", label: "Sensors", href: "/environment", icon: Leaf, activeRoutes: ["/environment"] },
   { key: "traffic-mobility", label: "Traffic", href: "/traffic", icon: Car, activeRoutes: ["/traffic"] },
   { key: "maintenance", label: "Maintenance", href: "/maintenance", icon: Wrench, activeRoutes: ["/maintenance", "/alerts"] },
   { key: "community", label: "Community", href: "/community", icon: MessageSquare, activeRoutes: ["/community", "/messages"] },
+  { key: "wallets", label: "Finance", href: "/wallets", icon: FileText, activeRoutes: ["/wallets", "/services"] },
 ];
 
 export const officeMobileModules = [

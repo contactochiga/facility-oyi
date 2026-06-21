@@ -9,6 +9,9 @@ const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: __dirname,
   distDir: process.env.NEXT_BUILD_DIR || ".next",
+  // Lint runs through the deterministic npm script; the installed legacy Next
+  // ESLint dependency chain is incomplete and must not make production builds interactive.
+  eslint: { ignoreDuringBuilds: true },
 };
 
 export default nextConfig;
