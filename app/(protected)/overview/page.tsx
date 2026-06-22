@@ -33,6 +33,7 @@ import OperatorQueue from "@/components/modules/OperatorQueue";
 import ShiftHandover from "@/components/modules/ShiftHandover";
 import FacilityIntelligenceExposure from "@/components/modules/FacilityIntelligenceExposure";
 import VerificationQueue from "@/components/modules/VerificationQueue";
+import UnifiedInfrastructurePosture from "@/components/modules/UnifiedInfrastructurePosture";
 
 type LoadStatus = "loading" | "ready" | "error" | "permission";
 type Source<T> = { status: LoadStatus; data: T; message?: string };
@@ -625,6 +626,8 @@ function OverviewPage() {
       <VerificationQueue limit={5} onSummary={setVerificationSummary} />
 
       <FacilityIntelligenceExposure onMetrics={setWorkflowMetrics} />
+
+      <UnifiedInfrastructurePosture />
 
       <Panel title="Operational Health" subtitle="People, security, infrastructure, and finance posture.">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">

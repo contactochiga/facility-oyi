@@ -8,6 +8,8 @@ import { useSessionStore } from "@/store/useSessionStore";
 import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
 import { openWorkflowDrawer } from "@/components/modules/WorkflowDetailDrawer";
 import { openPredictionDrawer } from "@/components/modules/PredictionDetailDrawer";
+import { openInfrastructureDrawer } from "@/components/modules/InfrastructureDetailDrawer";
+import type { InfrastructureSource } from "@/services/infrastructurePostureService";
 
 type ChatMessage = {
   id: string;
@@ -57,6 +59,16 @@ function OyiOrb() {
   );
 }
 
+function infrastructureSource(card: Record<string, any>, item: Record<string, any>): InfrastructureSource | null {
+  const value = `${card.type || ""} ${card.title || ""} ${card.summary || ""} ${item.domain || ""} ${item.type || ""} ${item.source || ""} ${item.title || ""}`.toLowerCase();
+  if (/camera|cctv/.test(value)) return "cameras";
+  if (/provider|tuya|mqtt|onvif/.test(value)) return "providers";
+  if (/edge|runtime|infrastructure/.test(value)) return "edge";
+  if (/utility|water|electric|meter|generator/.test(value)) return "utilities";
+  if (/device|hardware|switch|relay|light|ac/.test(value)) return "devices";
+  return null;
+}
+
 function CardStack({ cards }: { cards?: Array<Record<string, any>> }) {
   const visibleCards = (cards || []).filter((card) => !["capability", "capability_registry"].includes(String(card?.type || "")));
   if (!visibleCards.length) return null;
@@ -72,7 +84,7 @@ function CardStack({ cards }: { cards?: Array<Record<string, any>> }) {
             {items.length ? (
               <div className="mt-2 grid gap-1.5">
                 {items.slice(0, 4).map((item: any, itemIndex: number) => (
-                  <button key={itemIndex} type="button" onClick={() => { const type = String(card.type || item.type || ""); const workflowId = item.workflow_id || item.id; if (workflowId && /workflow/i.test(type)) openWorkflowDrawer(String(workflowId)); if (/prediction/i.test(type)) openPredictionDrawer(item); }} className="flex w-full items-start justify-between gap-3 rounded-2xl bg-black/18 px-3 py-2 text-left text-xs">
+                  <button key={itemIndex} type="button" onClick={() => { const type = String(card.type || item.type || ""); const workflowId = item.workflow_id || item.id; const source = infrastructureSource(card, item); if (workflowId && /workflow/i.test(type)) openWorkflowDrawer(String(workflowId)); if (/prediction/i.test(type)) openPredictionDrawer(item); if (source) openInfrastructureDrawer(source); }} className="flex w-full items-start justify-between gap-3 rounded-2xl bg-black/18 px-3 py-2 text-left text-xs">
                     <span className="min-w-0 break-words text-zinc-300">{item.title || item.label || "Item"}</span>
                     <span className="max-w-[48%] shrink-0 break-words text-right text-zinc-500">{item.status || item.occurred_at?.slice?.(0, 10) || ""}</span>
                   </button>
