@@ -23,11 +23,13 @@ type WorkOrderForm = {
 const STATUS_OPTIONS: Array<{ value: MaintenanceStatus; label: string }> = [
   { value: "new", label: "New" },
   { value: "assigned", label: "Assigned" },
+  { value: "accepted", label: "Accepted" },
   { value: "scheduled", label: "Scheduled" },
   { value: "in_progress", label: "In Progress" },
   { value: "waiting_for_resident", label: "Waiting For Resident" },
   { value: "waiting_for_parts", label: "Waiting For Parts" },
   { value: "completed", label: "Completed" },
+  { value: "verified", label: "Verified" },
   { value: "closed", label: "Closed" },
   { value: "cancelled", label: "Cancelled" },
 ];

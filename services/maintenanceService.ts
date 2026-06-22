@@ -4,11 +4,13 @@ export type MaintenanceStatus =
   | "new"
   | "open"
   | "assigned"
+  | "accepted"
   | "scheduled"
   | "in_progress"
   | "waiting_for_resident"
   | "waiting_for_parts"
   | "completed"
+  | "verified"
   | "resolved"
   | "closed"
   | "cancelled"
@@ -74,5 +76,11 @@ export const maintenanceService = {
     } catch (err: any) {
       return { error: pickError(err, "Failed to update maintenance request") };
     }
+  },
+  async timeline(id: string): Promise<Array<Record<string, any>>> {
+    try {
+      const res = await API.get(`/facility/maintenance/${encodeURIComponent(id)}/timeline`);
+      return Array.isArray(res.data?.items) ? res.data.items : [];
+    } catch { return []; }
   },
 };
