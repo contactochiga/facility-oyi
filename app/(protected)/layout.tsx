@@ -13,6 +13,7 @@ import TabletModuleRail from "@/components/navigation/TabletModuleRail";
 import { WorkflowDetailDrawerHost } from "@/components/modules/WorkflowDetailDrawer";
 import { PredictionDetailDrawerHost } from "@/components/modules/PredictionDetailDrawer";
 import { InfrastructureDetailDrawerHost } from "@/components/modules/InfrastructureDetailDrawer";
+import { useContextStore } from "@/store/useContextStore";
 
 export default function ProtectedLayout({
   children,
@@ -20,6 +21,7 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }) {
   const { hydrate, hydrated, token, user } = useSessionStore();
+  const { context, refresh: refreshContext, clear: clearContext } = useContextStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -38,16 +40,24 @@ export default function ProtectedLayout({
 
   useEffect(() => {
     if (!hydrated || !token || !user || isExpired(user)) {
+      clearContext();
+      return;
+    }
+    void refreshContext();
+  }, [clearContext, hydrated, refreshContext, token, user]);
+
+  useEffect(() => {
+    if (!hydrated || !token || !user || isExpired(user)) {
       disconnectFacilityRealtime();
       return;
     }
     connectFacilityRealtime({
       token,
-      estateId: (user as any)?.estate_id || null,
+      estateId: context?.estate_id || (user as any)?.estate_id || null,
       userId: user.id,
     });
     return () => disconnectFacilityRealtime();
-  }, [hydrated, token, user]);
+  }, [context?.estate_id, hydrated, token, user]);
 
   // Close drawer on route change (mobile nav feels clean)
   useEffect(() => {
@@ -85,7 +95,7 @@ export default function ProtectedLayout({
 
         <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
           <FacilityShellProvider openMenu={() => setMobileOpen(true)}>
-            <main className={`flex-1 min-h-0 overflow-y-auto p-4 ${pathname === "/facility-intelligence" ? "pb-4 md:pb-6" : "pb-[calc(112px+env(safe-area-inset-bottom))] md:pb-6"} sm:p-6 xl:p-8`}>
+            <main key={context?.estate_id || (user as any)?.estate_id || "facility"} className={`flex-1 min-h-0 overflow-y-auto p-4 ${pathname === "/facility-intelligence" ? "pb-4 md:pb-6" : "pb-[calc(112px+env(safe-area-inset-bottom))] md:pb-6"} sm:p-6 xl:p-8`}>
               {children}
             </main>
             {pathname !== "/facility-intelligence" ? <MobileModuleFooter /> : null}

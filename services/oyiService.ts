@@ -1,4 +1,5 @@
 import API from "./api";
+import type { OisContext } from "@/store/useContextStore";
 
 export type OyiSeverity = "normal" | "info" | "attention" | "warning" | "critical";
 export type OyiAwareness = {
@@ -55,18 +56,18 @@ export type OyiThreadMessage = {
 };
 
 export const oyiService = {
-  async awareness(input: { estate_id?: string | null; home_id?: string | null } = {}) {
-    const res = await API.get("/oyi/awareness", { params: { surface: "facility", ...input } });
+  async awareness(input: { estate_id?: string | null; home_id?: string | null; context?: OisContext | null } = {}) {
+    const res = await API.get("/oyi/awareness", { params: { surface: "facility", estate_id: input.context?.estate_id || input.estate_id, home_id: input.context?.home_id || input.home_id } });
     return res.data as OyiAwareness & { ok?: boolean };
   },
 
-  async chat(input: { message: string; estate_id?: string | null; home_id?: string | null; module?: string | null; role?: string | null; thread_id?: string | null }) {
+  async chat(input: { message: string; estate_id?: string | null; home_id?: string | null; module?: string | null; role?: string | null; thread_id?: string | null; context?: OisContext | null }) {
     const res = await API.post("/oyi/chat", { surface: "facility", ...input });
     return res.data as OyiChatResponse;
   },
 
-  async listThreads(input: { estate_id?: string | null; home_id?: string | null; limit?: number } = {}) {
-    const res = await API.get("/oyi/threads", { params: { surface: "facility", ...input } });
+  async listThreads(input: { estate_id?: string | null; home_id?: string | null; limit?: number; context?: OisContext | null } = {}) {
+    const res = await API.get("/oyi/threads", { params: { surface: "facility", estate_id: input.context?.estate_id || input.estate_id, home_id: input.context?.home_id || input.home_id, limit: input.limit } });
     return res.data as { ok?: boolean; threads?: OyiThread[] };
   },
 

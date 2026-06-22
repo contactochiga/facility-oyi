@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowUp, Bot, ChevronRight, Copy, History, Mic, Plus, ThumbsUp, Volume2, X } from "lucide-react";
 import { useSessionStore } from "@/store/useSessionStore";
+import { useContextStore } from "@/store/useContextStore";
 import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
 import { openWorkflowDrawer } from "@/components/modules/WorkflowDetailDrawer";
 import { openPredictionDrawer } from "@/components/modules/PredictionDetailDrawer";
@@ -163,6 +164,7 @@ export default function FacilityIntelligenceModule() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useSessionStore();
+  const { context } = useContextStore();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -207,7 +209,7 @@ export default function FacilityIntelligenceModule() {
     async function hydrateLatestThread() {
       if (!(user as any)?.id) return;
       try {
-        const result = await oyiService.listThreads({ estate_id: (user as any)?.estate_id || null, limit: 24 });
+        const result = await oyiService.listThreads({ context, estate_id: context?.estate_id || (user as any)?.estate_id || null, limit: 24 });
         if (cancelled) return;
         const availableThreads = result.threads || [];
         setThreads(availableThreads);
@@ -226,7 +228,7 @@ export default function FacilityIntelligenceModule() {
     }
     void hydrateLatestThread();
     return () => { cancelled = true; };
-  }, [(user as any)?.id, (user as any)?.estate_id]);
+  }, [(user as any)?.id, context]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }));
@@ -299,10 +301,11 @@ export default function FacilityIntelligenceModule() {
     try {
       const response: OyiChatResponse = await oyiService.chat({
         message,
-        estate_id: (user as any)?.estate_id || null,
+        estate_id: context?.estate_id || (user as any)?.estate_id || null,
         module: moduleContext,
         role: (user as any)?.role || null,
         thread_id: threadId,
+        context,
       });
       if (response.thread_id) setThreadId(response.thread_id);
       if (response.thread_id) {
