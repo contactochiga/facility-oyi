@@ -10,6 +10,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { connectFacilityRealtime, disconnectFacilityRealtime } from "@/services/facilityRealtime";
 import MobileModuleFooter from "@/components/navigation/MobileModuleFooter";
 import TabletModuleRail from "@/components/navigation/TabletModuleRail";
+import { WorkflowDetailDrawerHost } from "@/components/modules/WorkflowDetailDrawer";
 
 export default function ProtectedLayout({
   children,
@@ -86,6 +87,7 @@ export default function ProtectedLayout({
               {children}
             </main>
             {pathname !== "/facility-intelligence" ? <MobileModuleFooter /> : null}
+            <WorkflowDetailDrawerHost />
           </FacilityShellProvider>
         </div>
       </div>

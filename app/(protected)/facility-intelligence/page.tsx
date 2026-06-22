@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowUp, Bot, ChevronRight, Copy, History, Mic, Plus, ThumbsUp, Volume2, X } from "lucide-react";
 import { useSessionStore } from "@/store/useSessionStore";
 import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
+import { openWorkflowDrawer } from "@/components/modules/WorkflowDetailDrawer";
 
 type ChatMessage = {
   id: string;
@@ -70,10 +71,10 @@ function CardStack({ cards }: { cards?: Array<Record<string, any>> }) {
             {items.length ? (
               <div className="mt-2 grid gap-1.5">
                 {items.slice(0, 4).map((item: any, itemIndex: number) => (
-                  <div key={itemIndex} className="flex items-start justify-between gap-3 rounded-2xl bg-black/18 px-3 py-2 text-xs">
+                  <button key={itemIndex} type="button" onClick={() => { const workflowId = item.workflow_id || item.id; if (workflowId && /workflow/i.test(String(card.type || item.type || ""))) openWorkflowDrawer(String(workflowId)); }} className="flex w-full items-start justify-between gap-3 rounded-2xl bg-black/18 px-3 py-2 text-left text-xs">
                     <span className="min-w-0 break-words text-zinc-300">{item.title || item.label || "Item"}</span>
                     <span className="max-w-[48%] shrink-0 break-words text-right text-zinc-500">{item.status || item.occurred_at?.slice?.(0, 10) || ""}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             ) : null}
