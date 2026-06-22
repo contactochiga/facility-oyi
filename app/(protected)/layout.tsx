@@ -11,6 +11,7 @@ import { connectFacilityRealtime, disconnectFacilityRealtime } from "@/services/
 import MobileModuleFooter from "@/components/navigation/MobileModuleFooter";
 import TabletModuleRail from "@/components/navigation/TabletModuleRail";
 import { WorkflowDetailDrawerHost } from "@/components/modules/WorkflowDetailDrawer";
+import { PredictionDetailDrawerHost } from "@/components/modules/PredictionDetailDrawer";
 
 export default function ProtectedLayout({
   children,
@@ -88,6 +89,7 @@ export default function ProtectedLayout({
             </main>
             {pathname !== "/facility-intelligence" ? <MobileModuleFooter /> : null}
             <WorkflowDetailDrawerHost />
+            <PredictionDetailDrawerHost />
           </FacilityShellProvider>
         </div>
       </div>
