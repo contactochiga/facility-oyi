@@ -302,6 +302,7 @@ function OverviewPage() {
   const [estateForm, setEstateForm] = useState({ name: "", address: "", type: "estate" });
   const [backendAwareness, setBackendAwareness] = useState<OyiAwareness | null>(null);
   const [awarenessStatus, setAwarenessStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [workflowMetrics, setWorkflowMetrics] = useState({ active: 0, overdue: 0, escalated: 0, verification: 0 });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -479,7 +480,7 @@ function OverviewPage() {
       });
     }
     const rank: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
-    return items.sort((a, b) => rank[a.severity] - rank[b.severity]).slice(0, 12);
+    return items.sort((a, b) => rank[a.severity] - rank[b.severity]);
   }, [expiredInvites, offlineDevices, openMaintenance, pendingVisitors, sources.notifications.data, sources.reports.data]);
 
   const unresolvedSourceCount = Object.values(sources).filter(
@@ -506,6 +507,7 @@ function OverviewPage() {
       : awarenessStatus === "error"
       ? "Oyi awareness is unavailable, showing local operational context."
       : backendAwareness?.recommended_action || backendAwareness?.summary || "Tap a strip below to open the right workflow.";
+  const attentionPreview = attention.slice(0, 5);
 
   async function createEstate() {
     if (estateForm.name.trim().length < 2) return;
@@ -578,30 +580,6 @@ function OverviewPage() {
         />
       </div>
 
-      <section className="rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.16),transparent_32%),linear-gradient(145deg,rgba(255,255,255,0.058),rgba(255,255,255,0.018))] p-4 text-center shadow-[0_18px_55px_rgba(0,0,0,0.30)] sm:rounded-2xl sm:p-5 sm:text-left">
-        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Active estate context</p>
-            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.055em] text-white sm:mt-2 sm:text-2xl">{estateName}</h1>
-            <p className="mx-auto mt-2 max-w-[280px] text-[18px] font-semibold leading-tight tracking-[-0.05em] text-white/88 sm:mx-0 sm:max-w-none sm:text-sm sm:font-normal sm:tracking-normal sm:text-zinc-400">
-              <span className="sm:hidden">{displayedFacilityAwareness}</span>
-              <span className="hidden sm:inline">Operator role: <span className="text-zinc-200">{String(user?.role || "operator").replace(/_/g, " ")}</span></span>
-            </p>
-            <p className="mt-1.5 text-xs text-zinc-400 sm:mt-2 sm:text-sm">
-              <span className="sm:hidden">{displayedFacilityAction}</span>
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-500 sm:gap-2 sm:text-xs">
-            <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 sm:px-3 sm:py-1.5">
-              Estate state: <span className="text-zinc-200">{estateState}</span>
-            </span>
-            <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 sm:px-3 sm:py-1.5">
-              Refreshed: <span className="text-zinc-200">{dateLabel(lastRefresh)}</span>
-            </span>
-          </div>
-        </div>
-      </section>
-
       {needsEstate ? (
         <Panel title="No estate context linked" subtitle="Create an estate context before opening operational workflows.">
           <div className="flex flex-wrap gap-2">
@@ -611,84 +589,15 @@ function OverviewPage() {
         </Panel>
       ) : null}
 
-      <MobileQuickActionStrip items={mobileQuickActions} />
-
-      <section className="hidden gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-6">
-        <SummaryCard label="Estate state" value={estateState} hint="Derived from available operational sources" href="/alerts" tone={attention.length ? "warn" : "good"} />
-        <SummaryCard label="Open maintenance" value={metric(openMaintenance.length, sources.maintenance)} hint="Requests not yet resolved" href="/maintenance" tone={openMaintenance.length ? "warn" : "neutral"} />
-        <SummaryCard label="Active visitors" value={metric(activeVisitors.length, sources.visitors)} hint="Today's active access records" href="/visitors" />
-        <SummaryCard label="Device attention" value={metric(offlineDevices.length, sources.devices)} hint="Offline or unavailable registry entries" href="/devices" tone={offlineDevices.length ? "warn" : "neutral"} />
-        <SummaryCard label="Unread notices" value={metric(sources.notifications.data.length, sources.notifications)} hint="Operator notification queue" href="/alerts" />
-        <SummaryCard label="Community reports" value={metric(sources.reports.data.length, sources.reports)} hint="Open moderation queue items" href="/messages" />
+      <section className="rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.14),transparent_32%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">Operational Attention Center</p><h2 className="mt-1 text-xl font-semibold text-white">{estateName} is {estateState.toLowerCase()}</h2><p className="mt-2 max-w-2xl text-sm text-zinc-400">{displayedFacilityAction}</p></div><div className="flex flex-wrap gap-2"><Link href="/facility-intelligence?focus=1" className="rounded-lg border border-sky-400/20 bg-sky-500/10 px-3 py-2 text-xs text-sky-100">Ask Oyi</Link><Link href="/facility-intelligence?module=workflows" className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-200">Open Queue</Link><Link href="/alerts" className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-200">Open Incidents</Link></div></div>
+        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">{[["Attention", attention.length, "text-amber-100"],["Overdue", workflowMetrics.overdue, "text-amber-100"],["Escalated", workflowMetrics.escalated, "text-rose-100"],["Verification", workflowMetrics.verification, "text-sky-100"]].map(([label, value, color]) => <div key={String(label)} className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-xs text-zinc-500">{label}</span><b className={`mt-1 block text-lg ${color}`}>{loading ? "—" : value}</b></div>)}</div>
       </section>
 
-      <section className="hidden gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
-          label="Maintenance posture"
-          value={metric(openMaintenance.length, sources.maintenance)}
-          hint={sources.maintenance.status === "ready" ? "Open work orders requiring operations" : "Pending maintenance source"}
-          href="/maintenance"
-          tone={openMaintenance.length ? "warn" : "good"}
-        />
-        <SummaryCard
-          label="Utility posture"
-          value={statusLabel(sources.devices) || "Registry source"}
-          hint="Utility telemetry remains explicit inside Utilities"
-          href="/utilities"
-          tone={offlineDevices.length ? "warn" : "neutral"}
-        />
-        <SummaryCard
-          label="Wallet posture"
-          value={
-            sources.overview.status === "ready"
-              ? String((sources.overview.data as any)?.wallet?.outstanding_dues ? "Outstanding due" : "Available")
-              : statusLabel(sources.overview) || "Pending source"
-          }
-          hint="Finance posture from Facility overview wallet source"
-          href="/wallets"
-          tone={(sources.overview.data as any)?.wallet?.outstanding_dues ? "warn" : "neutral"}
-        />
-        <SummaryCard
-          label="Service readiness"
-          value={sources.overview.status === "ready" ? "Review services" : statusLabel(sources.overview) || "Pending source"}
-          hint="Resident-facing services are managed in Services"
-          href="/services"
-          tone="neutral"
-        />
-      </section>
-
-      <section className="hidden gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-3">
-        <SummaryCard
-          className="min-w-[168px] snap-start sm:min-w-0"
-          label="Community posture"
-          value={metric(sources.community.data.length, sources.community)}
-          hint="Published and operational resident communications"
-          href="/community"
-          tone="neutral"
-        />
-        <SummaryCard
-          className="min-w-[168px] snap-start sm:min-w-0"
-          label="Communication posture"
-          value={metric(sources.reports.data.length, sources.reports)}
-          hint="Resident communication reports requiring review"
-          href="/messages"
-          tone={sources.reports.data.length ? "warn" : "good"}
-        />
-        <SummaryCard
-          className="min-w-[168px] snap-start sm:min-w-0"
-          label="Moderation posture"
-          value={metric(sources.reports.data.length, sources.reports)}
-          hint="Open reports from real moderation source"
-          href="/community"
-          tone={sources.reports.data.length ? "warn" : "good"}
-        />
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(310px,0.55fr)]">
-        <Panel title="Attention Queue" subtitle="Ranked work requiring operator review across connected operational sources.">
-          {attention.length ? (
+      <Panel title="Attention Stack" subtitle="The five highest-ranked items requiring review.">
+          {attentionPreview.length ? (
             <div className="space-y-2">
-              {attention.map((item) => (
+              {attentionPreview.map((item) => (
                 <Link key={item.id} href={item.href} className="flex gap-3 rounded-xl border border-white/10 bg-black/15 p-3 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
                   <span className={`mt-0.5 h-fit rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em] ${severityClass(item.severity)}`}>
                     {item.severity}
@@ -706,124 +615,23 @@ function OverviewPage() {
           ) : (
             <SourceMessage value={sources.notifications} empty="No critical attention required." />
           )}
-        </Panel>
+          {attention.length > 5 ? <Link href="/alerts" className="mt-3 inline-flex text-xs text-sky-200">View all attention <ChevronRight className="ml-1 h-3.5 w-3.5" /></Link> : null}
+      </Panel>
 
-        <div className="hidden sm:block">
-          <Panel title="Quick Actions" subtitle="Open the real workflow before taking operational action.">
-            <div className="grid gap-2">
-              {[
-                ["Add Home", "/homes", Home],
-                ["Invite Resident", "/homes", UserPlus],
-                ["Discover Device", "/devices", Router],
-                ["Verify Visitor", "/visitors", DoorOpen],
-                ["Open Camera Center", "/cameras", Camera],
-                ["Open Maintenance", "/maintenance", Wrench],
-              ].map(([label, href, Icon]) => (
-                <Link key={String(label)} href={String(href)} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-2.5 text-sm text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.05] hover:text-white">
-                  <Icon className="h-4 w-4 text-sky-200" />
-                  <span className="flex-1">{String(label)}</span>
-                  <ChevronRight className="h-4 w-4 text-zinc-600" />
-                </Link>
-              ))}
-            </div>
-          </Panel>
+      <OperatorQueue limit={5} />
+
+      <FacilityIntelligenceExposure onMetrics={setWorkflowMetrics} />
+
+      <Panel title="Operational Health" subtitle="People, security, infrastructure, and finance posture.">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard label="People" value={pendingVisitors.length ? `${pendingVisitors.length} awaiting` : "Stable"} hint={sources.reports.data.length ? `${sources.reports.data.length} moderation reports` : "Visitor flow and community clear"} href="/visitors" tone={pendingVisitors.length || sources.reports.data.length ? "warn" : "good"} />
+          <SummaryCard label="Security" value={attention.some((item) => item.domain === "Security") ? "Review" : "Stable"} hint={`${workflowMetrics.verification} verification items`} href="/alerts" tone={attention.some((item) => item.domain === "Security") ? "warn" : "good"} />
+          <SummaryCard label="Infrastructure" value={offlineDevices.length ? `${offlineDevices.length} attention` : "Stable"} hint="Devices, cameras, Edge, and utilities" href="/live-infrastructure" tone={offlineDevices.length ? "warn" : "good"} />
+          <SummaryCard label="Finance" value={(sources.overview.data as any)?.wallet?.outstanding_dues ? "Due" : "Stable"} hint="Wallet, services, and payment exceptions" href="/wallets" tone={(sources.overview.data as any)?.wallet?.outstanding_dues ? "warn" : "good"} />
         </div>
-      </section>
-
-      <OperatorQueue />
+      </Panel>
 
       <ShiftHandover />
-
-      <FacilityIntelligenceExposure />
-
-      <MobileMetricStrip items={mobileMetrics} />
-
-      <section className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:hidden">
-        <SummaryCard
-          className="min-w-[168px] snap-start"
-          label="Community"
-          value={metric(sources.community.data.length, sources.community)}
-          hint="Resident communications"
-          href="/community"
-          tone="neutral"
-        />
-        <SummaryCard
-          className="min-w-[168px] snap-start"
-          label="Reports"
-          value={metric(sources.reports.data.length, sources.reports)}
-          hint="Moderation and messages"
-          href="/messages"
-          tone={sources.reports.data.length ? "warn" : "good"}
-        />
-        <SummaryCard
-          className="min-w-[168px] snap-start"
-          label="Security"
-          value={metric(pendingVisitors.length, sources.visitors)}
-          hint="Visitor and access review"
-          href="/security-access"
-          tone={pendingVisitors.length ? "warn" : "good"}
-        />
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-3">
-        <Panel title="Resident Operations" subtitle="Home access and pending resident activation work.">
-          <div className="grid grid-cols-3 gap-2">
-            <SummaryCard label="Homes" value={metric(sources.homes.data.length, sources.homes)} hint="Active context" href="/homes" />
-            <SummaryCard label="Pending" value={metric(pendingInvites.length, sources.invites)} hint="Invites" href="/homes" />
-            <SummaryCard label="Expired" value={metric(expiredInvites.length, sources.invites)} hint="Need review" href="/homes" />
-          </div>
-        </Panel>
-
-        <Panel title="Infrastructure Posture" subtitle="Registry and camera readiness without synthetic telemetry.">
-          <div className="space-y-2">
-            <PostureRow icon={Zap} label="Device registry" value={statusLabel(sources.devices) || `${sources.devices.data.length - offlineDevices.length} online · ${offlineDevices.length} attention`} />
-            <PostureRow icon={Camera} label="Camera inventory" value={statusLabel(sources.cameras) || `${sources.cameras.data.length} bound · health telemetry pending`} />
-            <PostureRow icon={MonitorCog} label="Oyi Edge" value="No live source configured" />
-            <PostureRow icon={CircleHelp} label="Utilities" value="Awaiting telemetry" />
-          </div>
-        </Panel>
-
-        <Panel title="Security And Visitors" subtitle="Today's resident access posture.">
-          <div className="space-y-2">
-            <PostureRow icon={Users} label="Active visitors" value={statusLabel(sources.visitors) || String(activeVisitors.length)} />
-            <PostureRow icon={ShieldAlert} label="Pending approvals" value={statusLabel(sources.visitors) || String(pendingVisitors.length)} />
-            <PostureRow icon={Siren} label="Lockdown status" value="No live source configured" />
-            <Link href="/visitors" className="mt-3 inline-flex items-center gap-2 text-sm text-sky-200 hover:text-sky-100">
-              Open visitor access <ChevronRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </Panel>
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <Panel title="Staff Action Queue" subtitle="High-signal tasks from the current attention queue.">
-          {attention.length ? (
-            <div className="grid gap-2 md:grid-cols-2">
-              {attention.slice(0, 6).map((item) => (
-                <Link key={`staff-${item.id}`} href={item.href} className="rounded-xl border border-white/10 bg-black/15 px-3 py-3 text-sm text-zinc-300 transition hover:border-sky-400/25">
-                  <span className="block text-xs uppercase tracking-[0.12em] text-zinc-500">{item.domain}</span>
-                  <span className="mt-1 block text-zinc-100">{item.action}</span>
-                  <span className="mt-1 block truncate text-xs text-zinc-500">{item.title}</span>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <SourceMessage value={sources.maintenance} empty="No staff actions are queued." />
-          )}
-        </Panel>
-        <Panel title="Source Integrity" subtitle="Unavailable sources stay visible instead of becoming synthetic zeroes.">
-          <div className="space-y-2">
-            {Object.entries(sources).map(([key, value]) => (
-              <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-xs">
-                <span className="capitalize text-zinc-400">{key}</span>
-                <span className={value.status === "ready" ? "text-emerald-200" : value.status === "loading" ? "text-sky-200" : "text-amber-200"}>
-                  {value.status === "ready" ? "Available" : statusLabel(value)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      </section>
 
       {showCreate ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
