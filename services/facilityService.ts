@@ -508,6 +508,16 @@ export const facilityService = {
     return res.data;
   },
 
+  async platformHandovers(): Promise<{ items?: any[] }> {
+    const res = await API.get("/facility/platform/handovers");
+    return res.data;
+  },
+
+  async createPlatformHandover(payload: { summary: string; open_items: any[]; handover_items: any[] }): Promise<any> {
+    const res = await API.post("/facility/platform/handovers", payload);
+    return res.data;
+  },
+
   async platformCameraInfrastructure(): Promise<PlatformListResponse> {
     const res = await API.get("/facility/platform/camera-infrastructure");
     return res.data;

@@ -1,189 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock, RefreshCw, ShieldAlert, X } from "lucide-react";
+import { CheckCircle2, ChevronRight, RefreshCw, ShieldAlert, X } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { notificationService, type AlertItem } from "@/services/notificationService";
-import cameraService, { type CameraEvent } from "@/services/cameraService";
+import API from "@/services/api";
 import { facilityService } from "@/services/facilityService";
+import { notificationService, type AlertItem } from "@/services/notificationService";
 import { hasPermission } from "@/lib/oyiFoundation";
 import { useSessionStore } from "@/store/useSessionStore";
 
-type IncidentStatus = "new" | "acknowledged" | "investigating" | "resolved" | "dismissed";
-
-type Incident = {
-  id: string;
-  type: string;
-  severity: string;
-  source: string;
-  title: string;
-  description: string;
-  location: string;
-  time?: string | null;
-  status: IncidentStatus;
-  route: string;
-  canAcknowledge: boolean;
-};
-
-function text(value: any, fallback = "Unavailable") {
-  const s = String(value ?? "").trim();
-  return s || fallback;
-}
-
-function when(value?: string | null) {
-  if (!value) return "No live timestamp";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "No live timestamp" : date.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-
-function severityFor(input: string) {
-  const hay = input.toLowerCase();
-  if (/critical|intrusion|fire|panic|lockdown|unauthorized/.test(hay)) return "critical";
-  if (/offline|failed|denied|security|camera/.test(hay)) return "high";
-  if (/warning|degraded|pending|maintenance/.test(hay)) return "medium";
-  return "low";
-}
-
-function typeFor(input: string) {
-  const hay = input.toLowerCase();
-  if (/visitor|gate|access/.test(hay)) return "visitor";
-  if (/camera|motion|loiter|intrusion/.test(hay)) return "camera";
-  if (/device|edge|offline/.test(hay)) return "device";
-  if (/maintenance/.test(hay)) return "maintenance";
-  if (/community|report/.test(hay)) return "community/report";
-  if (/water|power|utility/.test(hay)) return "utility";
-  return "security";
-}
-
-function tone(value: string) {
-  if (value === "critical") return "border-rose-500/20 bg-rose-500/10 text-rose-200";
-  if (value === "high") return "border-orange-500/20 bg-orange-500/10 text-orange-200";
-  if (value === "medium") return "border-amber-500/20 bg-amber-500/10 text-amber-100";
-  return "border-sky-500/20 bg-sky-500/10 text-sky-200";
-}
-
-function statusTone(value: IncidentStatus) {
-  if (value === "acknowledged" || value === "resolved") return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
-  if (value === "investigating") return "border-amber-500/20 bg-amber-500/10 text-amber-100";
-  if (value === "dismissed") return "border-white/10 bg-white/5 text-zinc-300";
-  return "border-rose-500/20 bg-rose-500/10 text-rose-200";
-}
+type Lifecycle = "new" | "acknowledged" | "assigned" | "investigating" | "escalated" | "resolved" | "verified" | "closed";
+type Row = { id: string; kind: "incident" | "notification"; title: string; description: string; severity: string; status: Lifecycle; source: string; created_at?: string; assigned_to?: string | null; assigned_at?: string | null; acknowledged_at?: string | null; escalated_at?: string | null; resolved_at?: string | null; verified_at?: string | null; closed_at?: string | null; blocking_reason?: string | null; evidence?: unknown; response_log?: unknown; resolution_note?: string | null; };
+const date = (value?: string | null) => value ? new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Not recorded";
+const tone = (value: string) => /critical/i.test(value) ? "border-rose-400/30 bg-rose-500/10 text-rose-100" : /high|warning/i.test(value) ? "border-amber-400/30 bg-amber-500/10 text-amber-100" : "border-sky-400/30 bg-sky-500/10 text-sky-100";
 
 export default function AlertsPage() {
   const { user } = useSessionStore();
-  const [notifications, setNotifications] = useState<AlertItem[]>([]);
-  const [cameraEvents, setCameraEvents] = useState<Array<CameraEvent & { camera_name?: string }>>([]);
-  const [statusById, setStatusById] = useState<Record<string, IncidentStatus>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<{ incident: Incident; action: IncidentStatus } | null>(null);
-  const [filter, setFilter] = useState<"all" | string>("all");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const unread = await notificationService.unread();
-      setNotifications(unread);
-      const estateId = await facilityService.overview().then((r) => r.estate_id).catch(() => "");
-      if (estateId) {
-        const cameras = await cameraService.listByEstate(estateId).then((r) => r.items || []).catch(() => []);
-        const eventRows = await Promise.all(cameras.slice(0, 10).map(async (camera) => {
-          const result = await cameraService.listEvents(camera.id, { limit: 10, sinceMinutes: 24 * 60 }).catch(() => ({ events: [] }));
-          return (result.events || []).map((event) => ({ ...event, camera_name: camera.name || camera.ip || "Camera" }));
-        }));
-        setCameraEvents(eventRows.flat());
-      } else {
-        setCameraEvents([]);
-      }
-    } catch (requestError: any) {
-      setError(requestError?.response?.data?.error || requestError?.message || "Unable to load alerts.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-    const onRealtime = (event: Event) => {
-      const name = (event as CustomEvent)?.detail?.event || "";
-      if (/alert|incident|security|camera|notification|visitor|maintenance|device|edge/.test(name)) void load();
-    };
-    window.addEventListener("facility:realtime-event", onRealtime);
-    return () => window.removeEventListener("facility:realtime-event", onRealtime);
-  }, [load]);
-
-  const incidents = useMemo<Incident[]>(() => {
-    const fromNotifications = notifications.map((item) => {
-      const source = `${item.title || ""} ${item.message || ""}`;
-      const type = typeFor(source);
-      return {
-        id: item.id,
-        type,
-        severity: severityFor(source),
-        source: "notification",
-        title: text(item.title, "Security alert"),
-        description: text(item.message, "Review notification"),
-        location: type === "visitor" ? "Gate / access" : "Estate",
-        time: item.created_at,
-        status: statusById[item.id] || (String(item.status || "").toLowerCase() === "read" ? "acknowledged" : "new"),
-        route: type === "camera" ? "/cameras" : type === "visitor" ? "/visitors" : "/security-access",
-        canAcknowledge: true,
-      } as Incident;
-    });
-    const fromCamera = cameraEvents.map((event) => {
-      const title = text(event.event_type, "camera event").replace(/_/g, " ");
-      const severity = severityFor(`${title} ${event.message || ""}`);
-      return {
-        id: `camera:${event.id}`,
-        type: "camera",
-        severity,
-        source: "camera",
-        title,
-        description: text(event.message, "Camera event"),
-        location: event.camera_name || event.camera_id,
-        time: event.created_at,
-        status: statusById[`camera:${event.id}`] || "new",
-        route: "/cameras",
-        canAcknowledge: false,
-      } as Incident;
-    });
-    return [...fromNotifications, ...fromCamera].sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime());
-  }, [cameraEvents, notifications, statusById]);
-
-  const filtered = filter === "all" ? incidents : incidents.filter((incident) => incident.type === filter || incident.severity === filter || incident.status === filter);
-
-  async function applyAction(incident: Incident, action: IncidentStatus) {
-    setConfirming(null);
-    if (action === "acknowledged" && incident.canAcknowledge && incident.source === "notification") {
-      if (!hasPermission(user, "notifications.manage")) {
-        setError("You do not have access to update this alert lifecycle.");
-        return;
-      }
-      const result = await notificationService.updateLifecycle(incident.id, { status: "acknowledged" });
-      if (result.error) { setError(result.error); return; }
-      await load();
-      return;
-    }
-    setError(`${action} is not available for this telemetry source. No lifecycle state was changed.`);
-  }
-
-  return (
-    <div className="space-y-6">
-      <Topbar title="Alerts & Incidents" subtitle="Security, visitor, camera, device, Edge, utility, maintenance, and community alerts." rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
-      {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {["critical", "high", "medium", "new", "acknowledged"].map((item) => <button key={item} type="button" onClick={() => setFilter(filter === item ? "all" : item)} className={`rounded-2xl border p-4 text-left ${filter === item ? "border-sky-400/30 bg-sky-500/10" : "border-white/10 bg-white/[0.035]"}`}><p className="text-[10px] uppercase tracking-[0.17em] text-zinc-500">{item}</p><p className="mt-3 text-2xl font-semibold text-white">{incidents.filter((incident) => incident.severity === item || incident.status === item).length}</p><p className="mt-2 text-xs text-zinc-500">Click to filter</p></button>)}
-      </section>
-
-      <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-        <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Incident lifecycle</h2><p className="mt-1 text-xs text-zinc-500">Received → acknowledged → assigned → resolved. Actions only appear where the live source supports a persisted lifecycle.</p></div><ShieldAlert className="h-4 w-4 text-rose-200" /></div>
-        <div className="mt-4 space-y-3">{filtered.map((incident) => <article key={incident.id} className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2 py-1 text-[10px] uppercase ${tone(incident.severity)}`}>{incident.severity}</span><span className={`rounded-full border px-2 py-1 text-[10px] uppercase ${statusTone(incident.status)}`}>{incident.status}</span><span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase text-zinc-400">{incident.type}</span></div><h3 className="mt-3 text-sm font-semibold text-white">{incident.title}</h3><p className="mt-1 text-sm text-zinc-400">{incident.description}</p><p className="mt-2 text-xs text-zinc-500">{incident.source} · {incident.location} · {when(incident.time)}</p></div><div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => setConfirming({ incident, action: "acknowledged" })} className="gap-2"><CheckCircle2 className="h-4 w-4" /> Acknowledge</Button><Button variant="ghost" onClick={() => setConfirming({ incident, action: "investigating" })}>Investigating</Button><Button variant="ghost" onClick={() => setConfirming({ incident, action: "resolved" })}>Resolve</Button><Button variant="danger" onClick={() => setConfirming({ incident, action: "dismissed" })}>Dismiss</Button></div></div></article>)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No alerts or incidents match this view.</p> : null}</div>
-      </section>
-
-      {confirming ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex justify-between gap-3"><h2 className="text-lg font-semibold text-white">Confirm incident action</h2><button type="button" onClick={() => setConfirming(null)}><X className="h-4 w-4 text-zinc-400" /></button></header><p className="mt-2 text-sm text-zinc-400">Set <span className="text-white">{confirming.incident.title}</span> to <span className="text-white">{confirming.action}</span>. This only changes persisted lifecycle state for supported alert records.</p><footer className="mt-6 flex justify-end gap-2"><Button variant={confirming.action === "dismissed" ? "danger" : "primary"} onClick={() => void applyAction(confirming.incident, confirming.action)}>{confirming.action}</Button></footer></section></div> : null}
-    </div>
-  );
+  const [rows, setRows] = useState<Row[]>([]); const [staff, setStaff] = useState<any[]>([]); const [selected, setSelected] = useState<Row | null>(null); const [timeline, setTimeline] = useState<any[]>([]); const [assignee, setAssignee] = useState(""); const [note, setNote] = useState(""); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => { setLoading(true); setError(null); try { const [incidentResult, notifications, staffResult] = await Promise.all([facilityService.platformIncidents(), notificationService.unread(), API.get("/facility/estate-users").catch(() => ({ data: { items: [] } }))]); const incidentRows = (incidentResult.items || []).map((item: any) => ({ ...item, id: String(item.id), kind: "incident" as const, title: item.title || "Operational incident", description: item.description || "No description recorded", severity: item.severity || "medium", source: item.source || "facility", created_at: item.created_at, status: item.status || "new" })); const alertRows = notifications.map((item: AlertItem) => ({ id: item.id, kind: "notification" as const, title: item.title || "Operational alert", description: item.message || "Review notification", severity: /critical|security|intrusion/i.test(`${item.title} ${item.message}`) ? "critical" : "medium", source: "notification", created_at: item.created_at, status: String(item.status || "new").toLowerCase() === "read" ? "acknowledged" : item.status as Lifecycle || "new", assigned_to: item.assigned_to, assigned_at: item.assigned_at, acknowledged_at: item.acknowledged_at, resolved_at: item.resolved_at, resolution_note: item.resolution_note })); setRows([...incidentRows, ...alertRows].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())); setStaff(staffResult.data?.items || staffResult.data?.users || []); } catch { setError("Unable to load live incident and alert records."); } finally { setLoading(false); } }, []);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (!selected || selected.kind !== "incident") { setTimeline([]); return; } facilityService.platformIncidentTimeline(selected.id).then((data) => setTimeline(data.items || [])).catch(() => setTimeline([])); setAssignee(selected.assigned_to || ""); setNote(selected.resolution_note || ""); }, [selected]);
+  const canManage = selected?.kind === "incident" ? hasPermission(user, "support.assign") : hasPermission(user, "notifications.manage");
+  const update = async (status: Lifecycle) => { if (!selected || !canManage) return; setSaving(true); setError(null); try { if (selected.kind === "incident") await facilityService.updatePlatformIncident(selected.id, { status, ...(status === "assigned" && assignee ? { assigned_to: assignee } : {}), ...(note.trim() ? { note: note.trim() } : {}) }); else await notificationService.updateLifecycle(selected.id, { status: status === "investigating" ? "assigned" : status as "acknowledged" | "assigned" | "resolved", ...(status === "assigned" && assignee ? { assigned_to: assignee } : {}), ...(status === "resolved" && note.trim() ? { resolution_note: note.trim() } : {}) }); await load(); setSelected(null); } catch { setError("Unable to persist this lifecycle transition. No status was changed."); } finally { setSaving(false); } };
+  const lifecycle = useMemo(() => selected ? [["Detected", selected.created_at], ["Acknowledged", selected.acknowledged_at], ["Assigned", selected.assigned_at], ["Escalated", selected.escalated_at], ["Resolved", selected.resolved_at], ["Verified", selected.verified_at], ["Closed", selected.closed_at]] : [], [selected]);
+  return <div className="space-y-6"><Topbar title="Alerts & Incidents" subtitle="Live incident and notification lifecycle for the active facility." rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>} />{error ? <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}<section className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:p-5"><div className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-rose-200" /><div><h2 className="text-sm font-semibold text-white">Operational alerts</h2><p className="text-xs text-zinc-500">Select an item to inspect ownership, evidence, lifecycle, and response history.</p></div></div><div className="mt-4 space-y-2">{rows.map((row) => <button key={`${row.kind}:${row.id}`} onClick={() => setSelected(row)} className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-3 text-left hover:bg-white/[0.05]"><span className={`rounded-full border px-2 py-1 text-[10px] uppercase ${tone(row.severity)}`}>{row.severity}</span><span className="min-w-0 flex-1"><b className="block truncate text-sm text-white">{row.title}</b><small className="block truncate text-xs text-zinc-500">{row.status} · {row.source} · {date(row.created_at)}</small></span><ChevronRight className="h-4 w-4 text-zinc-500" /></button>)}{!loading && !rows.length ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No incident or notification records are visible in this facility context.</p> : null}</div></section>{selected ? <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm"><aside className="ml-auto flex h-full w-full max-w-xl flex-col overflow-hidden border-l border-white/10 bg-zinc-950"><header className="flex items-center justify-between border-b border-white/10 p-4"><div><h2 className="text-base font-semibold text-white">{selected.title}</h2><p className="text-xs text-zinc-500">{selected.kind} · {selected.status}</p></div><button onClick={() => setSelected(null)} aria-label="Close detail"><X className="h-5 w-5 text-zinc-400" /></button></header><div className="flex-1 overflow-y-auto p-4 pb-36"><p className="text-sm text-zinc-300">{selected.description}</p><div className="mt-4 grid grid-cols-2 gap-2 text-xs">{[["Severity", selected.severity],["Source", selected.source],["Owner / assignee", selected.assigned_to || "Unassigned"],["Detected", date(selected.created_at)],["Blocking reason", selected.blocking_reason || "None"],["Resolution", selected.resolution_note || "None"]].map(([label, value]) => <div key={String(label)} className="rounded-lg border border-white/10 bg-black/20 p-2"><span className="block text-zinc-500">{label}</span><span className="mt-1 block break-words text-zinc-200">{value}</span></div>)}</div><h3 className="mt-5 text-sm font-medium text-white">Lifecycle</h3><div className="mt-2 space-y-2">{lifecycle.map(([label, value]) => <div key={String(label)} className="flex justify-between rounded-lg bg-black/20 px-3 py-2 text-xs"><span className="text-zinc-400">{label}</span><span className={value ? "text-sky-100" : "text-zinc-600"}>{value ? date(String(value)) : "Pending"}</span></div>)}</div>{selected.evidence ? <><h3 className="mt-5 text-sm font-medium text-white">Evidence</h3><pre className="mt-2 overflow-x-auto rounded-lg bg-black/30 p-3 text-xs text-zinc-300">{JSON.stringify(selected.evidence, null, 2)}</pre></> : null}{selected.response_log ? <><h3 className="mt-5 text-sm font-medium text-white">Response log</h3><pre className="mt-2 overflow-x-auto rounded-lg bg-black/30 p-3 text-xs text-zinc-300">{JSON.stringify(selected.response_log, null, 2)}</pre></> : null}{selected.kind === "incident" ? <><h3 className="mt-5 text-sm font-medium text-white">Timeline</h3><div className="mt-2 space-y-2">{timeline.map((entry) => <div key={entry.id} className="rounded-lg border border-white/10 p-2 text-xs"><b className="text-zinc-200">{entry.action || entry.status}</b><p className="mt-1 text-zinc-500">{entry.note || "No note recorded"} · {date(entry.created_at)}</p></div>)}{!timeline.length ? <p className="text-xs text-zinc-500">No timeline events recorded.</p> : null}</div></> : null}</div>{canManage ? <footer className="border-t border-white/10 bg-zinc-950 p-4"><div className="grid gap-2 sm:grid-cols-2"><select value={assignee} onChange={(event) => setAssignee(event.target.value)} className="rounded-lg border border-white/10 bg-black/20 p-2 text-sm text-white"><option value="">Assign to current operator</option>{staff.map((member) => <option key={member.id || member.user_id || member.membership_id} value={member.user_id || member.id}>{member.full_name || member.name || member.email || member.user_id}</option>)}</select><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Resolution or response note" className="rounded-lg border border-white/10 bg-black/20 p-2 text-sm text-white" /></div><div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" disabled={saving} onClick={() => void update("acknowledged")}><CheckCircle2 className="mr-1 h-4 w-4" />Acknowledge</Button><Button variant="ghost" disabled={saving} onClick={() => void update("assigned")}>Assign</Button>{selected.kind === "incident" ? <><Button variant="ghost" disabled={saving} onClick={() => void update("escalated")}>Escalate</Button><Button variant="ghost" disabled={saving} onClick={() => void update("verified")}>Verify</Button><Button variant="ghost" disabled={saving} onClick={() => void update("closed")}>Close</Button></> : null}<Button variant="primary" disabled={saving} onClick={() => void update("resolved")}>Resolve</Button></div></footer> : <footer className="border-t border-white/10 p-4 text-xs text-zinc-500">You do not have access to change this lifecycle under your current role.</footer>}</aside></div> : null}</div>;
 }

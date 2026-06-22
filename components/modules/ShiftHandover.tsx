@@ -1,64 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, CircleAlert, ClipboardCheck, UserRoundX } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { CheckCircle2, CircleAlert, ClipboardCheck, History, Save, UserRoundX } from "lucide-react";
 import { facilityService } from "@/services/facilityService";
+import { hasPermission } from "@/lib/oyiFoundation";
+import { useSessionStore } from "@/store/useSessionStore";
 
-type HandoverItem = {
-  id: string;
-  title?: string;
-  module?: string;
-  status?: string;
-  priority?: string;
-  owner?: string | null;
-  due_at?: string | null;
-  blocking_reason?: string | null;
-  verified_at?: string | null;
-};
-
+type HandoverItem = { id: string; title?: string; module?: string; status?: string; priority?: string; owner?: string | null; due_at?: string | null; blocking_reason?: string | null; verified_at?: string | null; };
 const isOverdue = (item: HandoverItem) => Boolean(item.due_at && new Date(item.due_at).getTime() < Date.now());
 const routeFor = (item: HandoverItem) => item.module === "maintenance" ? "/maintenance" : item.module === "incidents" ? "/alerts" : "/facility-intelligence?module=workflows";
 
 export default function ShiftHandover() {
+  const { user } = useSessionStore();
   const [data, setData] = useState<{ summary?: Record<string, number>; items?: HandoverItem[] }>({});
+  const [history, setHistory] = useState<any[]>([]);
+  const [summary, setSummary] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    facilityService.platformHandover().then((value) => { if (mounted) setData(value || {}); }).catch(() => { if (mounted) setData({}); }).finally(() => { if (mounted) setLoading(false); });
-    return () => { mounted = false; };
-  }, []);
+  const load = () => Promise.all([facilityService.platformHandover(), facilityService.platformHandovers()]).then(([handover, notes]) => { setData(handover || {}); setHistory(notes.items || []); }).catch(() => setError("Handover data is unavailable for this facility context.")).finally(() => setLoading(false));
+  useEffect(() => { void load(); }, []);
+  const totals = data.summary || {};
+  const groups = useMemo(() => ({ overdue: (data.items || []).filter(isOverdue), escalated: (data.items || []).filter((item) => String(item.status || "").toLowerCase() === "escalated"), unassigned: (data.items || []).filter((item) => !item.owner), verification: (data.items || []).filter((item) => ["completed", "resolved"].includes(String(item.status || "").toLowerCase()) && !item.verified_at) }), [data.items]);
+  const cards = [{ key: "overdue", label: "Overdue work", value: totals.overdue || 0, icon: CircleAlert, tone: "text-amber-200" }, { key: "escalated", label: "Escalated incidents", value: totals.escalated || 0, icon: CircleAlert, tone: "text-rose-200" }, { key: "unassigned", label: "Unassigned items", value: totals.unassigned || 0, icon: UserRoundX, tone: "text-orange-200" }, { key: "verification", label: "Verification queue", value: totals.verification || 0, icon: ClipboardCheck, tone: "text-sky-200" }] as const;
+  const canCreate = hasPermission(user, "support.assign");
+  const save = async (event: FormEvent) => { event.preventDefault(); if (!summary.trim()) return; setSaving(true); setError(null); try { await facilityService.createPlatformHandover({ summary: summary.trim(), open_items: data.items || [], handover_items: data.items || [] }); setSummary(""); await load(); } catch { setError("Unable to save the handover note. No handover was created."); } finally { setSaving(false); } };
 
-  const summary = data.summary || {};
-  const groups = useMemo(() => ({
-    overdue: (data.items || []).filter(isOverdue),
-    escalated: (data.items || []).filter((item) => String(item.status || "").toLowerCase() === "escalated"),
-    unassigned: (data.items || []).filter((item) => !item.owner),
-    verification: (data.items || []).filter((item) => ["completed", "resolved"].includes(String(item.status || "").toLowerCase()) && !item.verified_at),
-  }), [data.items]);
-
-  const cards = [
-    { key: "overdue", label: "Overdue work", value: summary.overdue || 0, icon: CircleAlert, tone: "text-amber-200" },
-    { key: "escalated", label: "Escalated incidents", value: summary.escalated || 0, icon: CircleAlert, tone: "text-rose-200" },
-    { key: "unassigned", label: "Unassigned items", value: summary.unassigned || 0, icon: UserRoundX, tone: "text-orange-200" },
-    { key: "verification", label: "Verification queue", value: summary.verification || 0, icon: ClipboardCheck, tone: "text-sky-200" },
-  ] as const;
-
-  return <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:p-5">
-    <div className="flex items-start justify-between gap-3">
-      <div><h2 className="text-sm font-semibold text-white">Shift Handover</h2><p className="mt-1 text-xs text-zinc-500">Live operational handover for the active facility.</p></div>
-      <Link href="/facility-intelligence?module=handover" className="text-xs text-sky-200">Ask Oyi</Link>
-    </div>
-    <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-      <div className="rounded-xl bg-black/20 p-3"><span className="text-xs text-zinc-500">Open operations</span><b className="mt-1 block text-lg text-white">{loading ? "—" : summary.open || 0}</b></div>
-      <div className="rounded-xl bg-black/20 p-3"><span className="text-xs text-zinc-500">Completed today</span><b className="mt-1 block text-lg text-emerald-200">{loading ? "—" : summary.completed_today || 0}</b></div>
-      <div className="rounded-xl bg-black/20 p-3"><span className="text-xs text-zinc-500">Overdue</span><b className="mt-1 block text-lg text-amber-200">{loading ? "—" : summary.overdue || 0}</b></div>
-      <div className="rounded-xl bg-black/20 p-3"><span className="text-xs text-zinc-500">Unassigned</span><b className="mt-1 block text-lg text-orange-200">{loading ? "—" : summary.unassigned || 0}</b></div>
-    </div>
-    <div className="mt-3 grid gap-2 md:grid-cols-2">
-      {cards.map(({ key, label, value, icon: Icon, tone }) => <div key={key} className="rounded-xl border border-white/10 bg-black/20 p-3"><div className="flex items-center gap-2"><Icon className={`h-4 w-4 ${tone}`} /><span className="text-xs text-zinc-300">{label}</span><b className="ml-auto text-sm text-white">{loading ? "—" : value}</b></div>{groups[key].slice(0, 1).map((item) => <Link key={item.id} href={routeFor(item)} className="mt-2 block truncate text-xs text-sky-100">{item.title || "Operational item"}{item.blocking_reason ? ` · Blocked: ${item.blocking_reason}` : ""}</Link>)}</div>)}
-    </div>
-    {!loading && !data.items?.length ? <div className="mt-3 flex items-center gap-2 rounded-xl border border-dashed border-white/10 p-3 text-xs text-zinc-500"><CheckCircle2 className="h-4 w-4 text-emerald-300" />No open items require handover in this facility context.</div> : null}
-  </section>;
+  return <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Shift Handover</h2><p className="mt-1 text-xs text-zinc-500">Live unresolved operations plus notes for the next shift.</p></div><Link href="/facility-intelligence?module=handover" className="text-xs text-sky-200">Ask Oyi</Link></div>{error ? <p className="mt-3 rounded-lg border border-rose-500/20 bg-rose-500/10 p-2 text-xs text-rose-100">{error}</p> : null}<div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">{[["Open operations", totals.open || 0, "text-white"],["Completed today", totals.completed_today || 0, "text-emerald-200"],["Overdue", totals.overdue || 0, "text-amber-200"],["Unassigned", totals.unassigned || 0, "text-orange-200"]].map(([label, value, color]) => <div key={String(label)} className="rounded-xl bg-black/20 p-3"><span className="text-xs text-zinc-500">{label}</span><b className={`mt-1 block text-lg ${color}`}>{loading ? "—" : value}</b></div>)}</div><div className="mt-3 grid gap-2 md:grid-cols-2">{cards.map(({ key, label, value, icon: Icon, tone }) => <div key={key} className="rounded-xl border border-white/10 bg-black/20 p-3"><div className="flex items-center gap-2"><Icon className={`h-4 w-4 ${tone}`} /><span className="text-xs text-zinc-300">{label}</span><b className="ml-auto text-sm text-white">{loading ? "—" : value}</b></div>{groups[key].slice(0, 1).map((item) => <Link key={item.id} href={routeFor(item)} className="mt-2 block truncate text-xs text-sky-100">{item.title || "Operational item"}{item.blocking_reason ? ` · Blocked: ${item.blocking_reason}` : ""}</Link>)}</div>)}</div>{canCreate ? <form onSubmit={save} className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3"><label className="text-xs font-medium text-zinc-300">Today’s handover note</label><textarea value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="Open issues, risks, actions for the next shift…" className="mt-2 min-h-20 w-full rounded-lg border border-white/10 bg-black/20 p-2 text-sm text-white outline-none focus:border-sky-400/40" /><div className="mt-2 flex justify-end"><button disabled={saving || !summary.trim()} className="inline-flex items-center gap-2 rounded-lg bg-sky-500/15 px-3 py-2 text-xs text-sky-100 disabled:opacity-50"><Save className="h-3.5 w-3.5" />{saving ? "Saving" : "Save handover"}</button></div></form> : null}<div className="mt-4"><div className="flex items-center gap-2 text-xs text-zinc-400"><History className="h-3.5 w-3.5" />Recent handovers</div><div className="mt-2 space-y-2">{history.slice(0, 3).map((item) => <div key={item.id} className="rounded-xl border border-white/10 bg-black/20 p-3"><div className="flex justify-between gap-2 text-xs"><span className="text-zinc-300">{item.handover_date}</span><span className="text-zinc-500">{Array.isArray(item.open_items) ? item.open_items.length : 0} open items</span></div><p className="mt-1 whitespace-pre-wrap text-xs text-zinc-400">{item.summary || "No narrative note recorded."}</p></div>)}{!loading && !history.length ? <p className="rounded-xl border border-dashed border-white/10 p-3 text-xs text-zinc-500">No handover notes have been recorded for this facility yet.</p> : null}</div></div>{!loading && !data.items?.length ? <div className="mt-3 flex items-center gap-2 rounded-xl border border-dashed border-white/10 p-3 text-xs text-zinc-500"><CheckCircle2 className="h-4 w-4 text-emerald-300" />No open items require handover in this facility context.</div> : null}</section>;
 }
