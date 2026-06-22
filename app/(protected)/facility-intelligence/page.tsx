@@ -11,6 +11,7 @@ import { openWorkflowDrawer } from "@/components/modules/WorkflowDetailDrawer";
 import { openPredictionDrawer } from "@/components/modules/PredictionDetailDrawer";
 import { openInfrastructureDrawer } from "@/components/modules/InfrastructureDetailDrawer";
 import type { InfrastructureSource } from "@/services/infrastructurePostureService";
+import { resolveFacilityOyiTarget, type OyiTarget } from "@/services/oyiTargetRegistry";
 
 type ChatMessage = {
   id: string;
@@ -70,7 +71,7 @@ function infrastructureSource(card: Record<string, any>, item: Record<string, an
   return null;
 }
 
-function CardStack({ cards }: { cards?: Array<Record<string, any>> }) {
+function CardStack({ cards, onTarget }: { cards?: Array<Record<string, any>>; onTarget: (target: OyiTarget | null | undefined) => boolean }) {
   const visibleCards = (cards || []).filter((card) => !["capability", "capability_registry"].includes(String(card?.type || "")));
   if (!visibleCards.length) return null;
   return (
@@ -85,7 +86,11 @@ function CardStack({ cards }: { cards?: Array<Record<string, any>> }) {
             {items.length ? (
               <div className="mt-2 grid gap-1.5">
                 {items.slice(0, 4).map((item: any, itemIndex: number) => (
-                  <button key={itemIndex} type="button" onClick={() => { const type = String(card.type || item.type || ""); const workflowId = item.workflow_id || item.id; const source = infrastructureSource(card, item); if (workflowId && /workflow/i.test(type)) openWorkflowDrawer(String(workflowId)); if (/prediction/i.test(type)) openPredictionDrawer(item); if (source) openInfrastructureDrawer(source); }} className="flex w-full items-start justify-between gap-3 rounded-2xl bg-black/18 px-3 py-2 text-left text-xs">
+                  <button key={itemIndex} type="button" onClick={() => {
+                    if (onTarget(item.target || card.target)) return;
+                    // Legacy cards created before the target contract retain the prior behavior.
+                    const type = String(card.type || item.type || ""); const workflowId = item.workflow_id || item.id; const source = infrastructureSource(card, item); if (workflowId && /workflow/i.test(type)) openWorkflowDrawer(String(workflowId)); if (/prediction/i.test(type)) openPredictionDrawer(item); if (source) openInfrastructureDrawer(source);
+                  }} className="flex w-full items-start justify-between gap-3 rounded-2xl bg-black/18 px-3 py-2 text-left text-xs">
                     <span className="min-w-0 break-words text-zinc-300">{item.title || item.label || "Item"}</span>
                     <span className="max-w-[48%] shrink-0 break-words text-right text-zinc-500">{item.status || item.occurred_at?.slice?.(0, 10) || ""}</span>
                   </button>
@@ -127,16 +132,16 @@ function OperatingStatus({ execution }: { intent?: string; understood?: string; 
   );
 }
 
-function SuggestedActions({ actions }: { actions?: Array<Record<string, any>> }) {
-  const rows = (actions || []).filter((action) => action?.route && action?.label);
+function SuggestedActions({ actions, onTarget }: { actions?: Array<Record<string, any>>; onTarget: (target: OyiTarget | null | undefined) => boolean }) {
+  const rows = (actions || []).filter((action) => action?.label && (action?.route || (action?.target && action.target.target_type !== "none")));
   if (!rows.length) return null;
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       {rows.slice(0, 5).map((action, index) => (
-        <Link key={`${action.route}-${index}`} href={String(action.route)} className="inline-flex items-center gap-1.5 rounded-full border border-sky-300/14 bg-sky-400/[0.075] px-3 py-1.5 text-[11px] font-medium text-sky-100/84 transition active:scale-95">
+        <button key={`${action.route || action.label}-${index}`} type="button" onClick={() => { if (!onTarget(action.target) && action.route) window.location.assign(String(action.route)); }} className="inline-flex items-center gap-1.5 rounded-full border border-sky-300/14 bg-sky-400/[0.075] px-3 py-1.5 text-[11px] font-medium text-sky-100/84 transition active:scale-95">
           {action.label}
           <ChevronRight className="h-3 w-3" />
-        </Link>
+        </button>
       ))}
     </div>
   );
@@ -165,6 +170,13 @@ export default function FacilityIntelligenceModule() {
   const searchParams = useSearchParams();
   const { user } = useSessionStore();
   const { context } = useContextStore();
+  const [targetError, setTargetError] = useState<string | null>(null);
+
+  function openTarget(target: OyiTarget | null | undefined) {
+    const result = resolveFacilityOyiTarget(target, router);
+    if (!result.handled && result.error) setTargetError(result.error);
+    return result.handled;
+  }
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -350,6 +362,7 @@ export default function FacilityIntelligenceModule() {
           <button type="button" onClick={startNewChat} className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.09] bg-white/[0.045] text-white/78 transition active:scale-95" aria-label="New chat"><Plus className="h-4 w-4" /></button>
         </div>
       </header>
+      {targetError ? <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100">{targetError}</p> : null}
 
       <section ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-4 pr-1" style={{ paddingBottom: `calc(${composerHeight + 18}px + env(safe-area-inset-bottom))`, scrollPaddingBottom: `calc(${composerHeight + 24}px + env(safe-area-inset-bottom))`, WebkitOverflowScrolling: "touch" }}>
         <div className="space-y-3">
@@ -361,9 +374,9 @@ export default function FacilityIntelligenceModule() {
                 <div className={`max-w-[94%] overflow-hidden rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_14px_40px_rgba(0,0,0,0.22)] sm:max-w-[88%] ${mine ? "bg-sky-400 text-slate-950" : "border border-white/[0.07] bg-white/[0.045] text-zinc-100"}`}>
                   <p className={`whitespace-pre-wrap break-words ${message.pending ? "animate-pulse text-zinc-400" : ""}`}>{message.content}</p>
                   {!mine && shouldRenderSupport(message.display_mode) ? <>
-                    <CardStack cards={message.cards} />
+                    <CardStack cards={message.cards} onTarget={openTarget} />
                     <OperatingStatus execution={message.execution} />
-                    <SuggestedActions actions={message.suggested_actions} />
+                    <SuggestedActions actions={message.suggested_actions} onTarget={openTarget} />
                   </> : null}
                   {!mine && !message.pending ? (
                     <div className="mt-2.5 flex items-center gap-1.5 border-t border-white/[0.055] pt-2">
