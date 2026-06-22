@@ -493,6 +493,21 @@ export const facilityService = {
     return res.data;
   },
 
+  async updatePlatformIncident(incidentId: string, payload: Record<string, unknown>): Promise<any> {
+    const res = await API.patch(`/facility/platform/incidents/${incidentId}`, payload);
+    return res.data;
+  },
+
+  async platformIncidentTimeline(incidentId: string): Promise<PlatformListResponse> {
+    const res = await API.get(`/facility/platform/incidents/${incidentId}/timeline`);
+    return res.data;
+  },
+
+  async platformHandover(): Promise<{ summary?: Record<string, number>; items?: any[]; handover_date?: string }> {
+    const res = await API.get("/facility/platform/handover");
+    return res.data;
+  },
+
   async platformCameraInfrastructure(): Promise<PlatformListResponse> {
     const res = await API.get("/facility/platform/camera-infrastructure");
     return res.data;

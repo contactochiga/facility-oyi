@@ -30,6 +30,7 @@ import { oyiService, type OyiAwareness } from "@/services/oyiService";
 import { useSessionStore } from "@/store/useSessionStore";
 import type { FacilityOverview } from "@/types/facility";
 import OperatorQueue from "@/components/modules/OperatorQueue";
+import ShiftHandover from "@/components/modules/ShiftHandover";
 
 type LoadStatus = "loading" | "ready" | "error" | "permission";
 type Source<T> = { status: LoadStatus; data: T; message?: string };
@@ -729,6 +730,8 @@ function OverviewPage() {
       </section>
 
       <OperatorQueue />
+
+      <ShiftHandover />
 
       <MobileMetricStrip items={mobileMetrics} />
 

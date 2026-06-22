@@ -7,6 +7,8 @@ import Button from "@/components/ui/Button";
 import { notificationService, type AlertItem } from "@/services/notificationService";
 import cameraService, { type CameraEvent } from "@/services/cameraService";
 import { facilityService } from "@/services/facilityService";
+import { hasPermission } from "@/lib/oyiFoundation";
+import { useSessionStore } from "@/store/useSessionStore";
 
 type IncidentStatus = "new" | "acknowledged" | "investigating" | "resolved" | "dismissed";
 
@@ -69,6 +71,7 @@ function statusTone(value: IncidentStatus) {
 }
 
 export default function AlertsPage() {
+  const { user } = useSessionStore();
   const [notifications, setNotifications] = useState<AlertItem[]>([]);
   const [cameraEvents, setCameraEvents] = useState<Array<CameraEvent & { camera_name?: string }>>([]);
   const [statusById, setStatusById] = useState<Record<string, IncidentStatus>>({});
@@ -154,15 +157,16 @@ export default function AlertsPage() {
   async function applyAction(incident: Incident, action: IncidentStatus) {
     setConfirming(null);
     if (action === "acknowledged" && incident.canAcknowledge && incident.source === "notification") {
-      const ok = await notificationService.markRead(incident.id);
-      if (!ok) {
-        setError("Acknowledge failed. Backend notification read endpoint rejected the request.");
+      if (!hasPermission(user, "notifications.manage")) {
+        setError("You do not have access to update this alert lifecycle.");
         return;
       }
+      const result = await notificationService.updateLifecycle(incident.id, { status: "acknowledged" });
+      if (result.error) { setError(result.error); return; }
       await load();
       return;
     }
-    setError(`${action} requires the incident lifecycle backend integration. No incident state was changed.`);
+    setError(`${action} is not available for this telemetry source. No lifecycle state was changed.`);
   }
 
   return (
@@ -175,11 +179,11 @@ export default function AlertsPage() {
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-        <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Incident lifecycle</h2><p className="mt-1 text-xs text-zinc-500">Received → acknowledged → assigned → resolved. Notification acknowledgement persists; incident assignment and resolution remain pending backend integration.</p></div><ShieldAlert className="h-4 w-4 text-rose-200" /></div>
+        <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Incident lifecycle</h2><p className="mt-1 text-xs text-zinc-500">Received → acknowledged → assigned → resolved. Actions only appear where the live source supports a persisted lifecycle.</p></div><ShieldAlert className="h-4 w-4 text-rose-200" /></div>
         <div className="mt-4 space-y-3">{filtered.map((incident) => <article key={incident.id} className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2 py-1 text-[10px] uppercase ${tone(incident.severity)}`}>{incident.severity}</span><span className={`rounded-full border px-2 py-1 text-[10px] uppercase ${statusTone(incident.status)}`}>{incident.status}</span><span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase text-zinc-400">{incident.type}</span></div><h3 className="mt-3 text-sm font-semibold text-white">{incident.title}</h3><p className="mt-1 text-sm text-zinc-400">{incident.description}</p><p className="mt-2 text-xs text-zinc-500">{incident.source} · {incident.location} · {when(incident.time)}</p></div><div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => setConfirming({ incident, action: "acknowledged" })} className="gap-2"><CheckCircle2 className="h-4 w-4" /> Acknowledge</Button><Button variant="ghost" onClick={() => setConfirming({ incident, action: "investigating" })}>Investigating</Button><Button variant="ghost" onClick={() => setConfirming({ incident, action: "resolved" })}>Resolve</Button><Button variant="danger" onClick={() => setConfirming({ incident, action: "dismissed" })}>Dismiss</Button></div></div></article>)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No alerts or incidents match this view.</p> : null}</div>
       </section>
 
-      {confirming ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex justify-between gap-3"><h2 className="text-lg font-semibold text-white">Confirm incident action</h2><button type="button" onClick={() => setConfirming(null)}><X className="h-4 w-4 text-zinc-400" /></button></header><p className="mt-2 text-sm text-zinc-400">Set <span className="text-white">{confirming.incident.title}</span> to <span className="text-white">{confirming.action}</span>. Only notification acknowledge is persisted by the current backend.</p><footer className="mt-6 flex justify-end gap-2"><Button variant="ghost" onClick={() => setConfirming(null)}>Cancel</Button><Button variant={confirming.action === "dismissed" ? "danger" : "primary"} onClick={() => void applyAction(confirming.incident, confirming.action)}>{confirming.action}</Button></footer></section></div> : null}
+      {confirming ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex justify-between gap-3"><h2 className="text-lg font-semibold text-white">Confirm incident action</h2><button type="button" onClick={() => setConfirming(null)}><X className="h-4 w-4 text-zinc-400" /></button></header><p className="mt-2 text-sm text-zinc-400">Set <span className="text-white">{confirming.incident.title}</span> to <span className="text-white">{confirming.action}</span>. This only changes persisted lifecycle state for supported alert records.</p><footer className="mt-6 flex justify-end gap-2"><Button variant={confirming.action === "dismissed" ? "danger" : "primary"} onClick={() => void applyAction(confirming.incident, confirming.action)}>{confirming.action}</Button></footer></section></div> : null}
     </div>
   );
 }
