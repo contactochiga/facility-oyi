@@ -162,7 +162,7 @@ export default function AlertsPage() {
       await load();
       return;
     }
-    setStatusById((prev) => ({ ...prev, [incident.id]: action }));
+    setError(`${action} requires the incident lifecycle backend integration. No incident state was changed.`);
   }
 
   return (
@@ -175,7 +175,7 @@ export default function AlertsPage() {
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-        <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Incident lifecycle</h2><p className="mt-1 text-xs text-zinc-500">Acknowledge persists for notifications. Investigating, resolved, and dismissed are frontend-safe until backend incident lifecycle routes are added.</p></div><ShieldAlert className="h-4 w-4 text-rose-200" /></div>
+        <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Incident lifecycle</h2><p className="mt-1 text-xs text-zinc-500">Received → acknowledged → assigned → resolved. Notification acknowledgement persists; incident assignment and resolution remain pending backend integration.</p></div><ShieldAlert className="h-4 w-4 text-rose-200" /></div>
         <div className="mt-4 space-y-3">{filtered.map((incident) => <article key={incident.id} className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2 py-1 text-[10px] uppercase ${tone(incident.severity)}`}>{incident.severity}</span><span className={`rounded-full border px-2 py-1 text-[10px] uppercase ${statusTone(incident.status)}`}>{incident.status}</span><span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase text-zinc-400">{incident.type}</span></div><h3 className="mt-3 text-sm font-semibold text-white">{incident.title}</h3><p className="mt-1 text-sm text-zinc-400">{incident.description}</p><p className="mt-2 text-xs text-zinc-500">{incident.source} · {incident.location} · {when(incident.time)}</p></div><div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => setConfirming({ incident, action: "acknowledged" })} className="gap-2"><CheckCircle2 className="h-4 w-4" /> Acknowledge</Button><Button variant="ghost" onClick={() => setConfirming({ incident, action: "investigating" })}>Investigating</Button><Button variant="ghost" onClick={() => setConfirming({ incident, action: "resolved" })}>Resolve</Button><Button variant="danger" onClick={() => setConfirming({ incident, action: "dismissed" })}>Dismiss</Button></div></div></article>)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No alerts or incidents match this view.</p> : null}</div>
       </section>
 

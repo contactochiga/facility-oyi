@@ -29,6 +29,7 @@ import { facilityService, type HomeInviteRow } from "@/services/facilityService"
 import { oyiService, type OyiAwareness } from "@/services/oyiService";
 import { useSessionStore } from "@/store/useSessionStore";
 import type { FacilityOverview } from "@/types/facility";
+import OperatorQueue from "@/components/modules/OperatorQueue";
 
 type LoadStatus = "loading" | "ready" | "error" | "permission";
 type Source<T> = { status: LoadStatus; data: T; message?: string };
@@ -726,6 +727,8 @@ function OverviewPage() {
           </Panel>
         </div>
       </section>
+
+      <OperatorQueue />
 
       <MobileMetricStrip items={mobileMetrics} />
 
