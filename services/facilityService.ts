@@ -533,6 +533,26 @@ export const facilityService = {
     return res.data;
   },
 
+  async intelligenceWorkflows(status?: string): Promise<{ workflows?: any[]; summary?: Record<string, number> }> {
+    const res = await API.get("/intelligence/workflows", { params: status ? { status } : undefined });
+    return res.data;
+  },
+
+  async intelligenceWorkflow(workflowId: string): Promise<any> {
+    const res = await API.get(`/intelligence/workflows/${encodeURIComponent(workflowId)}`);
+    return res.data;
+  },
+
+  async intelligencePredictions(): Promise<{ predictions?: any[] }> {
+    const res = await API.get("/intelligence/predictions", { params: { status: "open", limit: 50 } });
+    return res.data;
+  },
+
+  async acknowledgePrediction(predictionId: string): Promise<any> {
+    const res = await API.post(`/intelligence/predictions/${encodeURIComponent(predictionId)}/ack`);
+    return res.data;
+  },
+
   async sendDeviceCommand(deviceId: string, command: Record<string, any>): Promise<any> {
     const res = await API.post(`/facility/devices/${deviceId}/command`, { command });
     return res.data;

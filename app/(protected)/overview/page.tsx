@@ -31,6 +31,7 @@ import { useSessionStore } from "@/store/useSessionStore";
 import type { FacilityOverview } from "@/types/facility";
 import OperatorQueue from "@/components/modules/OperatorQueue";
 import ShiftHandover from "@/components/modules/ShiftHandover";
+import FacilityIntelligenceExposure from "@/components/modules/FacilityIntelligenceExposure";
 
 type LoadStatus = "loading" | "ready" | "error" | "permission";
 type Source<T> = { status: LoadStatus; data: T; message?: string };
@@ -732,6 +733,8 @@ function OverviewPage() {
       <OperatorQueue />
 
       <ShiftHandover />
+
+      <FacilityIntelligenceExposure />
 
       <MobileMetricStrip items={mobileMetrics} />
 
