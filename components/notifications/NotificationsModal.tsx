@@ -2,8 +2,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { notificationService, type AlertItem } from "@/services/notificationService";
+import { useContextStore } from "@/store/useContextStore";
+import { openWorkflowDrawer } from "@/components/modules/WorkflowDetailDrawer";
+import { openInfrastructureDrawer } from "@/components/modules/InfrastructureDetailDrawer";
 
 function when(iso?: string) {
   if (!iso) return "—";
@@ -26,6 +30,8 @@ export default function NotificationsModal({
   onClose: () => void;
   onChanged?: () => void; // lets Topbar refresh badge after mark read
 }) {
+  const router = useRouter();
+  const { context, selectEstate } = useContextStore();
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<AlertItem[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -51,6 +57,54 @@ export default function NotificationsModal({
       setItems((prev) => prev.filter((x) => x.id !== id));
       onChanged?.();
     }
+  }
+
+  async function openNotification(item: AlertItem) {
+    const routing = item.routing;
+    if (!routing?.target || routing.destination === "none") {
+      setErr("This notification does not have an available source destination.");
+      return;
+    }
+    if (item.estate_id && context?.estate_id && item.estate_id !== context.estate_id) {
+      const switchContext = window.confirm("This update belongs to another facility context. Switch context to open it?");
+      if (!switchContext) return;
+      const result = await selectEstate(item.estate_id);
+      if (!result.ok) {
+        setErr("That facility context is no longer available under your current role.");
+        return;
+      }
+    }
+    const target = routing.target;
+    if (target.target_type === "workflow" && target.target_id) {
+      openWorkflowDrawer(target.target_id);
+      onClose();
+      return;
+    }
+    if (target.target_type === "infrastructure" && target.infrastructure_source) {
+      openInfrastructureDrawer(target.infrastructure_source);
+      onClose();
+      return;
+    }
+    const pageByTarget: Record<string, string> = {
+      visitor: "/visitors",
+      maintenance: "/maintenance",
+      incident: "/alerts",
+      prediction: "/facility-intelligence?module=predictions",
+      device: "/hardware-devices",
+      camera: "/cameras",
+      wallet: "/wallets",
+      service: "/services",
+      community: "/community",
+      message: "/messages",
+      handover: "/facility-intelligence?module=handover",
+    };
+    const href = pageByTarget[target.target_type];
+    if (!href) {
+      setErr("This notification source is unavailable in Facility OS.");
+      return;
+    }
+    router.push(href);
+    onClose();
   }
 
   useEffect(() => {
@@ -110,6 +164,10 @@ export default function NotificationsModal({
                 {items.map((n) => (
                   <div
                     key={n.id}
+                    onClick={() => void openNotification(n)}
+                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openNotification(n); } }}
+                    role="button"
+                    tabIndex={0}
                     className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -124,7 +182,7 @@ export default function NotificationsModal({
                       </div>
 
                       {/* ✅ Only show if you want. If backend doesn't support, it just won't remove. */}
-                      <Button variant="ghost" onClick={() => markRead(n.id)}>
+                      <Button variant="ghost" onClick={(event) => { event.stopPropagation(); void markRead(n.id); }}>
                         Mark read
                       </Button>
                     </div>

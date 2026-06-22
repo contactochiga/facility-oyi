@@ -409,16 +409,16 @@ function OverviewPage() {
   const attention = useMemo<AttentionItem[]>(() => {
     const items: AttentionItem[] = [];
     for (const item of sources.notifications.data) {
-      const text = `${item?.title || ""} ${item?.message || ""}`.toLowerCase();
-      const critical = /security|breach|emergency|critical|lockdown/.test(text);
+      if (item?.routing?.attention_eligible !== true) continue;
+      const routing = item.routing;
       items.push({
         id: `notification-${item.id}`,
-        severity: critical ? "critical" : "warning",
-        domain: critical ? "Security" : "Notification",
+        severity: routing.source_type === "incident" ? "critical" : "warning",
+        domain: String(routing.source_type || "notification").replace(/_/g, " "),
         title: item.title || "Unread operational notification",
         detail: item.message || "Review this notification.",
         href: "/alerts",
-        action: "Review alert",
+        action: routing.actionability === "acknowledge" ? "Acknowledge alert" : "Review alert",
         time: item.created_at,
       });
     }

@@ -1,6 +1,17 @@
 // services/notificationService.ts
 import API from "./api";
 
+export type NotificationRouting = {
+  source_type: "visitor" | "maintenance" | "incident" | "workflow" | "prediction" | "device" | "camera" | "edge" | "utility" | "provider" | "wallet" | "service" | "community" | "message" | "handover" | "system";
+  source_id: string | null;
+  destination: "page" | "drawer" | "queue" | "attention" | "external" | "none";
+  target: { target_type: string; target_id?: string | null; infrastructure_source?: "devices" | "cameras" | "edge" | "utilities" | "providers"; open_as: string; action?: string } | null;
+  actionability: string;
+  attention_eligible: boolean;
+  queue_eligible: boolean;
+  acknowledgement_required: boolean;
+};
+
 export type AlertItem = {
   id: string;
   title: string;
@@ -14,6 +25,7 @@ export type AlertItem = {
   assigned_to?: string | null;
   resolved_at?: string | null;
   resolution_note?: string | null;
+  routing?: NotificationRouting;
 };
 
 function unwrapList(data: any): AlertItem[] {
