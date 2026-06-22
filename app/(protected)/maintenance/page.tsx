@@ -6,6 +6,7 @@ import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
 import { maintenanceService, type MaintenanceItem, type MaintenanceStatus } from "@/services/maintenanceService";
+import VerificationBadge from "@/components/modules/VerificationBadge";
 import { facilityService, type EstateMembershipRow } from "@/services/facilityService";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AlertTriangle, CalendarClock, CheckCircle, Clock, MessageSquare, RefreshCw, UserCog, Wrench, X } from "lucide-react";
@@ -345,7 +346,12 @@ export default function MaintenancePage() {
                   <Field label="Scheduled visit" value={scheduledAt(selected) ? dateLabel(scheduledAt(selected)) : "Not scheduled"} />
                   <Field label="Assignment history" value={selected.assigned_to ? `Assigned to ${ownerOf(selected)} on ${dateLabel(selected.updated_at || selected.created_at)}` : "No assignment recorded"} />
                   <Field label="Request age" value={dateLabel(selected.created_at)} />
-                  <Field label="Completion proof" value="Pending backend evidence upload" />
+                  {selected.verified_at || selected.verified_by_resident !== undefined || selected.resident_rating !== undefined || selected.resident_feedback ? <>
+                    <Field label="Verification status" value={<VerificationBadge state={selected.verified_at || selected.verified_by_resident ? "verified" : "pending"} />} />
+                    <Field label="Resident confirmation" value={selected.verified_by_resident ? "Confirmed" : "Not recorded"} />
+                    {selected.resident_rating !== undefined && selected.resident_rating !== null ? <Field label="Resident rating" value={`${selected.resident_rating}/5`} /> : null}
+                    {selected.resident_feedback ? <Field label="Resident feedback" value={selected.resident_feedback} /> : null}
+                  </> : null}
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">

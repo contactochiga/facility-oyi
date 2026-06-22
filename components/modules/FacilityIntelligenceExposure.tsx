@@ -18,7 +18,7 @@ export default function FacilityIntelligenceExposure({ onMetrics }: { onMetrics?
   const active = workflows.filter((item) => !closed.has(String(item.workflow_status || item.status || "").toLowerCase()));
   const overdue = active.filter((item) => item.workflow_due_at && new Date(item.workflow_due_at).getTime() < Date.now());
   const escalated = active.filter((item) => String(item.workflow_status || item.status || "").toLowerCase() === "escalated");
-  const verification = active.filter((item) => ["completed", "resolved"].includes(String(item.workflow_status || item.status || "").toLowerCase()) && String(item.verification_state || "pending").toLowerCase() !== "verified");
+  const verification = workflows.filter((item) => ["completed", "resolved"].includes(String(item.workflow_status || item.status || "").toLowerCase()) && String(item.verification_state || item.metadata?.verification_state || "pending").toLowerCase() !== "verified");
   useEffect(() => { onMetrics?.({ active: active.length, overdue: overdue.length, escalated: escalated.length, verification: verification.length }); }, [active.length, escalated.length, onMetrics, overdue.length, verification.length]);
   const health = useMemo(() => [
     { label: "Devices", rows: posture.devices, bad: posture.devices.filter((row) => /offline|failed|degraded/i.test(String(row.status || row.health || row.state || ""))).length },

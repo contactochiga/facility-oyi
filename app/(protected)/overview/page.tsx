@@ -32,6 +32,7 @@ import type { FacilityOverview } from "@/types/facility";
 import OperatorQueue from "@/components/modules/OperatorQueue";
 import ShiftHandover from "@/components/modules/ShiftHandover";
 import FacilityIntelligenceExposure from "@/components/modules/FacilityIntelligenceExposure";
+import VerificationQueue from "@/components/modules/VerificationQueue";
 
 type LoadStatus = "loading" | "ready" | "error" | "permission";
 type Source<T> = { status: LoadStatus; data: T; message?: string };
@@ -303,6 +304,7 @@ function OverviewPage() {
   const [backendAwareness, setBackendAwareness] = useState<OyiAwareness | null>(null);
   const [awarenessStatus, setAwarenessStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [workflowMetrics, setWorkflowMetrics] = useState({ active: 0, overdue: 0, escalated: 0, verification: 0 });
+  const [verificationSummary, setVerificationSummary] = useState({ pending: 0, overdue: 0, failed: 0, verifiedToday: 0 });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -591,7 +593,7 @@ function OverviewPage() {
 
       <section className="rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.14),transparent_32%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">Operational Attention Center</p><h2 className="mt-1 text-xl font-semibold text-white">{estateName} is {estateState.toLowerCase()}</h2><p className="mt-2 max-w-2xl text-sm text-zinc-400">{displayedFacilityAction}</p></div><div className="flex flex-wrap gap-2"><Link href="/facility-intelligence?focus=1" className="rounded-lg border border-sky-400/20 bg-sky-500/10 px-3 py-2 text-xs text-sky-100">Ask Oyi</Link><Link href="/facility-intelligence?module=workflows" className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-200">Open Queue</Link><Link href="/alerts" className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-200">Open Incidents</Link></div></div>
-        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">{[["Attention", attention.length, "text-amber-100"],["Overdue", workflowMetrics.overdue, "text-amber-100"],["Escalated", workflowMetrics.escalated, "text-rose-100"],["Verification", workflowMetrics.verification, "text-sky-100"]].map(([label, value, color]) => <div key={String(label)} className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-xs text-zinc-500">{label}</span><b className={`mt-1 block text-lg ${color}`}>{loading ? "—" : value}</b></div>)}</div>
+        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">{[["Attention", attention.length, "text-amber-100"],["Overdue", workflowMetrics.overdue, "text-amber-100"],["Escalated", workflowMetrics.escalated, "text-rose-100"],["Verification", verificationSummary.pending + verificationSummary.overdue + verificationSummary.failed, "text-sky-100"]].map(([label, value, color]) => <div key={String(label)} className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-xs text-zinc-500">{label}</span><b className={`mt-1 block text-lg ${color}`}>{loading ? "—" : value}</b></div>)}</div>
       </section>
 
       <Panel title="Attention Stack" subtitle="The five highest-ranked items requiring review.">
@@ -619,6 +621,8 @@ function OverviewPage() {
       </Panel>
 
       <OperatorQueue limit={5} />
+
+      <VerificationQueue limit={5} onSummary={setVerificationSummary} />
 
       <FacilityIntelligenceExposure onMetrics={setWorkflowMetrics} />
 

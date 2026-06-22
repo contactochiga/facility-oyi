@@ -44,6 +44,10 @@ export type MaintenanceItem = {
   note?: string | null;
   notes?: string | null;
   completion_notes?: string | null;
+  verified_at?: string | null;
+  verified_by_resident?: boolean | null;
+  resident_rating?: number | null;
+  resident_feedback?: string | null;
   metadata?: Record<string, any> | null;
 };
 
