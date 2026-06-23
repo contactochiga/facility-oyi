@@ -24,9 +24,11 @@ import {
 } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
+import OisListItem from "@/components/ois/OisListItem";
+import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import API from "@/services/api";
 import { facilityService, type HomeInviteRow } from "@/services/facilityService";
-import { loadFacilityAttention, type AttentionSeverity, type FacilityAttentionItem } from "@/services/facilityAttentionService";
+import { loadFacilityAttention, type FacilityAttentionItem } from "@/services/facilityAttentionService";
 import { loadFacilityCommunicationPosture, type FacilityCommunicationPosture } from "@/services/facilityCommunicationPostureService";
 import { oyiService, type OyiAwareness } from "@/services/oyiService";
 import { useSessionStore } from "@/store/useSessionStore";
@@ -315,12 +317,6 @@ function SourceMessage({ value, empty }: { value: Source<unknown>; empty: string
   );
 }
 
-function severityClass(severity: AttentionSeverity) {
-  if (severity === "critical") return "border-red-500/25 bg-red-500/[0.08] text-red-200";
-  if (severity === "warning") return "border-amber-500/25 bg-amber-500/[0.08] text-amber-200";
-  return "border-sky-500/20 bg-sky-500/[0.07] text-sky-200";
-}
-
 function isClosed(value?: string) {
   return ["closed", "completed", "resolved", "cancelled"].includes(String(value || "").toLowerCase());
 }
@@ -571,19 +567,18 @@ function OverviewPage() {
 
       <Panel title="Attention Stack" subtitle="The five highest-ranked items requiring review.">
           {attention.length ? (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {attention.map((item) => (
-                <Link key={item.id} href={item.href} className="flex gap-3 rounded-xl border border-white/10 bg-black/15 p-3 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
-                  <span className={`mt-0.5 h-fit rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em] ${severityClass(item.severity)}`}>
-                    {item.severity}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs uppercase tracking-[0.14em] text-zinc-500">{item.domain}</span>
-                    <span className="mt-1 block text-sm font-medium text-zinc-100">{item.title}</span>
-                    <span className="mt-1 block text-xs leading-5 text-zinc-500">{item.detail} · {dateLabel(item.time)}</span>
-                  </span>
-                  <span className="hidden shrink-0 self-center text-xs text-sky-200 sm:block">{item.action}</span>
-                  <ChevronRight className="h-4 w-4 shrink-0 self-center text-zinc-600" />
+                <Link key={item.id} href={item.href} className="block">
+                  <OisListItem
+                    className="gap-2 p-2.5"
+                    title={<span className="block truncate text-sm text-zinc-100">{item.title}</span>}
+                    meta={<div className="flex flex-wrap gap-2">
+                      <OisStatusBadge status={item.severity === "critical" ? "critical" : item.severity === "warning" ? "warning" : "stable"} label={item.domain} />
+                      <span className="text-[11px] text-zinc-500">{dateLabel(item.time)}</span>
+                    </div>}
+                    action={<ChevronRight className="h-4 w-4 shrink-0 self-center text-zinc-600" />}
+                  />
                 </Link>
               ))}
             </div>
