@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import OisCard from "@/components/ois/OisCard";
+import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
@@ -9,7 +10,7 @@ import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
 import { serviceConfigService, type ServiceConfig } from "@/services/serviceConfigService";
 import { formatMoney } from "@/lib/format";
-import { Activity, Eye, RefreshCw, Settings, ShieldCheck, ToggleLeft, ToggleRight, Wallet, X } from "lucide-react";
+import { Activity, Eye, RefreshCw, Settings, ShieldCheck, ToggleLeft, ToggleRight, Wallet } from "lucide-react";
 
 const FALLBACK_SERVICES: ServiceConfig[] = [
   { service_key: "utility_token", title: "Utility Token", description: "Resident electricity token purchase", active: true, status: "pending configuration", billing_mode: "metered" },
@@ -121,7 +122,9 @@ export default function FacilityServicesPage() {
 
       <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Recent resident service activity</h2><div className="mt-4 space-y-2">{payments.slice(0, 10).map((payment, index) => <OisListItem key={payment.id || payment.reference || index} title={payment.service_title || payment.type || "Service payment"} description={`${payment.home_label || payment.home_name || "Home pending"} · ${payment.amount ? formatMoney(Number(payment.amount), "NGN") : "Amount pending"}`} meta={dateLabel(payment.created_at)} status={readinessTone(payment.status || "Pending configuration")} />)}{!payments.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident service activity has synced yet.</div> : null}</div></OisCard>
 
-      {selected ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex justify-between gap-4"><div><p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Service configuration</p><h2 className="mt-1 text-lg font-semibold text-white">{serviceTitle(selected)}</h2></div><button type="button" onClick={() => setSelected(null)} className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:text-white"><X className="h-4 w-4" /></button></header><div className="mt-5 grid gap-3 sm:grid-cols-2"><Field label="Service key" value={serviceKey(selected)} /><Field label="Readiness" value={<OisStatusBadge status={readinessTone(readiness(selected))} label={readiness(selected)} />} /><Field label="Account label" value={selected.account_label || "Pending source"} /><Field label="Account hint" value={selected.account_hint || "Pending source"} /><Field label="Unit cost" value={selected.unit_cost ? formatMoney(Number(selected.unit_cost), "NGN") : "Pending source"} /><Field label="Updated" value={dateLabel(selected.updated_at)} /></div><div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-zinc-400"><Settings className="mb-2 h-4 w-4 text-sky-200" />Configuration editor uses <code>/services/config/:serviceKey</code>. If the operator lacks <code>settings.manage</code>, controls remain visible but fail closed through backend permissions.</div></section></div> : null}
+      <OisDrawer open={Boolean(selected)} onClose={() => setSelected(null)} title={selected ? serviceTitle(selected) : "Service configuration"} subtitle={selected ? `Service configuration · ${serviceKey(selected)}` : undefined} width="md">
+        {selected ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selected.description || "No description configured."}</p><p className="mt-2 text-xs text-zinc-500">{selected.account_label || "Pending source"}</p></div><OisStatusBadge status={readinessTone(readiness(selected))} label={readiness(selected)} /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Field label="Service key" value={serviceKey(selected)} /><Field label="Readiness" value={<OisStatusBadge status={readinessTone(readiness(selected))} label={readiness(selected)} />} /><Field label="Account label" value={selected.account_label || "Pending source"} /><Field label="Account hint" value={selected.account_hint || "Pending source"} /><Field label="Unit cost" value={selected.unit_cost ? formatMoney(Number(selected.unit_cost), "NGN") : "Pending source"} /><Field label="Updated" value={dateLabel(selected.updated_at)} /></div><div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-zinc-400"><Settings className="mb-2 h-4 w-4 text-sky-200" />Configuration editor uses <code>/services/config/:serviceKey</code>. If the operator lacks <code>settings.manage</code>, controls remain visible but fail closed through backend permissions.</div></div> : null}
+      </OisDrawer>
     </div>
   );
 }

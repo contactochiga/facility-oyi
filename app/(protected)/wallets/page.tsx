@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import OisCard from "@/components/ois/OisCard";
+import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
@@ -12,7 +13,7 @@ import { walletsService } from "@/services/walletsService";
 import { formatMoney } from "@/lib/format";
 import { useSessionStore } from "@/store/useSessionStore";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, Download, Eye, RefreshCw, Wallet, X } from "lucide-react";
+import { AlertTriangle, Download, Eye, RefreshCw, Wallet } from "lucide-react";
 
 type WalletActivityRow = {
   id?: string;
@@ -116,7 +117,9 @@ export default function WalletsPage() {
         </aside>
       </section>
 
-      {selected ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex justify-between gap-4"><div><p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Transaction detail</p><h2 className="mt-1 text-lg font-semibold text-white">{selected.service_title || selected.type || "Wallet transaction"}</h2></div><button type="button" onClick={() => setSelected(null)} className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:text-white"><X className="h-4 w-4" /></button></header><div className="mt-5 grid gap-3 sm:grid-cols-2"><Detail label="Amount" value={formatMoney(Number(selected.amount || 0), selected.currency || wallet.currency)} /><Detail label="Source" value={selected.source || selected.user_name || selected.user_email || "Resident wallet source"} /><Detail label="Destination" value={selected.destination || "Estate service wallet"} /><Detail label="Reference" value={selected.reference || selected.id} /><Detail label="Status" value={<OisStatusBadge status={statusTone(selected.status)} label={selected.status || "pending"} />} /><Detail label="Timestamp" value={dateLabel(selected.created_at)} /><Detail label="Home" value={selected.home_name || selected.home_label || "Home pending"} /><Detail label="Action" value={/failed|pending|rejected/.test(lower(selected.status)) ? "Review with resident/service provider" : "No operator action required"} /></div></section></div> : null}
+      <OisDrawer open={Boolean(selected)} onClose={() => setSelected(null)} title={selected?.service_title || selected?.type || "Wallet transaction"} subtitle={selected ? `${selected.reference || selected.id || "Reference pending"} · ${dateLabel(selected.created_at)}` : undefined} width="md">
+        {selected ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selected.source || selected.user_name || selected.user_email || "Resident wallet source"}</p><p className="mt-2 text-xs text-zinc-500">{selected.destination || "Estate service wallet"}</p></div><div className="flex flex-wrap gap-2"><OisStatusBadge status={statusTone(selected.status)} label={selected.status || "pending"} /><span className="text-lg font-semibold text-white">{formatMoney(Number(selected.amount || 0), selected.currency || wallet.currency)}</span></div></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Detail label="Amount" value={formatMoney(Number(selected.amount || 0), selected.currency || wallet.currency)} /><Detail label="Source" value={selected.source || selected.user_name || selected.user_email || "Resident wallet source"} /><Detail label="Destination" value={selected.destination || "Estate service wallet"} /><Detail label="Reference" value={selected.reference || selected.id} /><Detail label="Status" value={<OisStatusBadge status={statusTone(selected.status)} label={selected.status || "pending"} />} /><Detail label="Timestamp" value={dateLabel(selected.created_at)} /><Detail label="Home" value={selected.home_name || selected.home_label || "Home pending"} /><Detail label="Action" value={/failed|pending|rejected/.test(lower(selected.status)) ? "Review with resident/service provider" : "No operator action required"} /></div></div> : null}
+      </OisDrawer>
     </div>
   );
 }

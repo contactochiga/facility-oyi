@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import OisCard from "@/components/ois/OisCard";
+import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
@@ -12,7 +13,7 @@ import { maintenanceService, type MaintenanceItem, type MaintenanceStatus } from
 import VerificationBadge from "@/components/modules/VerificationBadge";
 import { facilityService, type EstateMembershipRow } from "@/services/facilityService";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, CalendarClock, CheckCircle, Clock, MessageSquare, RefreshCw, UserCog, Wrench, X } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle, Clock, MessageSquare, RefreshCw, UserCog, Wrench } from "lucide-react";
 
 type Lane = "active" | "unassigned" | "scheduled" | "waiting" | "completed" | "all";
 
@@ -327,72 +328,16 @@ export default function MaintenancePage() {
         </aside>
       </section>
 
-      {selected ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm">
-          <section className="max-h-[92vh] w-full max-w-5xl overflow-auto rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl">
-            <header className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Work order</p>
-                <h2 className="mt-1 text-xl font-semibold text-white">{selected.title || "Maintenance request"}</h2>
-                <p className="mt-1 text-sm text-zinc-500">{locationOf(selected)} · {dateLabel(selected.created_at)}</p>
-              </div>
-              <button type="button" onClick={() => setSelected(null)} className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:text-white"><X className="h-4 w-4" /></button>
-            </header>
-
-            <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_360px]">
-              <div className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Status" value={<OisStatusBadge status={statusTone(selected.status)} label={titleCase(selected.status)} />} />
-                  <Field label="Priority" value={<OisStatusBadge status={priorityTone(selected.priority)} label={titleCase(selected.priority || "medium")} />} />
-                  <Field label="Requester" value={requesterOf(selected)} />
-                  <Field label="Current owner" value={ownerOf(selected)} />
-                  <Field label="Scheduled visit" value={scheduledAt(selected) ? dateLabel(scheduledAt(selected)) : "Not scheduled"} />
-                  <Field label="Assignment history" value={selected.assigned_to ? `Assigned to ${ownerOf(selected)} on ${dateLabel(selected.updated_at || selected.created_at)}` : "No assignment recorded"} />
-                  <Field label="Request age" value={dateLabel(selected.created_at)} />
-                  {selected.verified_at || selected.verified_by_resident !== undefined || selected.resident_rating !== undefined || selected.resident_feedback ? <>
-                    <Field label="Verification status" value={<VerificationBadge state={selected.verified_at || selected.verified_by_resident ? "verified" : "pending"} />} />
-                    <Field label="Resident confirmation" value={selected.verified_by_resident ? "Confirmed" : "Not recorded"} />
-                    {selected.resident_rating !== undefined && selected.resident_rating !== null ? <Field label="Resident rating" value={`${selected.resident_rating}/5`} /> : null}
-                    {selected.resident_feedback ? <Field label="Resident feedback" value={selected.resident_feedback} /> : null}
-                  </> : null}
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <h3 className="text-sm font-semibold text-white">Resident communication timeline</h3>
-                  <div className="mt-4 space-y-3">
-                    {timeline.map((item, index) => (
-                      <div key={`${item.label}-${index}`} className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                        <MessageSquare className="mt-0.5 h-4 w-4 text-sky-200" />
-                        <div>
-                          <div className="text-sm text-white">{item.label}</div>
-                          <div className="mt-1 text-sm text-zinc-400">{item.body}</div>
-                          <div className="mt-1 text-xs text-zinc-600">{dateLabel(item.time)}</div>
-                        </div>
-                      </div>
-                    ))}
-                    {!timeline.length ? <p className="text-sm text-zinc-500">No timeline source is available for this request.</p> : null}
-                  </div>
-                </div>
-              </div>
-
-              <aside className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                <h3 className="text-sm font-semibold text-white">Update lifecycle</h3>
-                <div className="mt-4 grid gap-3">
-                  <label className="text-xs text-zinc-400">Status<select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none">{STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-                  <label className="text-xs text-zinc-400">Assigned operator<select value={form.assigned_to} onChange={(event) => setForm((current) => ({ ...current, assigned_to: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none"><option value="">Unassigned</option>{operators.map((operator) => <option key={operator.id} value={operator.users?.id || ""}>{operator.users?.full_name || operator.users?.username || operator.users?.email || "Unnamed operator"} · {String(operator.role || "operator").replace(/_/g, " ")}</option>)}</select></label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="text-xs text-zinc-400">Schedule date<input type="date" value={form.schedule_date} onChange={(event) => setForm((current) => ({ ...current, schedule_date: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label>
-                    <label className="text-xs text-zinc-400">Time<input type="time" value={form.schedule_time} onChange={(event) => setForm((current) => ({ ...current, schedule_time: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label>
-                  </div>
-                  <label className="text-xs text-zinc-400">Resident / operator note<textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} rows={4} placeholder="Visible update note if backend supports it" className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label>
-                  <Button onClick={() => void saveWorkOrder()} disabled={saving}>{saving ? "Saving" : "Save update"}</Button>
-                  <p className="text-xs leading-5 text-zinc-500">Backend persists status and assigned operator. Technician acknowledgement and completion proof remain pending backend workflow support.</p>
-                </div>
-              </aside>
-            </div>
-          </section>
-        </div>
-      ) : null}
+      <OisDrawer
+        open={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        title={selected?.title || "Maintenance request"}
+        subtitle={selected ? `${locationOf(selected)} · ${dateLabel(selected.created_at)}` : undefined}
+        width="lg"
+        footer={selected ? <div className="space-y-3"><Button onClick={() => void saveWorkOrder()} disabled={saving}>{saving ? "Saving" : "Save update"}</Button><p className="text-xs leading-5 text-zinc-500">Backend persists status and assigned operator. Technician acknowledgement and completion proof remain pending backend workflow support.</p></div> : null}
+      >
+        {selected ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selected.description || selected.title || "Maintenance request created."}</p><p className="mt-2 text-xs text-zinc-500">Requester {requesterOf(selected)}</p></div><div className="flex flex-wrap gap-2"><OisStatusBadge status={statusTone(selected.status)} label={titleCase(selected.status)} /><OisStatusBadge status={priorityTone(selected.priority)} label={titleCase(selected.priority || "medium")} /></div></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Field label="Requester" value={requesterOf(selected)} /><Field label="Current owner" value={ownerOf(selected)} /><Field label="Scheduled visit" value={scheduledAt(selected) ? dateLabel(scheduledAt(selected)) : "Not scheduled"} /><Field label="Assignment history" value={selected.assigned_to ? `Assigned to ${ownerOf(selected)} on ${dateLabel(selected.updated_at || selected.created_at)}` : "No assignment recorded"} /><Field label="Request age" value={dateLabel(selected.created_at)} />{selected.verified_at || selected.verified_by_resident !== undefined || selected.resident_rating !== undefined || selected.resident_feedback ? <><Field label="Verification status" value={<VerificationBadge state={selected.verified_at || selected.verified_by_resident ? "verified" : "pending"} />} /><Field label="Resident confirmation" value={selected.verified_by_resident ? "Confirmed" : "Not recorded"} />{selected.resident_rating !== undefined && selected.resident_rating !== null ? <Field label="Resident rating" value={`${selected.resident_rating}/5`} /> : null}{selected.resident_feedback ? <Field label="Resident feedback" value={selected.resident_feedback} /> : null}</> : null}</div><OisCard variant="evidence" className="p-4"><h3 className="text-sm font-semibold text-white">Resident communication timeline</h3><div className="mt-4 space-y-3">{timeline.map((item, index) => <div key={`${item.label}-${index}`} className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3"><MessageSquare className="mt-0.5 h-4 w-4 text-sky-200" /><div><div className="text-sm text-white">{item.label}</div><div className="mt-1 text-sm text-zinc-400">{item.body}</div><div className="mt-1 text-xs text-zinc-600">{dateLabel(item.time)}</div></div></div>)}{!timeline.length ? <p className="text-sm text-zinc-500">No timeline source is available for this request.</p> : null}</div></OisCard><OisCard variant="evidence" className="p-4"><h3 className="text-sm font-semibold text-white">Update lifecycle</h3><div className="mt-4 grid gap-3"><label className="text-xs text-zinc-400">Status<select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none">{STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="text-xs text-zinc-400">Assigned operator<select value={form.assigned_to} onChange={(event) => setForm((current) => ({ ...current, assigned_to: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none"><option value="">Unassigned</option>{operators.map((operator) => <option key={operator.id} value={operator.users?.id || ""}>{operator.users?.full_name || operator.users?.username || operator.users?.email || "Unnamed operator"} · {String(operator.role || "operator").replace(/_/g, " ")}</option>)}</select></label><div className="grid grid-cols-2 gap-2"><label className="text-xs text-zinc-400">Schedule date<input type="date" value={form.schedule_date} onChange={(event) => setForm((current) => ({ ...current, schedule_date: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label><label className="text-xs text-zinc-400">Time<input type="time" value={form.schedule_time} onChange={(event) => setForm((current) => ({ ...current, schedule_time: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label></div><label className="text-xs text-zinc-400">Resident / operator note<textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} rows={4} placeholder="Visible update note if backend supports it" className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label></div></OisCard></div> : null}
+      </OisDrawer>
     </div>
   );
 }

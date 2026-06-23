@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import OisCard from "@/components/ois/OisCard";
+import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
@@ -9,7 +10,7 @@ import Button from "@/components/ui/Button";
 import messagesService, { type MessageLite, type ModerationReport, type ResidentLite, type ThreadLite } from "@/services/messagesService";
 import { hasPermission } from "@/lib/oyiFoundation";
 import { useSessionStore } from "@/store/useSessionStore";
-import { AlertTriangle, CheckCircle, MessageSquare, RefreshCw, Search, Send, ShieldAlert, X } from "lucide-react";
+import { AlertTriangle, CheckCircle, MessageSquare, RefreshCw, Search, Send, ShieldAlert } from "lucide-react";
 
 type Tab = "inbox" | "resident_threads" | "operator_threads" | "reports" | "escalations";
 type ActionState = "open" | "under_review" | "resolved" | "dismissed";
@@ -151,7 +152,9 @@ export default function FacilityMessagesPage() {
         </section>
       )}
 
-      {selectedReport ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-xl rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex justify-between gap-4"><div><p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Moderation report</p><h2 className="mt-1 text-lg font-semibold text-white">{selectedReport.reason || "Reported message"}</h2></div><button type="button" onClick={() => setSelectedReport(null)} className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:text-white"><X className="h-4 w-4" /></button></header><div className="mt-5 grid gap-3"><div className="grid gap-2 sm:grid-cols-2"><Field label="Status" value={<OisStatusBadge status={statusTone(selectedReport.status)} label={selectedReport.status || "open"} />} /><Field label="Created" value={dateLabel(selectedReport.created_at)} /><Field label="Moderator" value={selectedReport.moderator_id || "Awaiting moderation data"} /><Field label="Action taken" value={selectedReport.action || "Pending review"} /></div><select value={workflowState} onChange={(e) => setWorkflowState(e.target.value as ActionState)} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white"><option value="open">Open</option><option value="under_review">Under Review</option><option value="resolved">Resolved</option><option value="dismissed">Dismissed</option></select><textarea value={moderationNote} onChange={(e) => setModerationNote(e.target.value)} rows={4} placeholder="Moderation notes" className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /><div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => void resolveReport("dismiss")} disabled={saving}>Dismiss</Button><Button onClick={() => void resolveReport("hide_message")} disabled={saving}>Hide message</Button><Button variant="danger" onClick={() => void resolveReport("mute_sender")} disabled={saving}>Mute sender 24h</Button></div></div></section></div> : null}
+      <OisDrawer open={Boolean(selectedReport)} onClose={() => setSelectedReport(null)} title={selectedReport?.reason || "Reported message"} subtitle={selectedReport ? `Moderation report · ${dateLabel(selectedReport.created_at)}` : undefined} width="md" footer={selectedReport ? <div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => void resolveReport("dismiss")} disabled={saving}>Dismiss</Button><Button onClick={() => void resolveReport("hide_message")} disabled={saving}>Hide message</Button><Button variant="danger" onClick={() => void resolveReport("mute_sender")} disabled={saving}>Mute sender 24h</Button></div> : null}>
+        {selectedReport ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selectedReport.action || "Pending review"}</p><p className="mt-2 text-xs text-zinc-500">{selectedReport.moderator_id || "Awaiting moderation data"}</p></div><OisStatusBadge status={statusTone(selectedReport.status)} label={selectedReport.status || "open"} /></div></OisCard><div className="grid gap-2 sm:grid-cols-2"><Field label="Status" value={<OisStatusBadge status={statusTone(selectedReport.status)} label={selectedReport.status || "open"} />} /><Field label="Created" value={dateLabel(selectedReport.created_at)} /><Field label="Moderator" value={selectedReport.moderator_id || "Awaiting moderation data"} /><Field label="Action taken" value={selectedReport.action || "Pending review"} /></div><select value={workflowState} onChange={(e) => setWorkflowState(e.target.value as ActionState)} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white"><option value="open">Open</option><option value="under_review">Under Review</option><option value="resolved">Resolved</option><option value="dismissed">Dismissed</option></select><textarea value={moderationNote} onChange={(e) => setModerationNote(e.target.value)} rows={4} placeholder="Moderation notes" className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></div> : null}
+      </OisDrawer>
     </div>
   );
 }
