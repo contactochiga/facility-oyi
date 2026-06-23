@@ -15,8 +15,11 @@ import {
   Search,
   Settings2,
   ShieldAlert,
-  X,
 } from "lucide-react";
+import OisCard from "@/components/ois/OisCard";
+import OisDrawer from "@/components/ois/OisDrawer";
+import OisListItem from "@/components/ois/OisListItem";
+import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import {
@@ -52,23 +55,23 @@ function date(value?: string | null) {
 
 function tone(status?: string | null) {
   const value = text(status, "unknown").toLowerCase();
-  if (["online", "connected", "active", "seen", "success"].includes(value)) return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
-  if (["offline", "unreachable", "provider_error", "error", "failed"].includes(value)) return "border-rose-500/20 bg-rose-500/10 text-rose-200";
-  if (["pending_assignment", "pending_configuration", "pending_registration", "unknown"].includes(value)) return "border-amber-500/20 bg-amber-500/10 text-amber-100";
-  return "border-white/10 bg-white/5 text-zinc-300";
+  if (["online", "connected", "active", "seen", "success"].includes(value)) return "stable";
+  if (["offline", "unreachable", "provider_error", "error", "failed"].includes(value)) return "critical";
+  if (["pending_assignment", "pending_configuration", "pending_registration", "unknown"].includes(value)) return "pending";
+  return "unavailable";
 }
 
 function Status({ value }: { value?: string | null }) {
-  return <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em] ${tone(value)}`}>{text(value, "unknown").replace(/_/g, " ")}</span>;
+  return <OisStatusBadge status={tone(value)} label={text(value, "unknown").replace(/_/g, " ")} className="uppercase tracking-[0.12em]" />;
 }
 
 function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) {
   return (
-    <article className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+    <OisCard className="p-4">
       <p className="text-[10px] uppercase tracking-[0.17em] text-zinc-500">{label}</p>
       <p className="mt-3 text-2xl font-semibold tracking-tight text-white">{value}</p>
       <p className="mt-2 text-xs leading-5 text-zinc-500">{hint}</p>
-    </article>
+    </OisCard>
   );
 }
 
@@ -268,7 +271,7 @@ export default function HardwareDevicesPage() {
       </nav>
 
       {tab === "registry" ? (
-        <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+        <OisCard className="p-5">
           <header className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-white">Registry</h2>
@@ -276,7 +279,7 @@ export default function HardwareDevicesPage() {
             </div>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search registry" className="w-full max-w-xs rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40" />
           </header>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[1100px] text-left text-xs">
               <thead className="text-[10px] uppercase tracking-[0.14em] text-zinc-600"><tr><th className="pb-3">Device</th><th>Type</th><th>Provider</th><th>Oyi ID</th><th>External ID</th><th>Location</th><th>Status</th><th>Last seen</th><th /></tr></thead>
               <tbody className="divide-y divide-white/5">
@@ -292,7 +295,22 @@ export default function HardwareDevicesPage() {
             </table>
             {!filtered.length && !loading ? <p className="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No registered devices match this view.</p> : null}
           </div>
-        </section>
+          <div className="mt-4 space-y-2 md:hidden">
+            {filtered.map((device) => (
+              <OisListItem
+                key={device.id}
+                title={device.name}
+                description={`${location(device)} · ${text(device.provider, "Provider unavailable")}`}
+                meta={`Last seen ${date(device.last_seen_at)}`}
+                status={tone(device.status)}
+                action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />}
+                onClick={() => setDetail(device)}
+                className="w-full text-left"
+              />
+            ))}
+            {!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No registered devices match this view.</p> : null}
+          </div>
+        </OisCard>
       ) : null}
 
       {tab === "discovery" ? (
@@ -333,9 +351,27 @@ export default function HardwareDevicesPage() {
 
       {tab === "telemetry" ? <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><h2 className="text-sm font-semibold text-white">Infrastructure Telemetry Lane</h2><p className="mt-1 text-xs text-zinc-500">Operational attention only. No synthetic analytics.</p><div className="mt-4 space-y-2">{(data?.telemetry || []).map((event) => <article key={event.id} className="flex flex-col gap-3 rounded-xl border border-white/10 bg-black/15 px-4 py-3 md:flex-row md:items-center"><AlertTriangle className={`h-4 w-4 shrink-0 ${event.severity === "high" ? "text-rose-200" : "text-amber-200"}`} /><span className="min-w-0 flex-1"><span className="block text-sm text-white">{event.affected}</span><span className="mt-1 block text-xs text-zinc-500">{event.domain} · {event.location} · {date(event.time)}</span></span><span className="text-xs text-zinc-400">{event.action}</span></article>)}{!data?.telemetry?.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 px-3 py-3 text-sm text-zinc-500">No infrastructure attention items reported by active sources.</p> : null}</div></section> : null}
 
-      {assigning ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl"><header className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold text-white">Assign Device</h2><p className="mt-1 text-sm text-zinc-500">{assigning.name} · {assigning.provider}</p></div><button type="button" onClick={() => setAssigning(null)} className="rounded-xl border border-white/10 bg-white/5 p-2 text-zinc-400"><X className="h-4 w-4" /></button></header><div className="mt-5 grid gap-3"><select value={homeId} onChange={(event) => { setHomeId(event.target.value); setRoomId(""); }} className="rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-white"><option value="">Select home</option>{(data?.homes || []).map((home) => <option key={home.id} value={home.id}>{text(home.name || [home.block, home.unit].filter(Boolean).join(" / "), "Home")}</option>)}</select><select value={roomId} onChange={(event) => setRoomId(event.target.value)} disabled={!homeId} className="rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-white disabled:opacity-50"><option value="">Home level only</option>{rooms.map((room) => <option key={room.id} value={room.id}>{text(room.name, "Room")}</option>)}</select></div><footer className="mt-6 flex justify-end gap-2"><Button variant="ghost" onClick={() => setAssigning(null)}>Cancel</Button><Button onClick={() => void saveAssignment()} disabled={saving || !homeId}>{saving ? "Saving" : "Save Assignment"}</Button></footer></section></div> : null}
+      <OisDrawer
+        open={Boolean(assigning)}
+        onClose={() => setAssigning(null)}
+        title="Assign Device"
+        subtitle={assigning ? `${assigning.name} · ${assigning.provider}` : undefined}
+        width="md"
+        footer={assigning ? <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setAssigning(null)}>Cancel</Button><Button onClick={() => void saveAssignment()} disabled={saving || !homeId}>{saving ? "Saving" : "Save Assignment"}</Button></div> : null}
+      >
+        {assigning ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-white">{location(assigning)}</p><p className="mt-2 text-xs text-zinc-500">{assigning.oyi_id}</p></div><OisStatusBadge status={tone(assigning.status)} label={text(assigning.status, "unknown").replace(/_/g, " ")} className="uppercase" /></div></OisCard><div className="grid gap-3"><select value={homeId} onChange={(event) => { setHomeId(event.target.value); setRoomId(""); }} className="rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-white"><option value="">Select home</option>{(data?.homes || []).map((home) => <option key={home.id} value={home.id}>{text(home.name || [home.block, home.unit].filter(Boolean).join(" / "), "Home")}</option>)}</select><select value={roomId} onChange={(event) => setRoomId(event.target.value)} disabled={!homeId} className="rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-white disabled:opacity-50"><option value="">Home level only</option>{rooms.map((room) => <option key={room.id} value={room.id}>{text(room.name, "Room")}</option>)}</select></div></div> : null}
+      </OisDrawer>
 
-      {detail ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-xl rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl"><header className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold text-white">{detail.name}</h2><p className="mt-1 text-sm text-zinc-500">{detail.provider} · {detail.type}</p></div><button type="button" onClick={() => setDetail(null)} className="rounded-xl border border-white/10 bg-white/5 p-2 text-zinc-400"><X className="h-4 w-4" /></button></header><div className="mt-5 grid gap-3 text-sm sm:grid-cols-2"><p className="text-zinc-500">Oyi ID<span className="mt-1 block break-all font-mono text-xs text-zinc-300">{detail.oyi_id}</span></p><p className="text-zinc-500">External ID<span className="mt-1 block break-all font-mono text-xs text-zinc-300">{detail.external_id || "Unavailable"}</span></p><p className="text-zinc-500">Location<span className="mt-1 block text-zinc-300">{location(detail)}</span></p><p className="text-zinc-500">Last seen<span className="mt-1 block text-zinc-300">{date(detail.last_seen_at)}</span></p></div><footer className="mt-6 flex flex-wrap gap-2"><Button variant="ghost" onClick={() => { setDetail(null); void load(); }} className="gap-2"><RefreshCw className="h-4 w-4" /> Refresh Status</Button><Button variant="ghost" disabled className="gap-2"><LocateFixed className="h-4 w-4" /> Locate unavailable</Button><Button onClick={() => { setDetail(null); openAssignment(detail); }} className="gap-2"><Settings2 className="h-4 w-4" /> Assignment</Button></footer></section></div> : null}
+      <OisDrawer
+        open={Boolean(detail)}
+        onClose={() => setDetail(null)}
+        title={detail?.name || "Device detail"}
+        subtitle={detail ? `${detail.provider} · ${detail.type}` : undefined}
+        width="md"
+        footer={detail ? <div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => { setDetail(null); void load(); }} className="gap-2"><RefreshCw className="h-4 w-4" /> Refresh Status</Button><Button variant="ghost" disabled className="gap-2"><LocateFixed className="h-4 w-4" /> Locate unavailable</Button><Button onClick={() => { setDetail(null); openAssignment(detail); }} className="gap-2"><Settings2 className="h-4 w-4" /> Assignment</Button></div> : null}
+      >
+        {detail ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-white">{location(detail)}</p><p className="mt-2 text-xs text-zinc-500">Last seen {date(detail.last_seen_at)}</p></div><OisStatusBadge status={tone(detail.status)} label={text(detail.status, "unknown").replace(/_/g, " ")} className="uppercase" /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Oyi ID</span><span className="mt-1 block break-all font-mono text-xs text-zinc-300">{detail.oyi_id}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">External ID</span><span className="mt-1 block break-all font-mono text-xs text-zinc-300">{detail.external_id || "Unavailable"}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Location</span><span className="mt-1 block text-zinc-300">{location(detail)}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Last seen</span><span className="mt-1 block text-zinc-300">{date(detail.last_seen_at)}</span></OisCard></div></div> : null}
+      </OisDrawer>
     </div>
   );
 }

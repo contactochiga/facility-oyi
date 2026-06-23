@@ -13,7 +13,7 @@ import { maintenanceService, type MaintenanceItem, type MaintenanceStatus } from
 import VerificationBadge from "@/components/modules/VerificationBadge";
 import { facilityService, type EstateMembershipRow } from "@/services/facilityService";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, CalendarClock, CheckCircle, Clock, MessageSquare, RefreshCw, UserCog, Wrench } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle, ChevronRight, Clock, MessageSquare, RefreshCw, UserCog, Wrench } from "lucide-react";
 
 type Lane = "active" | "unassigned" | "scheduled" | "waiting" | "completed" | "all";
 
@@ -306,7 +306,7 @@ export default function MaintenancePage() {
           <div className="mt-4 hidden md:block">
             <DataTable data={filtered} columns={columns} title="Work Order Registry" searchKey="title" />
           </div>
-          <div className="mt-4 space-y-2 md:hidden">{filtered.map((item) => <OisListItem key={item.id} title={item.title || "Maintenance request"} description={`${locationOf(item)} · ${dateLabel(item.created_at)}`} meta={ownerOf(item)} status={statusTone(item.status)} priority={titleCase(item.priority || "medium")} onClick={() => open(item)} className="w-full text-left" />)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No requests in this lane.</p> : null}</div>
+          <div className="mt-4 space-y-2 md:hidden">{filtered.map((item) => <OisListItem key={item.id} title={item.title || "Maintenance request"} description={`${locationOf(item)} · ${titleCase(item.priority || "medium")} priority`} meta={scheduledAt(item) ? `Visit ${dateLabel(scheduledAt(item))}` : ownerOf(item)} status={statusTone(item.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => open(item)} className="w-full text-left" />)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No requests in this lane.</p> : null}</div>
         </OisCard>
 
         <aside className="space-y-4">

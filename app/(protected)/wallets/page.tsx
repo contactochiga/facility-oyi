@@ -13,7 +13,7 @@ import { walletsService } from "@/services/walletsService";
 import { formatMoney } from "@/lib/format";
 import { useSessionStore } from "@/store/useSessionStore";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, Download, Eye, RefreshCw, Wallet } from "lucide-react";
+import { AlertTriangle, ChevronRight, Download, Eye, RefreshCw, Wallet } from "lucide-react";
 
 type WalletActivityRow = {
   id?: string;
@@ -109,7 +109,7 @@ export default function WalletsPage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <OisCard className="p-4"><div className="hidden md:block"><DataTable data={rows} columns={columns} title="Transaction Registry" searchKey="reference" /></div><div className="space-y-2 md:hidden">{rows.map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Wallet transaction"} description={formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} meta={`${row.home_name || row.user_name || "Estate payment"} · ${dateLabel(row.created_at)}`} status={statusTone(row.status)} onClick={() => setSelected(row)} className="w-full text-left" />)}{!rows.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No transaction records are available.</p> : null}</div></OisCard>
+        <OisCard className="p-4"><div className="hidden md:block"><DataTable data={rows} columns={columns} title="Transaction Registry" searchKey="reference" /></div><div className="space-y-2 md:hidden">{rows.map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Wallet transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${row.home_name || row.user_name || "Estate payment"}`} meta={dateLabel(row.created_at)} status={statusTone(row.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => setSelected(row)} className="w-full text-left" />)}{!rows.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No transaction records are available.</p> : null}</div></OisCard>
         <aside className="space-y-4">
           <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Wallet attention queue</h2><div className="mt-3 space-y-2">{[...failed, ...pending].slice(0, 8).map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${dateLabel(row.created_at)}`} status={statusTone(row.status)} onClick={() => setSelected(row)} className="w-full text-left" />)}{![...failed, ...pending].length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No failed or pending finance items.</div> : null}</div></OisCard>
           <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Operational exports</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Export Pending Backend Support. No local export is generated until a backend export contract exists.</p><Button variant="ghost" disabled className="mt-3 gap-2"><Download className="h-4 w-4" />Export pending</Button></OisCard>

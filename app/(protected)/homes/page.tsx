@@ -7,12 +7,13 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import OisCard from "@/components/ois/OisCard";
+import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
-import { ArrowLeft, Building2, DoorOpen, Home, Pencil, Search, Users } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, DoorOpen, Home, Pencil, Search, Users } from "lucide-react";
 
 type HomeRow = {
   id: string;
@@ -88,6 +89,7 @@ export default function HomesPage() {
 
   // Expand → rooms cache
   const [openHomeId, setOpenHomeId] = useState<string | null>(null);
+  const [mobileHomeId, setMobileHomeId] = useState<string | null>(null);
   const [roomsByHome, setRoomsByHome] = useState<Record<string, RoomRow[]>>({});
   const [roomsLoading, setRoomsLoading] = useState<Record<string, boolean>>({});
 
@@ -127,6 +129,7 @@ export default function HomesPage() {
     if (view === "buildings") return [...filtered].sort((a, b) => String(a.block || "").localeCompare(String(b.block || "")));
     return filtered;
   }, [homes, search, view]);
+  const selectedMobileHome = useMemo(() => filteredHomes.find((home) => home.id === mobileHomeId) || null, [filteredHomes, mobileHomeId]);
 
   async function bootstrapEstate() {
     const res = await facilityService.myEstates(); // { estates: [...] }
@@ -175,6 +178,13 @@ export default function HomesPage() {
 
     if (next && !roomsByHome[next]) {
       await loadRooms(next);
+    }
+  }
+
+  async function openMobileHome(homeId: string) {
+    setMobileHomeId(homeId);
+    if (!roomsByHome[homeId]) {
+      await loadRooms(homeId);
     }
   }
 
@@ -367,7 +377,23 @@ export default function HomesPage() {
         </label>
       </OisCard>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="space-y-2 md:hidden">
+        {filteredHomes.map((home) => (
+          <OisListItem
+            key={`${home.id}:mobile`}
+            title={home.name}
+            description={`${String(home.occupancy_status || "pending source").replace(/_/g, " ")} · ${home.room_count ?? "Pending"} rooms`}
+            meta={`${[home.block, home.unit].filter(Boolean).join(" / ") || "No block or unit assigned"} · ${home.member_count ?? "Pending"} members`}
+            status={occupancyStatus(home.occupancy_status)}
+            action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />}
+            onClick={() => void openMobileHome(home.id)}
+            className="w-full text-left"
+          />
+        ))}
+        {!filteredHomes.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">{homes.length ? "No homes match this filter." : "No homes yet. Use Add Home to register the first unit."}</p> : null}
+      </div>
+
+      <div className="hidden grid-cols-1 gap-4 md:grid xl:grid-cols-2">
         {filteredHomes.map((home, index) => (
           <OisCard key={`${home.id}:overview`} className={`p-5 ${index > 3 ? "xl:hidden" : ""}`}>
             <div className="flex items-start justify-between gap-3">
@@ -589,6 +615,17 @@ export default function HomesPage() {
           </table>
         </div>
       </div>
+
+      <OisDrawer
+        open={Boolean(selectedMobileHome)}
+        onClose={() => setMobileHomeId(null)}
+        title={selectedMobileHome?.name || "Home detail"}
+        subtitle={selectedMobileHome ? `${[selectedMobileHome.block, selectedMobileHome.unit].filter(Boolean).join(" / ") || "No block or unit assigned"} · ${String(selectedMobileHome.occupancy_status || "pending source").replace(/_/g, " ")}` : undefined}
+        width="md"
+        footer={selectedMobileHome ? <div className="flex flex-wrap gap-2"><Link href={`/homes/${selectedMobileHome.id}/rooms?estateId=${encodeURIComponent(estateId || "")}`} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100"><Building2 className="h-4 w-4" />Manage Rooms</Link><Link href={`/homes/${selectedMobileHome.id}/users?estateId=${encodeURIComponent(estateId || "")}`} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100"><Users className="h-4 w-4" />Manage Members</Link><Button variant="ghost" onClick={() => { setMobileHomeId(null); openEdit(selectedMobileHome); }}><Pencil className="mr-2 h-4 w-4" />Edit Home</Button></div> : null}
+      >
+        {selectedMobileHome ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-white">{selectedMobileHome.description || "No home description recorded."}</p><p className="mt-2 text-xs text-zinc-500">Pending invites {selectedMobileHome.pending_invite_count || 0} · Devices {selectedMobileHome.device_count ?? "Pending source"}</p></div><OisStatusBadge status={occupancyStatus(selectedMobileHome.occupancy_status)} label={String(selectedMobileHome.occupancy_status || "pending source").replace(/_/g, " ")} /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Field label="Members" value={selectedMobileHome.member_count ?? "Pending source"} /><Field label="Rooms" value={selectedMobileHome.room_count ?? "Pending source"} /><Field label="Electricity Meter" value={selectedMobileHome.electricity_meter} /><Field label="Water Meter" value={selectedMobileHome.water_meter} /><Field label="Internet ID" value={selectedMobileHome.internet_id} /><Field label="Gate Code" value={selectedMobileHome.gate_code} /></div><OisCard variant="evidence" className="p-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-white">Rooms</h3><Button variant="ghost" onClick={() => void loadRooms(selectedMobileHome.id)} disabled={roomsLoading[selectedMobileHome.id]}>{roomsLoading[selectedMobileHome.id] ? "Loading..." : "Reload"}</Button></div><div className="mt-3 space-y-2">{roomsLoading[selectedMobileHome.id] ? <p className="text-sm text-zinc-400">Loading rooms…</p> : (roomsByHome[selectedMobileHome.id] || []).length ? (roomsByHome[selectedMobileHome.id] || []).map((room) => <OisListItem key={room.id} title={room.name} description={`${room.type || "—"}${room.floor !== null && room.floor !== undefined ? ` • Floor ${room.floor}` : ""}`} meta={`${room.id.slice(0, 8)}…`} />) : <p className="text-sm text-zinc-400">No rooms yet.</p>}</div></OisCard></div> : null}
+      </OisDrawer>
 
       {/* ADD HOME MODAL */}
       {showAdd && (
