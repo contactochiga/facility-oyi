@@ -8,7 +8,6 @@ import {
   BarChart3,
   Brain,
   Camera,
-  ChevronRight,
   CircleHelp,
   DoorOpen,
   Home,
@@ -153,18 +152,18 @@ function SummaryCard({
 }) {
   const color =
     tone === "good"
-      ? "border-emerald-500/20 bg-emerald-500/[0.07]"
+      ? "border-emerald-500/12 bg-emerald-500/[0.035]"
       : tone === "warn"
-      ? "border-amber-500/20 bg-amber-500/[0.07]"
+      ? "border-amber-500/12 bg-amber-500/[0.035]"
       : "border-white/10 bg-white/[0.035]";
   return (
     <Link
       href={href}
       className={`rounded-[20px] border p-3 transition hover:border-sky-400/30 hover:bg-white/[0.055] sm:rounded-2xl sm:p-4 ${color} ${className}`}
     >
-      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">{label}</div>
       <div className="mt-2 text-xl font-semibold tracking-tight text-white sm:mt-3 sm:text-2xl">{value}</div>
-      <div className="mt-1.5 text-[11px] leading-4 text-zinc-500 sm:mt-2 sm:text-xs sm:leading-5">{hint}</div>
+      <div className="mt-1.5 text-[11px] leading-4 text-zinc-600 sm:mt-2 sm:text-xs sm:leading-5">{hint}</div>
     </Link>
   );
 }
@@ -179,9 +178,9 @@ function PeopleCommunicationCard({
   const state = posture?.postureState || "unavailable";
   const tone =
     state === "attention"
-      ? "border-amber-500/20 bg-amber-500/[0.07]"
+      ? "border-amber-500/12 bg-amber-500/[0.035]"
       : state === "stable"
-      ? "border-emerald-500/20 bg-emerald-500/[0.07]"
+      ? "border-emerald-500/12 bg-emerald-500/[0.035]"
       : "border-white/10 bg-white/[0.035]";
   const label =
     state === "attention"
@@ -196,27 +195,27 @@ function PeopleCommunicationCard({
 
   return (
     <div className={`rounded-[20px] border p-3 sm:rounded-2xl sm:p-4 ${tone}`}>
-      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">People</div>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">People</div>
       <div className="mt-2 text-xl font-semibold tracking-tight text-white sm:mt-3 sm:text-2xl">{label}</div>
-      <div className="mt-1.5 text-[11px] leading-4 text-zinc-500 sm:mt-2 sm:text-xs sm:leading-5">
+      <div className="mt-1.5 text-[11px] leading-4 text-zinc-600 sm:mt-2 sm:text-xs sm:leading-5">
         {sourceLabel || "Communication posture from shared message and community ownership."}
       </div>
-      <div className="mt-3 space-y-2">
-        <Link href="/messages" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-xs text-zinc-200 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+      <div className="mt-3 space-y-1.5">
+        <Link href="/messages" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
           <span>Unread Messages</span>
-          <span className="text-sky-100">{posture?.unreadMessages ?? "—"}</span>
+          <span className="text-zinc-500">{posture?.unreadMessages ?? "—"}</span>
         </Link>
-        <Link href="/messages" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-xs text-zinc-200 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+        <Link href="/messages" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
           <span>Unread Resident Threads</span>
-          <span className="text-sky-100">{posture?.unreadResidentThreads ?? "—"}</span>
+          <span className="text-zinc-500">{posture?.unreadResidentThreads ?? "—"}</span>
         </Link>
-        <Link href={supportHref} className="flex items-center justify-between rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-xs text-zinc-200 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+        <Link href={supportHref} className="flex items-center justify-between rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
           <span>Support Waiting</span>
-          <span className="text-zinc-400">{posture?.supportState === "unavailable" ? "Unavailable" : posture?.supportState}</span>
+          <span className="text-zinc-500">{posture?.supportState === "unavailable" ? "Unavailable" : posture?.supportState}</span>
         </Link>
-        <Link href="/community" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-xs text-zinc-200 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+        <Link href="/community" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
           <span>Moderation Pending</span>
-          <span className="text-sky-100">{posture?.moderationPending ?? "—"}</span>
+          <span className="text-zinc-500">{posture?.moderationPending ?? "—"}</span>
         </Link>
       </div>
     </div>
@@ -571,13 +570,10 @@ function OverviewPage() {
               {attention.map((item) => (
                 <Link key={item.id} href={item.href} className="block">
                   <OisListItem
-                    className="gap-2 p-2.5"
-                    title={<span className="block truncate text-sm text-zinc-100">{item.title}</span>}
-                    meta={<div className="flex flex-wrap gap-2">
-                      <OisStatusBadge status={item.severity === "critical" ? "critical" : item.severity === "warning" ? "warning" : "stable"} label={item.domain} />
-                      <span className="text-[11px] text-zinc-500">{dateLabel(item.time)}</span>
-                    </div>}
-                    action={<ChevronRight className="h-4 w-4 shrink-0 self-center text-zinc-600" />}
+                    className="gap-2 p-2"
+                    title={<span className="block truncate text-sm font-medium text-zinc-100">{item.title}</span>}
+                    meta={<span className="text-[11px] text-zinc-600">{item.domain}</span>}
+                    action={<span className="text-[11px] text-zinc-500">{item.action}</span>}
                   />
                 </Link>
               ))}

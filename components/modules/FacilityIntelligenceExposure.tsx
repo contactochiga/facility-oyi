@@ -11,6 +11,7 @@ import { openPredictionDrawer } from "@/components/modules/PredictionDetailDrawe
 
 const closed = new Set(["completed", "verified", "cancelled", "closed", "resolved"]);
 const priorityStatus = (value: unknown): OisStatus => /critical|failed|timeout/i.test(String(value || "")) ? "critical" : /high|warning/i.test(String(value || "")) ? "warning" : "attention";
+const badgeClass = "px-1.5 py-px text-[10px] opacity-75";
 
 export default function FacilityIntelligenceExposure({ onMetrics }: { onMetrics?: (metrics: { active: number; overdue: number; escalated: number; verification: number }) => void }) {
   const [workflows, setWorkflows] = useState<any[]>([]);
@@ -42,14 +43,14 @@ export default function FacilityIntelligenceExposure({ onMetrics }: { onMetrics?
 
   return <OisCard as="section" className="p-4 sm:p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Estate Intelligence Brief</h2><p className="mt-1 text-xs text-zinc-500">Workflow, prediction, and verification intelligence for the active facility.</p></div><Brain className="h-5 w-5 text-sky-200" /></div>{error ? <p className="mt-3 rounded-lg border border-rose-400/20 bg-rose-500/10 p-2 text-xs text-rose-100">{error}</p> : null}<div className="mt-4 grid gap-2 lg:grid-cols-3">{insights.slice(0, 3).map((insight) => <button key={insight.type} type="button" onClick={() => insight.workflowId ? openWorkflowDrawer(insight.workflowId) : insight.prediction ? openPredictionDrawer(insight.prediction) : undefined} className="block text-left">
     <OisListItem
-      className="h-full"
-      title={<span>{insight.title}</span>}
-      description={insight.summary}
+      className="h-full gap-2"
+      title={<span className="block text-sm font-medium leading-5 text-white">{insight.summary}</span>}
+      description={<span className="text-[11px] text-zinc-500">{insight.title}</span>}
       meta={<div className="space-y-2">
-        <OisStatusBadge status={insight.status} label={insight.type} />
-        <p className="text-xs text-sky-100">Next: {insight.action}</p>
+        <OisStatusBadge status={insight.status} label={insight.type} className={badgeClass} />
+        <p className="text-xs text-zinc-400">Next: {insight.action}</p>
       </div>}
-      action={<Brain className="h-4 w-4 text-sky-200" />}
+      action={<Brain className="h-4 w-4 text-sky-200/70" />}
     />
   </button>)}{!loading && !insights.length ? <p className="text-xs text-zinc-500">No workflow, prediction, or verification insight requires review.</p> : null}</div></OisCard>;
 }

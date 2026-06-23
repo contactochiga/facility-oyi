@@ -11,7 +11,7 @@ import { type VerificationSummaryValue } from "@/components/modules/Verification
 import { openWorkflowDrawer } from "@/components/modules/WorkflowDetailDrawer";
 
 const formatDueState = (dueAt?: string | null, overdue = false) => overdue ? "Verification due: overdue" : dueAt ? `Due ${new Date(dueAt).toLocaleDateString()}` : "No verification due time";
-const dueStatus = (dueAt?: string | null, overdue = false): OisStatus => overdue ? "overdue" : dueAt ? "stable" : "unavailable";
+const badgeClass = "px-1.5 py-px text-[10px] opacity-80";
 
 export default function VerificationQueue({ limit = 5, onSummary }: { limit?: number; onSummary?: (summary: VerificationSummaryValue) => void }) {
   const [workflows, setWorkflows] = useState<any[]>([]); const [loading, setLoading] = useState(true);
@@ -23,9 +23,9 @@ export default function VerificationQueue({ limit = 5, onSummary }: { limit?: nu
     return <button key={workflow.id || workflow.workflow_id} type="button" onClick={() => openWorkflowDrawer(String(workflow.id || workflow.workflow_id))} className="block w-full text-left">
       <OisListItem
         className="w-full gap-2 p-2.5"
-        title={<span className="block truncate text-sm">{workflow.title || workflow.workflow_type || "Workflow"}</span>}
-        meta={<OisStatusBadge status={dueStatus(workflow.workflow_due_at, overdue)} label={formatDueState(workflow.workflow_due_at, overdue)} />}
-        action={<OisStatusBadge status={state as OisStatus} label={String(state).replace(/_/g, " ")} />}
+        title={<span className="block truncate text-sm font-medium text-white">{workflow.title || workflow.workflow_type || "Workflow"}</span>}
+        meta={<span className="text-[11px] text-zinc-500">{formatDueState(workflow.workflow_due_at, overdue)}</span>}
+        action={<OisStatusBadge status={state as OisStatus} label={String(state).replace(/_/g, " ")} className={badgeClass} />}
       />
     </button>;
   })}{!loading && !records.length ? <p className="rounded-xl border border-dashed border-white/10 p-3 text-sm text-zinc-500">No work is currently awaiting verification.</p> : null}</div></OisCard>;
