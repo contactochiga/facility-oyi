@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import OisCard from "@/components/ois/OisCard";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge, { type OisStatus } from "@/components/ois/OisStatusBadge";
@@ -23,11 +23,11 @@ export default function OperatorQueue({ limit = 5 }: { limit?: number }) {
   const [items, setItems] = useState<OperatorQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => { let active = true; loadOperatorQueue(user?.role).then((rows) => { if (active) setItems(rows); }).finally(() => active && setLoading(false)); return () => { active = false; }; }, [user?.role]);
-  return <OisCard as="section" className="p-3 sm:p-4"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Operational Queue</h2><p className="mt-1 text-xs text-zinc-500">Role-filtered work requiring ownership, verification, or the next action.</p></div><Link href="/facility-intelligence?module=workflows" className="text-xs text-sky-200">Open queue</Link></div><div className="mt-3 space-y-1.5">{items.slice(0, limit).map((item) => <Link key={item.id} href={item.route} onClick={(event) => { if (String(item.id).startsWith("workflow:")) { event.preventDefault(); openWorkflowDrawer(String(item.id).replace(/^workflow:/, "")); } }} className="block text-left">
+  return <OisCard as="section" className="border-white/[0.07] bg-white/[0.025] p-3.5 sm:p-4"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold tracking-[-0.01em] text-white">Operational Queue</h2><p className="mt-1 text-[11px] text-zinc-600">Role-filtered work requiring ownership, verification, or the next action.</p></div><Link href="/facility-intelligence?module=workflows" className="text-xs text-sky-200">Open queue</Link></div><div className="mt-3 space-y-1.5">{items.slice(0, limit).map((item) => <Link key={item.id} href={item.route} onClick={(event) => { if (String(item.id).startsWith("workflow:")) { event.preventDefault(); openWorkflowDrawer(String(item.id).replace(/^workflow:/, "")); } }} className="block text-left">
     <OisListItem
-      className="w-full gap-2 p-2.5"
+      className="w-full gap-2 border-white/[0.07] bg-black/10 p-2.5"
       title={<span className="block truncate text-sm font-medium text-white">{item.title}</span>}
-      meta={<span className="text-[11px] text-zinc-500">{item.status}</span>}
+      meta={<span className="text-[11px] text-zinc-600">{item.status}</span>}
       action={<OisStatusBadge status={priorityStatus[item.priority]} label={priorityLabel[item.priority]} className={badgeClass} />}
     />
   </Link>)}{!items.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No unresolved operator items are visible for this role.</p> : null}</div></OisCard>;

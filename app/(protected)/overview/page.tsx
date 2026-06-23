@@ -4,16 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle,
   BarChart3,
   Brain,
-  Camera,
-  CircleHelp,
   DoorOpen,
-  Home,
-  MonitorCog,
   RefreshCw,
-  Router,
   ShieldAlert,
   Siren,
   UserPlus,
@@ -24,7 +18,6 @@ import {
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import OisListItem from "@/components/ois/OisListItem";
-import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import API from "@/services/api";
 import { facilityService, type HomeInviteRow } from "@/services/facilityService";
 import { loadFacilityAttention, type FacilityAttentionItem } from "@/services/facilityAttentionService";
@@ -299,10 +292,10 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[22px] border border-white/10 bg-white/[0.035] p-3 sm:rounded-2xl sm:p-5">
-      <h2 className="text-sm font-semibold text-zinc-100">{title}</h2>
-      {subtitle ? <p className="mt-1 text-xs leading-5 text-zinc-500">{subtitle}</p> : null}
-      <div className="mt-3 sm:mt-4">{children}</div>
+    <section className="rounded-[20px] border border-white/[0.07] bg-white/[0.025] p-3.5 sm:rounded-[22px] sm:p-4.5">
+      <h2 className="text-sm font-semibold tracking-[-0.01em] text-zinc-100">{title}</h2>
+      {subtitle ? <p className="mt-1 text-[11px] leading-5 text-zinc-600">{subtitle}</p> : null}
+      <div className="mt-3.5">{children}</div>
     </section>
   );
 }
@@ -518,20 +511,20 @@ function OverviewPage() {
   ];
 
   return (
-    <div className="space-y-4 overflow-x-hidden pb-8 sm:space-y-6 sm:overflow-visible sm:pb-0">
+    <div className="space-y-3 overflow-x-hidden pb-6 sm:space-y-5 sm:overflow-visible sm:pb-0">
       <div className="flex items-center justify-between gap-3 sm:hidden">
         <div className="min-w-0">
           <h1 className="truncate text-[24px] font-semibold tracking-[-0.055em] text-white">Facility Overview</h1>
-          <p className="mt-1 text-xs text-zinc-500">Operational attention center</p>
+          <p className="mt-1 text-[11px] text-zinc-600">Operational attention center</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={load} disabled={loading} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-sky-200 shadow-[0_10px_30px_rgba(0,0,0,0.28)] backdrop-blur-2xl disabled:opacity-50" aria-label="Refresh overview">
+          <button type="button" onClick={load} disabled={loading} className="grid h-10 w-10 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-sky-200 backdrop-blur-xl disabled:opacity-50" aria-label="Refresh overview">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </button>
-          <Link href="/messages" className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-sky-200 shadow-[0_10px_30px_rgba(0,0,0,0.28)] backdrop-blur-2xl" aria-label="Open messages">
+          <Link href="/messages" className="grid h-10 w-10 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-sky-200 backdrop-blur-xl" aria-label="Open messages">
             <Users className="h-4 w-4" />
           </Link>
-          <Link href="/alerts" className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-sky-200 shadow-[0_10px_30px_rgba(0,0,0,0.28)] backdrop-blur-2xl" aria-label="Open notifications">
+          <Link href="/alerts" className="grid h-10 w-10 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-sky-200 backdrop-blur-xl" aria-label="Open notifications">
             <ShieldAlert className="h-4 w-4" />
           </Link>
         </div>
@@ -559,39 +552,50 @@ function OverviewPage() {
         </Panel>
       ) : null}
 
-      <section className="rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.14),transparent_32%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">Operational Attention Center</p><h2 className="mt-1 text-xl font-semibold text-white">{estateName} is {estateState.toLowerCase()}</h2><p className="mt-2 max-w-2xl text-sm text-zinc-400">{displayedFacilityAction}</p></div><div className="flex flex-wrap gap-2"><Link href="/facility-intelligence?focus=1" className="rounded-lg border border-sky-400/20 bg-sky-500/10 px-3 py-2 text-xs text-sky-100">Ask Oyi</Link><Link href="/facility-intelligence?module=workflows" className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-200">Open Queue</Link><Link href="/alerts" className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-200">Open Incidents</Link></div></div>
-        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">{[["Attention", attention.length, "text-amber-100"],["Overdue", workflowMetrics.overdue, "text-amber-100"],["Escalated", workflowMetrics.escalated, "text-rose-100"],["Verification", verificationSummary.pending + verificationSummary.overdue + verificationSummary.failed, "text-sky-100"]].map(([label, value, color]) => <div key={String(label)} className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-xs text-zinc-500">{label}</span><b className={`mt-1 block text-lg ${color}`}>{loading ? "—" : value}</b></div>)}</div>
+      <section className="rounded-[22px] border border-white/[0.07] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-3.5 sm:p-4.5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div className="max-w-3xl"><p className="text-[10px] uppercase tracking-[0.16em] text-sky-200/70">Operational Attention Center</p><h2 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-white">{estateName} is {estateState.toLowerCase()}</h2><p className="mt-1.5 text-sm text-zinc-400">{displayedFacilityAction}</p></div><div className="flex flex-wrap gap-2"><Link href="/facility-intelligence?focus=1" className="rounded-lg border border-sky-400/15 bg-sky-500/8 px-3 py-2 text-xs text-sky-100">Ask Oyi</Link><Link href="/facility-intelligence?module=workflows" className="rounded-lg border border-white/[0.08] bg-black/10 px-3 py-2 text-xs text-zinc-300">Open Queue</Link><Link href="/alerts" className="rounded-lg border border-white/[0.08] bg-black/10 px-3 py-2 text-xs text-zinc-300">Open Incidents</Link></div></div>
+        <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">{[["Attention", attention.length, "text-amber-100"],["Overdue", workflowMetrics.overdue, "text-amber-100"],["Escalated", workflowMetrics.escalated, "text-rose-100"],["Verification", verificationSummary.pending + verificationSummary.overdue + verificationSummary.failed, "text-sky-100"]].map(([label, value, color]) => <div key={String(label)} className="rounded-[18px] border border-white/[0.07] bg-black/10 p-2.5"><span className="text-[10px] uppercase tracking-[0.14em] text-zinc-600">{label}</span><b className={`mt-1 block text-lg ${color}`}>{loading ? "—" : value}</b></div>)}</div>
       </section>
 
-      <Panel title="Attention Stack" subtitle="The five highest-ranked items requiring review.">
-          {attention.length ? (
-            <div className="space-y-1.5">
-              {attention.map((item) => (
-                <Link key={item.id} href={item.href} className="block">
-                  <OisListItem
-                    className="gap-2 p-2"
-                    title={<span className="block truncate text-sm font-medium text-zinc-100">{item.title}</span>}
-                    meta={<span className="text-[11px] text-zinc-600">{item.domain}</span>}
-                    action={<span className="text-[11px] text-zinc-500">{item.action}</span>}
-                  />
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <SourceMessage value={attentionSource} empty="No critical attention required." />
-          )}
-      </Panel>
+      <div className="grid gap-3 xl:grid-cols-12">
+        <div className="xl:col-span-5">
+          <Panel title="Attention Stack" subtitle="The five highest-ranked items requiring review.">
+              {attention.length ? (
+                <div className="space-y-1.5">
+                  {attention.map((item) => (
+                    <Link key={item.id} href={item.href} className="block">
+                      <OisListItem
+                        className="gap-2 p-2"
+                        title={<span className="block truncate text-sm font-medium text-zinc-100">{item.title}</span>}
+                        meta={<span className="text-[11px] text-zinc-600">{item.domain}</span>}
+                        action={<span className="text-[11px] text-zinc-500">{item.action}</span>}
+                      />
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <SourceMessage value={attentionSource} empty="No critical attention required." />
+              )}
+          </Panel>
+        </div>
+        <div className="grid gap-3 xl:col-span-7 xl:grid-cols-2">
+          <OperatorQueue limit={5} />
+          <VerificationQueue limit={5} onSummary={setVerificationSummary} />
+        </div>
+      </div>
 
-      <OperatorQueue limit={5} />
+      <div className="grid gap-3 xl:grid-cols-12">
+        <div className="xl:col-span-7">
+          <FacilityIntelligenceExposure onMetrics={setWorkflowMetrics} />
+        </div>
+        <div className="xl:col-span-5">
+          <UnifiedInfrastructurePosture />
+        </div>
+      </div>
 
-      <VerificationQueue limit={5} onSummary={setVerificationSummary} />
-
-      <FacilityIntelligenceExposure onMetrics={setWorkflowMetrics} />
-
-      <UnifiedInfrastructurePosture />
-
-      <Panel title="Operational Health" subtitle="People, security, infrastructure, and finance posture.">
+      <div className="grid gap-3 xl:grid-cols-12">
+        <div className="xl:col-span-7">
+          <Panel title="Operational Health" subtitle="People, security, infrastructure, and finance posture.">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <PeopleCommunicationCard posture={communicationSource.data} sourceState={communicationSource} />
           <SummaryCard label="Security" value={attention.some((item) => item.domain === "Security") ? "Review" : "Stable"} hint={`${workflowMetrics.verification} verification items`} href="/alerts" tone={attention.some((item) => item.domain === "Security") ? "warn" : "good"} />
@@ -599,8 +603,11 @@ function OverviewPage() {
           <SummaryCard label="Finance" value={(sources.overview.data as any)?.wallet?.outstanding_dues ? "Due" : "Stable"} hint="Wallet, services, and payment exceptions" href="/wallets" tone={(sources.overview.data as any)?.wallet?.outstanding_dues ? "warn" : "good"} />
         </div>
       </Panel>
-
-      <ShiftHandover />
+        </div>
+        <div className="xl:col-span-5">
+          <ShiftHandover />
+        </div>
+      </div>
 
       {showCreate ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
@@ -624,24 +631,6 @@ function OverviewPage() {
           </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function PostureRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof AlertTriangle;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-2.5">
-      <Icon className="h-4 w-4 shrink-0 text-sky-200" />
-      <span className="min-w-0 flex-1 text-sm text-zinc-400">{label}</span>
-      <span className="text-right text-xs text-zinc-300">{value}</span>
     </div>
   );
 }
