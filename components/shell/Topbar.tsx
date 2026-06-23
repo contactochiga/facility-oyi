@@ -6,7 +6,7 @@ import { Bars3Icon, BellIcon } from "@heroicons/react/24/outline";
 import { useSessionStore } from "@/store/useSessionStore";
 import NotificationsModal from "@/components/notifications/NotificationsModal";
 import { notificationService } from "@/services/notificationService";
-import { messagesService } from "@/services/messagesService";
+import { loadUnreadMessageCount } from "@/services/facilityCommunicationPostureService";
 import { MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useFacilityShell } from "@/components/shell/FacilityShellContext";
@@ -118,12 +118,7 @@ export default function Topbar({
 
   async function refreshMessages() {
     try {
-      const threads = await messagesService.listInbox();
-      const totalUnread = (threads || []).reduce(
-        (sum, t) => sum + Number(t?.unread_count || 0),
-        0
-      );
-      setMessageCount(totalUnread);
+      setMessageCount(await loadUnreadMessageCount());
     } catch {
       setMessageCount(0);
     }

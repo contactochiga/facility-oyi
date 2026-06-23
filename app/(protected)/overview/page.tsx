@@ -27,6 +27,7 @@ import Button from "@/components/ui/Button";
 import API from "@/services/api";
 import { facilityService, type HomeInviteRow } from "@/services/facilityService";
 import { loadFacilityAttention, type AttentionSeverity, type FacilityAttentionItem } from "@/services/facilityAttentionService";
+import { loadFacilityCommunicationPosture, type FacilityCommunicationPosture } from "@/services/facilityCommunicationPostureService";
 import { oyiService, type OyiAwareness } from "@/services/oyiService";
 import { useSessionStore } from "@/store/useSessionStore";
 import type { FacilityOverview } from "@/types/facility";
@@ -166,6 +167,60 @@ function SummaryCard({
   );
 }
 
+function PeopleCommunicationCard({
+  posture,
+  sourceState,
+}: {
+  posture: FacilityCommunicationPosture | null;
+  sourceState: Source<FacilityCommunicationPosture | null>;
+}) {
+  const state = posture?.postureState || "unavailable";
+  const tone =
+    state === "attention"
+      ? "border-amber-500/20 bg-amber-500/[0.07]"
+      : state === "stable"
+      ? "border-emerald-500/20 bg-emerald-500/[0.07]"
+      : "border-white/10 bg-white/[0.035]";
+  const label =
+    state === "attention"
+      ? "Attention"
+      : state === "stable"
+      ? "Stable"
+      : state === "limited"
+      ? "Limited"
+      : "Unavailable";
+  const supportHref = "/facility-intelligence?module=support";
+  const sourceLabel = statusLabel(sourceState);
+
+  return (
+    <div className={`rounded-[20px] border p-3 sm:rounded-2xl sm:p-4 ${tone}`}>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">People</div>
+      <div className="mt-2 text-xl font-semibold tracking-tight text-white sm:mt-3 sm:text-2xl">{label}</div>
+      <div className="mt-1.5 text-[11px] leading-4 text-zinc-500 sm:mt-2 sm:text-xs sm:leading-5">
+        {sourceLabel || "Communication posture from shared message and community ownership."}
+      </div>
+      <div className="mt-3 space-y-2">
+        <Link href="/messages" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-xs text-zinc-200 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+          <span>Unread Messages</span>
+          <span className="text-sky-100">{posture?.unreadMessages ?? "—"}</span>
+        </Link>
+        <Link href="/messages" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-xs text-zinc-200 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+          <span>Unread Resident Threads</span>
+          <span className="text-sky-100">{posture?.unreadResidentThreads ?? "—"}</span>
+        </Link>
+        <Link href={supportHref} className="flex items-center justify-between rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-xs text-zinc-200 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+          <span>Support Waiting</span>
+          <span className="text-zinc-400">{posture?.supportState === "unavailable" ? "Unavailable" : posture?.supportState}</span>
+        </Link>
+        <Link href="/community" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-xs text-zinc-200 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+          <span>Moderation Pending</span>
+          <span className="text-sky-100">{posture?.moderationPending ?? "—"}</span>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function MobileMetricStrip({ items }: { items: MobileMetricItem[] }) {
   return (
     <section className="rounded-[20px] border border-white/[0.07] bg-[linear-gradient(145deg,rgba(255,255,255,0.046),rgba(255,255,255,0.012))] p-2.5 shadow-[0_12px_38px_rgba(0,0,0,0.30)] backdrop-blur-2xl sm:hidden">
@@ -295,11 +350,13 @@ function OverviewPage() {
   const [workflowMetrics, setWorkflowMetrics] = useState({ active: 0, overdue: 0, escalated: 0, verification: 0 });
   const [verificationSummary, setVerificationSummary] = useState({ pending: 0, overdue: 0, failed: 0, verifiedToday: 0 });
   const [attentionSource, setAttentionSource] = useState<Source<FacilityAttentionItem[]>>(source([]));
+  const [communicationSource, setCommunicationSource] = useState<Source<FacilityCommunicationPosture | null>>(source(null));
 
   const load = useCallback(async () => {
     setLoading(true);
     setSources(emptySources());
     setAttentionSource(source([], "loading"));
+    setCommunicationSource(source(null, "loading"));
 
     const [overviewState, estatesState] = await Promise.all([
       loadSource(facilityService.overview(), null),
@@ -316,6 +373,7 @@ function OverviewPage() {
     if (!nextEstateId) {
       setSources({ ...emptySources(), overview: overviewState });
       setAttentionSource(source([], "ready"));
+      setCommunicationSource(source(null, "ready"));
       setBackendAwareness(null);
       setAwarenessStatus("idle");
       setLoading(false);
@@ -325,7 +383,7 @@ function OverviewPage() {
 
     setAwarenessStatus("loading");
     setBackendAwareness(null);
-    const [homes, devices, maintenance, visitors, cameras, reports, community, awareness, attentionState] =
+    const [homes, devices, maintenance, visitors, cameras, reports, community, awareness, attentionState, communicationState] =
       await Promise.all([
         loadSource(facilityService.listHomes(nextEstateId).then((res) => res.homes || []), []),
         loadSource(API.get("/facility/devices").then((res) => listFrom(res.data, ["devices", "items"])), []),
@@ -336,11 +394,13 @@ function OverviewPage() {
         loadSource(API.get(`/community/posts/estate/${encodeURIComponent(nextEstateId)}`).then((res) => listFrom(res.data, ["posts", "items"])), []),
         oyiService.awareness({ estate_id: nextEstateId }).catch(() => null),
         loadSource(loadFacilityAttention(), []),
+        loadSource(loadFacilityCommunicationPosture(nextEstateId), null),
       ]);
 
     setBackendAwareness(awareness?.headline ? awareness : null);
     setAwarenessStatus(awareness?.headline ? "ready" : "error");
     setAttentionSource(attentionState);
+    setCommunicationSource(communicationState);
 
     let invites: Source<HomeInviteRow[]> = source([], homes.status === "ready" ? "ready" : homes.status);
     if (homes.status === "ready" && homes.data.length) {
@@ -542,7 +602,7 @@ function OverviewPage() {
 
       <Panel title="Operational Health" subtitle="People, security, infrastructure, and finance posture.">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard label="People" value={pendingVisitors.length ? `${pendingVisitors.length} awaiting` : "Stable"} hint={sources.reports.data.length ? `${sources.reports.data.length} moderation reports` : "Visitor flow and community clear"} href="/visitors" tone={pendingVisitors.length || sources.reports.data.length ? "warn" : "good"} />
+          <PeopleCommunicationCard posture={communicationSource.data} sourceState={communicationSource} />
           <SummaryCard label="Security" value={attention.some((item) => item.domain === "Security") ? "Review" : "Stable"} hint={`${workflowMetrics.verification} verification items`} href="/alerts" tone={attention.some((item) => item.domain === "Security") ? "warn" : "good"} />
           <SummaryCard label="Infrastructure" value={offlineDevices.length ? `${offlineDevices.length} attention` : "Stable"} hint="Devices, cameras, Edge, and utilities" href="/live-infrastructure" tone={offlineDevices.length ? "warn" : "good"} />
           <SummaryCard label="Finance" value={(sources.overview.data as any)?.wallet?.outstanding_dues ? "Due" : "Stable"} hint="Wallet, services, and payment exceptions" href="/wallets" tone={(sources.overview.data as any)?.wallet?.outstanding_dues ? "warn" : "good"} />
