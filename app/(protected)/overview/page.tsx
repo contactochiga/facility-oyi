@@ -1,19 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ComponentType } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  BarChart3,
-  Brain,
-  DoorOpen,
   RefreshCw,
   ShieldAlert,
-  Siren,
-  UserPlus,
   Users,
-  Wrench,
-  Zap,
 } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
@@ -34,24 +26,6 @@ import UnifiedInfrastructurePosture from "@/components/modules/UnifiedInfrastruc
 
 type LoadStatus = "loading" | "ready" | "error" | "permission";
 type Source<T> = { status: LoadStatus; data: T; message?: string };
-
-type MobileMetricItem = {
-  label: string;
-  value: string | number;
-  icon: ComponentType<{ className?: string }>;
-  color?: string;
-  href?: string;
-};
-
-type MobileQuickActionItem = {
-  label: string;
-  value: string;
-  icon: ComponentType<{ className?: string }>;
-  href?: string;
-  onClick?: () => void;
-  disabled?: boolean;
-  iconClass?: string;
-};
 
 type OverviewSources = {
   overview: Source<FacilityOverview | null>;
@@ -129,160 +103,6 @@ function statusLabel(sourceState: Source<unknown>) {
   return null;
 }
 
-function SummaryCard({
-  label,
-  value,
-  hint,
-  href,
-  tone = "neutral",
-  className = "",
-}: {
-  label: string;
-  value: string | number;
-  hint: string;
-  href: string;
-  tone?: "neutral" | "good" | "warn";
-  className?: string;
-}) {
-  const color =
-    tone === "good"
-      ? "border-emerald-500/12 bg-emerald-500/[0.035]"
-      : tone === "warn"
-      ? "border-amber-500/12 bg-amber-500/[0.035]"
-      : "border-white/10 bg-white/[0.035]";
-  return (
-    <Link
-      href={href}
-      className={`rounded-[18px] border p-3 transition hover:border-white/[0.13] hover:bg-white/[0.05] sm:p-4 ${color} ${className}`}
-    >
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white sm:text-[1.65rem]">{value}</div>
-      <div className="mt-1 text-[11px] leading-4 text-zinc-500 sm:text-[11px]">{hint}</div>
-    </Link>
-  );
-}
-
-function PeopleCommunicationCard({
-  posture,
-  sourceState,
-}: {
-  posture: FacilityCommunicationPosture | null;
-  sourceState: Source<FacilityCommunicationPosture | null>;
-}) {
-  const state = posture?.postureState || "unavailable";
-  const tone =
-    state === "attention"
-      ? "border-amber-500/12 bg-amber-500/[0.035]"
-      : state === "stable"
-      ? "border-emerald-500/12 bg-emerald-500/[0.035]"
-      : "border-white/10 bg-white/[0.035]";
-  const label =
-    state === "attention"
-      ? "Attention"
-      : state === "stable"
-      ? "Stable"
-      : state === "limited"
-      ? "Limited"
-      : "Unavailable";
-  const supportHref = "/facility-intelligence?module=support";
-  const sourceLabel = statusLabel(sourceState);
-
-  return (
-    <div className={`rounded-[18px] border p-3 sm:p-4 ${tone}`}>
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">People</div>
-      <div className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white sm:text-[1.65rem]">{label}</div>
-      <div className="mt-1 text-[11px] leading-4 text-zinc-500 sm:text-[11px]">
-        {sourceLabel || "Communication posture from shared message and community ownership."}
-      </div>
-      <div className="mt-3 space-y-1.5">
-        <Link href="/messages" className="flex items-center justify-between rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-white/[0.11] hover:bg-white/[0.04]">
-          <span>Unread Messages</span>
-          <span className="text-zinc-500">{posture?.unreadMessages ?? "—"}</span>
-        </Link>
-        <Link href="/messages" className="flex items-center justify-between rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-white/[0.11] hover:bg-white/[0.04]">
-          <span>Unread Resident Threads</span>
-          <span className="text-zinc-500">{posture?.unreadResidentThreads ?? "—"}</span>
-        </Link>
-        <Link href={supportHref} className="flex items-center justify-between rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-white/[0.11] hover:bg-white/[0.04]">
-          <span>Support Waiting</span>
-          <span className="text-zinc-500">{posture?.supportState === "unavailable" ? "Unavailable" : posture?.supportState}</span>
-        </Link>
-        <Link href="/community" className="flex items-center justify-between rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-white/[0.11] hover:bg-white/[0.04]">
-          <span>Moderation Pending</span>
-          <span className="text-zinc-500">{posture?.moderationPending ?? "—"}</span>
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function MobileMetricStrip({ items }: { items: MobileMetricItem[] }) {
-  return (
-    <section className="rounded-[18px] border border-white/[0.06] bg-white/[0.025] p-2 sm:hidden">
-      <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {items.map((item) => {
-          const Icon = item.icon;
-          const content = (
-            <>
-              <div className={`mx-auto flex items-center justify-center gap-1.5 ${item.color || "text-sky-300"}`}>
-                <Icon className="h-4 w-4" />
-                <span className="text-[20px] font-semibold tracking-[-0.05em]">{item.value}</span>
-              </div>
-              <div className="mt-1 text-[11px] text-white/48">{item.label}</div>
-            </>
-          );
-          const className = "min-w-[86px] shrink-0 snap-start rounded-[14px] border border-white/[0.05] bg-black/10 px-2 py-2 text-center transition hover:border-white/[0.1] hover:bg-white/[0.04]";
-          return item.href ? (
-            <Link key={item.label} href={item.href} className={className}>
-              {content}
-            </Link>
-          ) : (
-            <div key={item.label} className={className}>
-              {content}
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function MobileQuickActionStrip({ items }: { items: MobileQuickActionItem[] }) {
-  return (
-    <section className="rounded-[18px] border border-white/[0.06] bg-white/[0.025] p-2 sm:hidden">
-      <div className="flex snap-x gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {items.map((item) => {
-          const Icon = item.icon;
-          const content = (
-            <>
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[12px] border border-white/[0.06] bg-white/[0.03]">
-                <Icon className={`h-4 w-4 ${item.iconClass || "text-sky-300"}`} />
-              </span>
-              <span className="min-w-0 text-left">
-                <span className="block text-[11px] font-medium text-white/82">{item.label}</span>
-                <span className="block max-w-[118px] truncate text-[10px] text-white/38">{item.value}</span>
-              </span>
-            </>
-          );
-          const className = "flex min-w-[148px] shrink-0 snap-start items-center gap-2 rounded-[14px] border border-white/[0.05] bg-black/15 px-2.5 py-2 transition hover:border-white/[0.1] hover:bg-white/[0.04] disabled:opacity-50";
-          if (item.onClick) {
-            return (
-              <button key={item.label} type="button" onClick={item.onClick} disabled={item.disabled} className={className}>
-                {content}
-              </button>
-            );
-          }
-          return (
-            <Link key={item.label} href={item.href || "/overview"} className={className}>
-              {content}
-            </Link>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 function Panel({
   title,
   subtitle,
@@ -338,6 +158,13 @@ function isOffline(device: any) {
     device?.metadata?.online === false ||
     ["offline", "unavailable", "error", "disconnected"].some((word) => state.includes(word))
   );
+}
+
+function greetingForHour(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return "Good Morning";
+  if (hour < 17) return "Good Afternoon";
+  return "Good Evening";
 }
 
 function OverviewPage() {
@@ -483,13 +310,6 @@ function OverviewPage() {
     ? "Operational sources are syncing"
     : "Estate operating normally";
   const displayedFacilityAwareness = awarenessStatus === "loading" ? "Checking Oyi awareness" : backendAwareness?.headline || facilityAwareness;
-  const displayedFacilityAction =
-    awarenessStatus === "loading"
-      ? "Ranking operational signals now."
-      : awarenessStatus === "error"
-      ? "Oyi awareness is unavailable, showing local operational context."
-      : backendAwareness?.recommended_action || backendAwareness?.summary || "Tap a strip below to open the right workflow.";
-
   async function createEstate() {
     if (estateForm.name.trim().length < 2) return;
     setCreating(true);
@@ -510,23 +330,33 @@ function OverviewPage() {
     }
   }
 
-  const metric = (value: number, sourceState: Source<unknown>) =>
-    statusLabel(sourceState) || String(value);
-  const mobileMetrics: MobileMetricItem[] = [
-    { label: "Estate", value: estateState, icon: ShieldAlert, color: attention.length ? "text-amber-300" : "text-emerald-300", href: "/alerts" },
-    { label: "Open", value: metric(openMaintenance.length, sources.maintenance), icon: Wrench, color: openMaintenance.length ? "text-amber-300" : "text-sky-300", href: "/maintenance" },
-    { label: "Visitors", value: metric(activeVisitors.length, sources.visitors), icon: Users, color: "text-violet-300", href: "/visitors" },
-    { label: "Devices", value: metric(offlineDevices.length, sources.devices), icon: Zap, color: offlineDevices.length ? "text-amber-300" : "text-cyan-300", href: "/devices" },
-    { label: "Reports", value: metric(sources.reports.data.length, sources.reports), icon: BarChart3, color: sources.reports.data.length ? "text-amber-300" : "text-blue-300", href: "/messages" },
-  ];
-  const mobileQuickActions: MobileQuickActionItem[] = [
-    { label: "Maintenance", value: openMaintenance.length ? `${openMaintenance.length} open` : "No open work", icon: Wrench, href: "/maintenance", iconClass: "text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)]" },
-    { label: "Visitor Access", value: pendingVisitors.length ? `${pendingVisitors.length} awaiting` : activeVisitors.length ? `${activeVisitors.length} active` : "Clear", icon: DoorOpen, href: "/security-access", iconClass: "text-violet-300 drop-shadow-[0_0_12px_rgba(167,139,250,0.55)]" },
-    { label: "Security", value: attention.some((item) => item.domain === "Security") ? "Review alert" : "No critical alert", icon: Siren, href: "/security-access", iconClass: "text-red-300 drop-shadow-[0_0_12px_rgba(248,113,113,0.5)]" },
-    { label: "Operations", value: sources.reports.data.length ? `${sources.reports.data.length} reports` : "Reports clear", icon: BarChart3, href: "/alerts", iconClass: "text-blue-300 drop-shadow-[0_0_12px_rgba(96,165,250,0.55)]" },
-    { label: "Resident Access", value: pendingInvites.length ? `${pendingInvites.length} pending` : "Invites clear", icon: UserPlus, href: "/facility-administration", iconClass: "text-emerald-300 drop-shadow-[0_0_12px_rgba(52,211,153,0.48)]" },
-    { label: "Oyi Intelligence", value: attention.length ? "Needs review" : "Estate calm", icon: Brain, href: "/facility-intelligence", iconClass: "text-sky-200 drop-shadow-[0_0_14px_rgba(125,211,252,0.68)]" },
-  ];
+  const greeting = `${greetingForHour()}, ${estateName.toUpperCase()}`;
+  const intelligenceBrief =
+    pendingVisitors.length
+      ? `${pendingVisitors.length} visitor access action${pendingVisitors.length === 1 ? "" : "s"} require review.`
+      : attention.length
+      ? `${attention.length} operational action${attention.length === 1 ? "" : "s"} require review.`
+      : openMaintenance.length
+      ? `${openMaintenance.length} maintenance item${openMaintenance.length === 1 ? "" : "s"} remain active.`
+      : "No urgent operational action is blocking the estate right now.";
+  const highestPriority =
+    attention[0]?.title
+      ? `Highest priority: ${attention[0].title}.`
+      : pendingVisitors[0]?.visitor_name
+      ? `Highest priority: ${pendingVisitors[0].visitor_name} visitor access verification.`
+      : awarenessStatus === "loading"
+      ? "Refreshing Oyi intelligence."
+      : backendAwareness?.headline || displayedFacilityAwareness;
+  const peoplePostureLabel = statusLabel(communicationSource) || (communicationSource.data?.postureState === "attention" ? "Attention" : communicationSource.data?.postureState === "stable" ? "Stable" : communicationSource.data?.postureState === "limited" ? "Limited" : "Unavailable");
+  const securityPostureLabel = attention.some((item) => item.domain === "Security") ? "Review" : "Stable";
+  const infrastructurePostureLabel = offlineDevices.length ? `${offlineDevices.length} Attention` : "Stable";
+  const financePostureLabel = (sources.overview.data as any)?.wallet?.outstanding_dues ? "Due" : "Stable";
+  const postureItems = [
+    { label: "People", value: peoplePostureLabel, href: "/messages", tone: communicationSource.data?.postureState === "attention" ? "attention" : communicationSource.data?.postureState === "stable" ? "stable" : communicationSource.data?.postureState === "limited" ? "warning" : "unavailable" },
+    { label: "Security", value: securityPostureLabel, href: "/alerts", tone: securityPostureLabel === "Review" ? "warning" : "stable" },
+    { label: "Infrastructure", value: infrastructurePostureLabel, href: "/live-infrastructure", tone: offlineDevices.length ? "warning" : "stable" },
+    { label: "Finance", value: financePostureLabel, href: "/wallets", tone: financePostureLabel === "Due" ? "warning" : "stable" },
+  ] as const;
 
   return (
     <div className="space-y-3 overflow-x-hidden pb-6 sm:space-y-4 lg:space-y-5 sm:overflow-visible sm:pb-0">
@@ -551,7 +381,7 @@ function OverviewPage() {
       <div className="hidden sm:block">
         <Topbar
           title="Facility Overview"
-          subtitle="Estate health, attention, and staff action queue"
+          subtitle="Operational attention center"
           rightSlot={
             <Button variant="ghost" onClick={load} disabled={loading} className="gap-2">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -573,9 +403,10 @@ function OverviewPage() {
       <section className="rounded-[18px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.024),rgba(255,255,255,0.01))] p-3 sm:p-3.5">
         <div className="grid gap-2 xl:grid-cols-12 xl:items-center">
           <div className="xl:col-span-8">
-            <h2 className="text-[1.15rem] font-semibold tracking-[-0.035em] text-white sm:text-[1.4rem]">Facility Overview</h2>
-            <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-zinc-500">Estate operational status</p>
-            <p className="mt-2 max-w-3xl text-[13px] leading-5 text-zinc-300">{displayedFacilityAction}</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Operational briefing</p>
+            <h2 className="mt-1 text-[1.05rem] font-semibold tracking-[-0.035em] text-white sm:text-[1.28rem]">{greeting}</h2>
+            <p className="mt-2 max-w-3xl text-[13px] leading-5 text-zinc-200">{intelligenceBrief}</p>
+            <p className="mt-1 max-w-3xl text-[12px] leading-5 text-zinc-500">{highestPriority}</p>
           </div>
           <div className="flex flex-wrap gap-2 xl:col-span-4 xl:justify-end">
             <Link href="/facility-intelligence?focus=1" className="rounded-[14px] border border-sky-400/15 bg-sky-500/8 px-3 py-2 text-xs text-sky-100">Ask Oyi</Link>
@@ -585,11 +416,24 @@ function OverviewPage() {
         </div>
         <MetricStrip className="mt-2.5" items={[
           { label: "Attention", value: loading ? "—" : attention.length, valueClassName: "text-amber-100" },
-          { label: "Overdue", value: loading ? "—" : workflowMetrics.overdue, valueClassName: "text-amber-100" },
-          { label: "Escalated", value: loading ? "—" : workflowMetrics.escalated, valueClassName: "text-rose-100" },
           { label: "Verification", value: loading ? "—" : verificationSummary.pending + verificationSummary.overdue + verificationSummary.failed, valueClassName: "text-sky-100" },
+          { label: "Escalated", value: loading ? "—" : workflowMetrics.escalated, valueClassName: "text-rose-100" },
+          { label: "Overdue", value: loading ? "—" : workflowMetrics.overdue, valueClassName: "text-amber-100" },
         ]} />
       </section>
+
+      <Panel title="Operational Health" subtitle="Compact posture across people, security, infrastructure, and finance.">
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {postureItems.map((item) => (
+            <Link key={item.label} href={item.href} className="min-w-[158px] shrink-0 rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 transition hover:border-white/[0.11] hover:bg-white/[0.04] sm:min-w-0 sm:flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] text-zinc-500">{item.label}</span>
+                <OisStatusBadge status={item.tone} label={item.value} className="px-1.5 py-px text-[10px] opacity-80" />
+              </div>
+            </Link>
+          ))}
+        </div>
+      </Panel>
 
       <div className="grid gap-3 xl:grid-cols-12 xl:items-stretch">
         <div className="xl:col-span-5">
@@ -603,7 +447,7 @@ function OverviewPage() {
                         title={<span className="block truncate text-sm font-medium text-zinc-100">{item.title}</span>}
                         description={<span className="text-[11px] text-zinc-400">{item.action}</span>}
                         meta={<span className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">{item.domain}</span>}
-                        action={<OisStatusBadge status={item.severity === "critical" ? "critical" : item.severity === "warning" ? "warning" : "attention"} />}
+                        action={<OisStatusBadge status={item.severity === "critical" ? "critical" : item.severity === "warning" ? "warning" : "attention"} label={item.severity} className="px-1.5 py-px text-[10px] uppercase opacity-85" />}
                       />
                     </Link>
                   ))}
@@ -628,21 +472,7 @@ function OverviewPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-12 xl:items-stretch">
-        <div className="xl:col-span-7">
-          <Panel title="Operational Health" subtitle="People, security, infrastructure, and finance posture.">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <PeopleCommunicationCard posture={communicationSource.data} sourceState={communicationSource} />
-          <SummaryCard label="Security" value={attention.some((item) => item.domain === "Security") ? "Review" : "Stable"} hint={`${workflowMetrics.verification} verification items`} href="/alerts" tone={attention.some((item) => item.domain === "Security") ? "warn" : "good"} />
-          <SummaryCard label="Infrastructure" value={offlineDevices.length ? `${offlineDevices.length} attention` : "Stable"} hint="Devices, cameras, Edge, and utilities" href="/live-infrastructure" tone={offlineDevices.length ? "warn" : "good"} />
-          <SummaryCard label="Finance" value={(sources.overview.data as any)?.wallet?.outstanding_dues ? "Due" : "Stable"} hint="Wallet, services, and payment exceptions" href="/wallets" tone={(sources.overview.data as any)?.wallet?.outstanding_dues ? "warn" : "good"} />
-        </div>
-      </Panel>
-        </div>
-        <div className="xl:col-span-5">
-          <ShiftHandover />
-        </div>
-      </div>
+      <ShiftHandover />
 
       {showCreate ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
