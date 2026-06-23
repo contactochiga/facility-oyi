@@ -18,6 +18,7 @@ import {
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import OisListItem from "@/components/ois/OisListItem";
+import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import API from "@/services/api";
 import { facilityService, type HomeInviteRow } from "@/services/facilityService";
 import { loadFacilityAttention, type FacilityAttentionItem } from "@/services/facilityAttentionService";
@@ -313,6 +314,19 @@ function SourceMessage({ value, empty }: { value: Source<unknown>; empty: string
   );
 }
 
+function MetricStrip({ items, className = "" }: { items: Array<{ label: string; value: string | number; valueClassName?: string }>; className?: string }) {
+  return (
+    <div className={`flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500 ${className}`.trim()}>
+      {items.map((item) => (
+        <span key={item.label}>
+          <b className={`mr-1 font-semibold text-white ${item.valueClassName || ""}`.trim()}>{item.value}</b>
+          {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function isClosed(value?: string) {
   return ["closed", "completed", "resolved", "cancelled"].includes(String(value || "").toLowerCase());
 }
@@ -556,12 +570,12 @@ function OverviewPage() {
         </Panel>
       ) : null}
 
-      <section className="rounded-[18px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.028),rgba(255,255,255,0.012))] p-3 sm:p-4">
-        <div className="grid gap-3 xl:grid-cols-12 xl:items-end">
+      <section className="rounded-[18px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.024),rgba(255,255,255,0.01))] p-3 sm:p-3.5">
+        <div className="grid gap-2 xl:grid-cols-12 xl:items-center">
           <div className="xl:col-span-8">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/70">Operational Attention Center</p>
-            <h2 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.04em] text-white sm:text-[1.75rem]">{estateName} is {estateState.toLowerCase()}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">{displayedFacilityAction}</p>
+            <h2 className="text-[1.15rem] font-semibold tracking-[-0.035em] text-white sm:text-[1.4rem]">Facility Overview</h2>
+            <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-zinc-500">Estate operational status</p>
+            <p className="mt-2 max-w-3xl text-[13px] leading-5 text-zinc-300">{displayedFacilityAction}</p>
           </div>
           <div className="flex flex-wrap gap-2 xl:col-span-4 xl:justify-end">
             <Link href="/facility-intelligence?focus=1" className="rounded-[14px] border border-sky-400/15 bg-sky-500/8 px-3 py-2 text-xs text-sky-100">Ask Oyi</Link>
@@ -569,21 +583,27 @@ function OverviewPage() {
             <Link href="/alerts" className="rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-xs text-zinc-300">Open Incidents</Link>
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">{[["Attention", attention.length, "text-amber-100"],["Overdue", workflowMetrics.overdue, "text-amber-100"],["Escalated", workflowMetrics.escalated, "text-rose-100"],["Verification", verificationSummary.pending + verificationSummary.overdue + verificationSummary.failed, "text-sky-100"]].map(([label, value, color]) => <div key={String(label)} className="rounded-[16px] border border-white/[0.05] bg-black/10 px-3 py-2.5"><span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</span><b className={`mt-1 block text-lg font-semibold tracking-[-0.03em] ${color}`}>{loading ? "—" : value}</b></div>)}</div>
+        <MetricStrip className="mt-2.5" items={[
+          { label: "Attention", value: loading ? "—" : attention.length, valueClassName: "text-amber-100" },
+          { label: "Overdue", value: loading ? "—" : workflowMetrics.overdue, valueClassName: "text-amber-100" },
+          { label: "Escalated", value: loading ? "—" : workflowMetrics.escalated, valueClassName: "text-rose-100" },
+          { label: "Verification", value: loading ? "—" : verificationSummary.pending + verificationSummary.overdue + verificationSummary.failed, valueClassName: "text-sky-100" },
+        ]} />
       </section>
 
       <div className="grid gap-3 xl:grid-cols-12 xl:items-stretch">
         <div className="xl:col-span-5">
           <Panel title="Attention Stack" subtitle="The five highest-ranked items requiring review.">
               {attention.length ? (
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   {attention.map((item) => (
                     <Link key={item.id} href={item.href} className="block">
                       <OisListItem
                         className="gap-2"
                         title={<span className="block truncate text-sm font-medium text-zinc-100">{item.title}</span>}
-                        meta={<span className="text-[11px] text-zinc-500">{item.domain}</span>}
-                        action={<span className="text-[11px] text-zinc-500">{item.action}</span>}
+                        description={<span className="text-[11px] text-zinc-400">{item.action}</span>}
+                        meta={<span className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">{item.domain}</span>}
+                        action={<OisStatusBadge status={item.severity === "critical" ? "critical" : item.severity === "warning" ? "warning" : "attention"} />}
                       />
                     </Link>
                   ))}

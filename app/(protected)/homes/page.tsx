@@ -3,11 +3,14 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import OisCard from "@/components/ois/OisCard";
+import OisListItem from "@/components/ois/OisListItem";
+import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { MetricCard } from "@/components/MetricCard";
 import { facilityService } from "@/services/facilityService";
 import { ArrowLeft, Building2, DoorOpen, Home, Pencil, Search, Users } from "lucide-react";
 
@@ -53,16 +56,24 @@ function Field({
   value,
 }: {
   label: string;
-  value?: string | number | null;
+  value?: ReactNode;
 }) {
   return (
-    <div className="glass p-3 border border-white/10 rounded-xl">
-      <div className="text-[11px] text-zinc-400">{label}</div>
-      <div className="text-sm mt-1 text-zinc-100">
+    <OisCard variant="evidence" className="p-3">
+      <div className="text-[11px] text-[var(--ois-text-muted)]">{label}</div>
+      <div className="mt-1 text-sm text-[var(--ois-text-primary)]">
         {value === null || value === undefined || value === "" ? "—" : value}
       </div>
-    </div>
+    </OisCard>
   );
+}
+
+function occupancyStatus(value?: string | null) {
+  const status = String(value || "pending source").toLowerCase();
+  if (status === "occupied") return "stable";
+  if (status === "vacant") return "warning";
+  if (status === "pending_activation") return "pending";
+  return "unavailable";
 }
 
 export default function HomesPage() {
@@ -312,14 +323,16 @@ export default function HomesPage() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <MetricCard title="Homes" value={String(summary.total)} change="Registered units" trend="neutral" icon={Building2} iconColor="text-blue-400" />
-        <MetricCard title="Occupied" value={String(summary.occupied)} change="Homes with active residents" trend="neutral" icon={Users} iconColor="text-emerald-400" />
-        <MetricCard title="Vacant" value={String(summary.vacant)} change="Homes without assigned residents" trend="neutral" icon={Home} iconColor="text-zinc-300" />
-        <MetricCard title="Pending Invites" value={String(summary.pending)} change="Awaiting resident activation" trend="neutral" icon={DoorOpen} iconColor="text-amber-400" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          { title: "Homes", value: String(summary.total), hint: "Registered units", icon: Building2, color: "text-blue-400" },
+          { title: "Occupied", value: String(summary.occupied), hint: "Homes with active residents", icon: Users, color: "text-emerald-400" },
+          { title: "Vacant", value: String(summary.vacant), hint: "Homes without assigned residents", icon: Home, color: "text-zinc-300" },
+          { title: "Pending Invites", value: String(summary.pending), hint: "Awaiting resident activation", icon: DoorOpen, color: "text-amber-400" },
+        ].map((item) => <OisCard key={item.title} className="p-4"><div className="flex items-center justify-between gap-3"><div className="text-[10px] uppercase tracking-[0.16em] text-[var(--ois-text-muted)]">{item.title}</div><item.icon className={`h-4 w-4 ${item.color}`} /></div><div className="mt-3 text-2xl font-semibold text-[var(--ois-text-primary)]">{item.value}</div><div className="mt-1 text-xs text-[var(--ois-text-secondary)]">{item.hint}</div></OisCard>)}
       </div>
 
-      <div className="glass border border-white/10 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
+      <OisCard className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Estate Context</div>
           <div className="text-sm text-zinc-100 mt-1">
@@ -334,9 +347,9 @@ export default function HomesPage() {
             Add Home
           </Button>
         </div>
-      </div>
+      </OisCard>
 
-      <div className="glass flex flex-col gap-3 border border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+      <OisCard className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2">
           {[
             ["All Homes", "/homes"],
@@ -352,11 +365,11 @@ export default function HomesPage() {
           <Search className="h-4 w-4 text-zinc-500" />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search homes, units, or blocks" className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-zinc-600" />
         </label>
-      </div>
+      </OisCard>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {filteredHomes.map((home, index) => (
-          <div key={`${home.id}:overview`} className={`glass rounded-2xl border border-white/10 p-5 ${index > 3 ? "xl:hidden" : ""}`}>
+          <OisCard key={`${home.id}:overview`} className={`p-5 ${index > 3 ? "xl:hidden" : ""}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-base font-semibold text-white truncate">{home.name}</div>
@@ -375,7 +388,7 @@ export default function HomesPage() {
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <Field label="Occupancy" value={String(home.occupancy_status || "pending source").replace(/_/g, " ")} />
+              <Field label="Occupancy" value={<OisStatusBadge status={occupancyStatus(home.occupancy_status)} label={String(home.occupancy_status || "pending source").replace(/_/g, " ")} />} />
               <Field label="Members" value={home.member_count ?? "Pending source"} />
               <Field label="Rooms" value={home.room_count ?? "Pending source"} />
               <Field label="Devices" value={home.device_count ?? "Pending source"} />
@@ -403,7 +416,7 @@ export default function HomesPage() {
                 {openHomeId === home.id ? "Collapse" : "Open Details"}
               </Button>
             </div>
-          </div>
+          </OisCard>
         ))}
       </div>
 
@@ -541,23 +554,12 @@ export default function HomesPage() {
                                   <div className="text-sm text-zinc-400">Loading rooms…</div>
                                 ) : rooms.length ? (
                                   rooms.map((r) => (
-                                    <div
+                                    <OisListItem
                                       key={r.id}
-                                      className="glass p-3 border border-white/10 rounded-xl flex items-center justify-between"
-                                    >
-                                      <div>
-                                        <div className="text-sm font-medium">{r.name}</div>
-                                        <div className="text-xs text-zinc-500 mt-1">
-                                          {r.type || "—"}{" "}
-                                          {r.floor !== null && r.floor !== undefined
-                                            ? `• Floor ${r.floor}`
-                                            : ""}
-                                        </div>
-                                      </div>
-                                      <div className="text-xs text-zinc-500">
-                                        {r.id.slice(0, 8)}…
-                                      </div>
-                                    </div>
+                                      title={r.name}
+                                      description={`${r.type || "—"}${r.floor !== null && r.floor !== undefined ? ` • Floor ${r.floor}` : ""}`}
+                                      meta={`${r.id.slice(0, 8)}…`}
+                                    />
                                   ))
                                 ) : (
                                   <div className="text-sm text-zinc-400">No rooms yet.</div>

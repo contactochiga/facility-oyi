@@ -15,5 +15,5 @@ function normalize(status: string): OisStatus {
 export default function OisStatusBadge({ status, label, size = "sm", className = "" }: { status: OisStatus | string; label?: string; size?: "sm" | "md"; className?: string }) {
   const normalized = normalize(status);
   const token = tokenStatus[normalized];
-  return <span className={`inline-flex items-center rounded-[var(--ois-radius-pill)] border font-medium tracking-[0.02em] ${size === "md" ? "px-2.5 py-1 text-[var(--ois-type-label)]" : "px-2 py-0.5 text-[var(--ois-type-eyebrow)]"} ${className}`} style={{ color: `var(--ois-status-${token})`, backgroundColor: `var(--ois-status-${token}-surface)`, borderColor: `var(--ois-status-${token}-border)` }}>{label || labels[normalized]}</span>;
+  return <span className={`inline-flex items-center rounded-[var(--ois-radius-pill)] border font-medium tracking-[0.02em] ${size === "md" ? "px-2 py-0.5 text-[10px]" : "px-1.5 py-px text-[9px]"} ${className}`} style={{ color: `var(--ois-status-${token})`, backgroundColor: `var(--ois-status-${token}-surface)`, borderColor: `var(--ois-status-${token}-border)` }}>{label || labels[normalized]}</span>;
 }

@@ -3,6 +3,8 @@
 
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import OisCard from "@/components/ois/OisCard";
+import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { jwtDecode } from "jwt-decode";
@@ -62,10 +64,10 @@ function when(iso?: string | null) {
 
 function labelValue(label: string, value?: string | null) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-      <div className="text-[11px] text-zinc-400">{label}</div>
-      <div className="text-sm text-white mt-1 break-all">{value || "—"}</div>
-    </div>
+    <OisCard variant="evidence" className="px-4 py-3">
+      <div className="text-[11px] text-[var(--ois-text-muted)]">{label}</div>
+      <div className="mt-1 break-all text-sm text-[var(--ois-text-primary)]">{value || "—"}</div>
+    </OisCard>
   );
 }
 
@@ -92,7 +94,7 @@ function SwitchRow({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+    <OisCard className="flex items-start justify-between gap-4 px-4 py-3">
       <div className="min-w-0">
         <div className="text-sm font-semibold text-white">{title}</div>
         {desc ? <div className="text-xs text-zinc-400 mt-1 leading-relaxed">{desc}</div> : null}
@@ -106,14 +108,14 @@ function SwitchRow({
           value ? "bg-emerald-500/20 border-emerald-500/30" : "bg-zinc-900/50 border-white/10"
         } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
         aria-label={`toggle ${title}`}
-      >
+        >
         <span
           className={`block w-6 h-6 rounded-full transition translate-y-[1px] ${
             value ? "translate-x-[22px] bg-emerald-300" : "translate-x-[2px] bg-zinc-300"
           }`}
         />
-      </button>
-    </div>
+        </button>
+    </OisCard>
   );
 }
 
@@ -126,9 +128,9 @@ export default function AccountPage() {
       fallback={
         <div className="space-y-7">
           <Topbar title="Account" subtitle="Profile • Settings • Permissions" />
-          <div className="glass border border-white/10 rounded-2xl p-6">
+          <OisCard className="p-6">
             <div className="text-sm text-zinc-400">Loading account…</div>
-          </div>
+          </OisCard>
         </div>
       }
     >
@@ -296,7 +298,7 @@ function AccountInner() {
       {/* PROFILE TAB */}
       {tab === "profile" && (
         <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-2">
-          <div className="glass border border-white/10 rounded-2xl p-6">
+          <OisCard className="p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold text-white">Operator Profile</div>
@@ -305,9 +307,7 @@ function AccountInner() {
                 </div>
               </div>
 
-              <span className="text-[11px] px-2 py-1 rounded-full border border-white/10 bg-white/5 text-zinc-300">
-                {role}
-              </span>
+              <OisStatusBadge status="stable" label={role} />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
@@ -318,9 +318,9 @@ function AccountInner() {
             </div>
 
             <div className="text-xs text-zinc-500 mt-4">If any of this looks wrong, logout and login again.</div>
-          </div>
+          </OisCard>
 
-          <div className="glass border border-white/10 rounded-2xl p-6">
+          <OisCard className="p-6">
             <div className="text-lg font-semibold text-white">Site Context</div>
             <div className="text-sm text-zinc-400 mt-1">The facility site you’re currently operating.</div>
 
@@ -340,14 +340,14 @@ function AccountInner() {
             <div className="text-xs text-zinc-500 mt-3">
               This pulls from <span className="text-zinc-200">/facility/estates</span>.
             </div>
-          </div>
+          </OisCard>
         </div>
       )}
 
       {/* SETTINGS TAB */}
       {tab === "settings" && (
         <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-2">
-          <div className="glass border border-white/10 rounded-2xl p-6">
+          <OisCard className="p-6">
             <div className="text-lg font-semibold text-white">Notification Settings</div>
             <div className="text-sm text-zinc-400 mt-1">What this operator account should send/receive.</div>
 
@@ -408,9 +408,9 @@ function AccountInner() {
             <div className="text-xs text-zinc-500 mt-3">
               Settings are saved locally for now. Next step is persisting to DB + enabling broadcast.
             </div>
-          </div>
+          </OisCard>
 
-          <div className="glass border border-white/10 rounded-2xl p-6">
+          <OisCard className="p-6">
             <div className="text-lg font-semibold text-white">Permissions</div>
             <div className="text-sm text-zinc-400 mt-1">
               Role-based access will govern what the operator can change.
@@ -425,7 +425,7 @@ function AccountInner() {
             <div className="text-xs text-zinc-500 mt-4">
               Next: wire a permissions matrix and lock sensitive actions.
             </div>
-          </div>
+          </OisCard>
         </div>
       )}
     </div>

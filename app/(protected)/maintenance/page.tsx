@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import OisCard from "@/components/ois/OisCard";
+import OisListItem from "@/components/ois/OisListItem";
+import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
@@ -85,19 +88,19 @@ function dateLabel(value?: string | null) {
 
 function statusTone(status?: string) {
   const value = lower(status);
-  if (["completed", "closed", "resolved"].includes(value)) return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
-  if (["assigned", "scheduled", "in_progress"].includes(value)) return "border-sky-500/20 bg-sky-500/10 text-sky-200";
-  if (["waiting_for_resident", "waiting_for_parts"].includes(value)) return "border-amber-500/20 bg-amber-500/10 text-amber-200";
-  if (value === "cancelled") return "border-white/10 bg-white/5 text-zinc-300";
-  return "border-orange-500/20 bg-orange-500/10 text-orange-200";
+  if (["completed", "closed", "resolved"].includes(value)) return "completed";
+  if (["assigned", "scheduled", "in_progress"].includes(value)) return "attention";
+  if (["waiting_for_resident", "waiting_for_parts"].includes(value)) return "warning";
+  if (value === "cancelled") return "blocked";
+  return "pending";
 }
 
 function priorityTone(priority?: string | null) {
   const value = lower(priority || "medium");
-  if (value === "urgent") return "border-red-500/25 bg-red-500/10 text-red-200";
-  if (value === "high") return "border-amber-500/25 bg-amber-500/10 text-amber-200";
-  if (value === "low") return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200";
-  return "border-sky-500/20 bg-sky-500/10 text-sky-200";
+  if (value === "urgent") return "critical";
+  if (value === "high") return "warning";
+  if (value === "low") return "stable";
+  return "attention";
 }
 
 function locationOf(item: MaintenanceItem) {
@@ -116,23 +119,23 @@ function ownerOf(item: MaintenanceItem) {
 
 function Metric({ label, value, hint, icon: Icon }: { label: string; value: string | number; hint: string; icon: typeof Wrench }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+    <OisCard className="p-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+        <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--ois-text-muted)]">{label}</div>
         <Icon className="h-4 w-4 text-sky-200" />
       </div>
-      <div className="mt-3 text-2xl font-semibold text-white">{value}</div>
-      <div className="mt-1 text-xs text-zinc-500">{hint}</div>
-    </div>
+      <div className="mt-3 text-2xl font-semibold text-[var(--ois-text-primary)]">{value}</div>
+      <div className="mt-1 text-xs text-[var(--ois-text-secondary)]">{hint}</div>
+    </OisCard>
   );
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-      <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">{label}</div>
-      <div className="mt-1 text-sm text-zinc-200">{value}</div>
-    </div>
+    <OisCard variant="evidence" className="p-3">
+      <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">{label}</div>
+      <div className="mt-1 text-sm text-[var(--ois-text-primary)]">{value}</div>
+    </OisCard>
   );
 }
 
@@ -260,12 +263,12 @@ export default function MaintenancePage() {
     {
       accessorKey: "priority",
       header: "Priority",
-      cell: ({ row }) => <span className={cn("rounded-full border px-2 py-1 text-xs", priorityTone(row.original.priority))}>{titleCase(row.original.priority || "medium")}</span>,
+      cell: ({ row }) => <OisStatusBadge status={priorityTone(row.original.priority)} label={titleCase(row.original.priority || "medium")} />,
     },
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => <span className={cn("rounded-full border px-2 py-1 text-xs", statusTone(row.original.status))}>{titleCase(row.original.status)}</span>,
+      cell: ({ row }) => <OisStatusBadge status={statusTone(row.original.status)} label={titleCase(row.original.status)} />,
     },
     { header: "Schedule", cell: ({ row }) => <span className="text-xs text-zinc-400">{scheduledAt(row.original) ? dateLabel(scheduledAt(row.original)) : "Not scheduled"}</span> },
     { id: "actions", header: "", cell: ({ row }) => <Button variant="ghost" onClick={() => open(row.original)}>Open</Button> },
@@ -286,7 +289,7 @@ export default function MaintenancePage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+        <OisCard className="p-4">
           <div className="flex flex-wrap gap-2">
             {([
               ["active", "Active"],
@@ -302,11 +305,11 @@ export default function MaintenancePage() {
           <div className="mt-4 hidden md:block">
             <DataTable data={filtered} columns={columns} title="Work Order Registry" searchKey="title" />
           </div>
-          <div className="mt-4 space-y-2 md:hidden">{filtered.map((item) => <button key={item.id} type="button" onClick={() => open(item)} className="block w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-left"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-white">{item.title || "Maintenance request"}</p><p className="mt-1 truncate text-xs text-zinc-500">{locationOf(item)} · {dateLabel(item.created_at)}</p></div><span className={cn("shrink-0 rounded-full border px-2 py-1 text-[10px]", statusTone(item.status))}>{titleCase(item.status)}</span></div><div className="mt-3 flex items-center justify-between text-xs"><span className="text-zinc-400">{ownerOf(item)}</span><span className={cn("rounded-full border px-2 py-1", priorityTone(item.priority))}>{titleCase(item.priority || "medium")}</span></div></button>)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No requests in this lane.</p> : null}</div>
-        </div>
+          <div className="mt-4 space-y-2 md:hidden">{filtered.map((item) => <OisListItem key={item.id} title={item.title || "Maintenance request"} description={`${locationOf(item)} · ${dateLabel(item.created_at)}`} meta={ownerOf(item)} status={statusTone(item.status)} priority={titleCase(item.priority || "medium")} onClick={() => open(item)} className="w-full text-left" />)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No requests in this lane.</p> : null}</div>
+        </OisCard>
 
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+          <OisCard className="p-4">
             <h2 className="text-sm font-semibold text-white">Attention lanes</h2>
             <div className="mt-3 space-y-2 text-sm">
               <Field label="Unassigned requests" value={stats.unassigned} />
@@ -315,12 +318,12 @@ export default function MaintenancePage() {
               <Field label="Escalated requests" value={stats.escalated} />
               <Field label="SLA visibility" value="Awaiting SLA configuration" />
             </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+          </OisCard>
+          <OisCard className="p-4">
             <h2 className="text-sm font-semibold text-white">Consumer alignment</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-400">Resident-submitted maintenance requests appear here. Status changes notify the requester through the existing backend maintenance update route.</p>
             <Link href="/overview" className="mt-3 inline-flex text-sm text-sky-200">Return to overview</Link>
-          </div>
+          </OisCard>
         </aside>
       </section>
 
@@ -339,8 +342,8 @@ export default function MaintenancePage() {
             <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_360px]">
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Status" value={<span className={cn("rounded-full border px-2 py-1 text-xs", statusTone(selected.status))}>{titleCase(selected.status)}</span>} />
-                  <Field label="Priority" value={<span className={cn("rounded-full border px-2 py-1 text-xs", priorityTone(selected.priority))}>{titleCase(selected.priority || "medium")}</span>} />
+                  <Field label="Status" value={<OisStatusBadge status={statusTone(selected.status)} label={titleCase(selected.status)} />} />
+                  <Field label="Priority" value={<OisStatusBadge status={priorityTone(selected.priority)} label={titleCase(selected.priority || "medium")} />} />
                   <Field label="Requester" value={requesterOf(selected)} />
                   <Field label="Current owner" value={ownerOf(selected)} />
                   <Field label="Scheduled visit" value={scheduledAt(selected) ? dateLabel(scheduledAt(selected)) : "Not scheduled"} />
