@@ -152,11 +152,11 @@ function SummaryCard({
   return (
     <Link
       href={href}
-      className={`rounded-[20px] border p-3 transition hover:border-sky-400/30 hover:bg-white/[0.055] sm:rounded-2xl sm:p-4 ${color} ${className}`}
+      className={`rounded-[18px] border p-3 transition hover:border-white/[0.13] hover:bg-white/[0.05] sm:p-4 ${color} ${className}`}
     >
-      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">{label}</div>
-      <div className="mt-2 text-xl font-semibold tracking-tight text-white sm:mt-3 sm:text-2xl">{value}</div>
-      <div className="mt-1.5 text-[11px] leading-4 text-zinc-600 sm:mt-2 sm:text-xs sm:leading-5">{hint}</div>
+      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white sm:text-[1.65rem]">{value}</div>
+      <div className="mt-1 text-[11px] leading-4 text-zinc-500 sm:text-[11px]">{hint}</div>
     </Link>
   );
 }
@@ -187,26 +187,26 @@ function PeopleCommunicationCard({
   const sourceLabel = statusLabel(sourceState);
 
   return (
-    <div className={`rounded-[20px] border p-3 sm:rounded-2xl sm:p-4 ${tone}`}>
-      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">People</div>
-      <div className="mt-2 text-xl font-semibold tracking-tight text-white sm:mt-3 sm:text-2xl">{label}</div>
-      <div className="mt-1.5 text-[11px] leading-4 text-zinc-600 sm:mt-2 sm:text-xs sm:leading-5">
+    <div className={`rounded-[18px] border p-3 sm:p-4 ${tone}`}>
+      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">People</div>
+      <div className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white sm:text-[1.65rem]">{label}</div>
+      <div className="mt-1 text-[11px] leading-4 text-zinc-500 sm:text-[11px]">
         {sourceLabel || "Communication posture from shared message and community ownership."}
       </div>
       <div className="mt-3 space-y-1.5">
-        <Link href="/messages" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+        <Link href="/messages" className="flex items-center justify-between rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-white/[0.11] hover:bg-white/[0.04]">
           <span>Unread Messages</span>
           <span className="text-zinc-500">{posture?.unreadMessages ?? "—"}</span>
         </Link>
-        <Link href="/messages" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+        <Link href="/messages" className="flex items-center justify-between rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-white/[0.11] hover:bg-white/[0.04]">
           <span>Unread Resident Threads</span>
           <span className="text-zinc-500">{posture?.unreadResidentThreads ?? "—"}</span>
         </Link>
-        <Link href={supportHref} className="flex items-center justify-between rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+        <Link href={supportHref} className="flex items-center justify-between rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-white/[0.11] hover:bg-white/[0.04]">
           <span>Support Waiting</span>
           <span className="text-zinc-500">{posture?.supportState === "unavailable" ? "Unavailable" : posture?.supportState}</span>
         </Link>
-        <Link href="/community" className="flex items-center justify-between rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
+        <Link href="/community" className="flex items-center justify-between rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-[11px] text-zinc-300 transition hover:border-white/[0.11] hover:bg-white/[0.04]">
           <span>Moderation Pending</span>
           <span className="text-zinc-500">{posture?.moderationPending ?? "—"}</span>
         </Link>
@@ -217,8 +217,8 @@ function PeopleCommunicationCard({
 
 function MobileMetricStrip({ items }: { items: MobileMetricItem[] }) {
   return (
-    <section className="rounded-[20px] border border-white/[0.07] bg-[linear-gradient(145deg,rgba(255,255,255,0.046),rgba(255,255,255,0.012))] p-2.5 shadow-[0_12px_38px_rgba(0,0,0,0.30)] backdrop-blur-2xl sm:hidden">
-      <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <section className="rounded-[18px] border border-white/[0.06] bg-white/[0.025] p-2 sm:hidden">
+      <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((item) => {
           const Icon = item.icon;
           const content = (
@@ -230,7 +230,7 @@ function MobileMetricStrip({ items }: { items: MobileMetricItem[] }) {
               <div className="mt-1 text-[11px] text-white/48">{item.label}</div>
             </>
           );
-          const className = "min-w-[86px] shrink-0 snap-start rounded-[16px] border border-white/[0.055] bg-white/[0.026] px-2 py-2 text-center transition hover:border-sky-400/25 hover:bg-white/[0.05]";
+          const className = "min-w-[86px] shrink-0 snap-start rounded-[14px] border border-white/[0.05] bg-black/10 px-2 py-2 text-center transition hover:border-white/[0.1] hover:bg-white/[0.04]";
           return item.href ? (
             <Link key={item.label} href={item.href} className={className}>
               {content}
@@ -248,22 +248,22 @@ function MobileMetricStrip({ items }: { items: MobileMetricItem[] }) {
 
 function MobileQuickActionStrip({ items }: { items: MobileQuickActionItem[] }) {
   return (
-    <section className="rounded-[20px] border border-white/[0.07] bg-[linear-gradient(145deg,rgba(255,255,255,0.044),rgba(255,255,255,0.012))] p-2.5 shadow-[0_12px_38px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:hidden">
-      <div className="flex snap-x gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <section className="rounded-[18px] border border-white/[0.06] bg-white/[0.025] p-2 sm:hidden">
+      <div className="flex snap-x gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((item) => {
           const Icon = item.icon;
           const content = (
             <>
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[14px] border border-white/[0.07] bg-white/[0.045]">
-                <Icon className={`h-4 w-4 ${item.iconClass || "text-sky-300 drop-shadow-[0_0_12px_rgba(56,189,248,0.55)]"}`} />
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[12px] border border-white/[0.06] bg-white/[0.03]">
+                <Icon className={`h-4 w-4 ${item.iconClass || "text-sky-300"}`} />
               </span>
               <span className="min-w-0 text-left">
                 <span className="block text-[11px] font-medium text-white/82">{item.label}</span>
-                <span className="block max-w-[118px] truncate text-[10px] text-white/42">{item.value}</span>
+                <span className="block max-w-[118px] truncate text-[10px] text-white/38">{item.value}</span>
               </span>
             </>
           );
-          const className = "flex min-w-[148px] shrink-0 snap-start items-center gap-2 rounded-[17px] border border-white/[0.055] bg-black/20 px-2.5 py-2 transition hover:border-sky-400/25 hover:bg-white/[0.045] disabled:opacity-50";
+          const className = "flex min-w-[148px] shrink-0 snap-start items-center gap-2 rounded-[14px] border border-white/[0.05] bg-black/15 px-2.5 py-2 transition hover:border-white/[0.1] hover:bg-white/[0.04] disabled:opacity-50";
           if (item.onClick) {
             return (
               <button key={item.label} type="button" onClick={item.onClick} disabled={item.disabled} className={className}>
@@ -292,10 +292,14 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[20px] border border-white/[0.07] bg-white/[0.025] p-3.5 sm:rounded-[22px] sm:p-4.5">
-      <h2 className="text-sm font-semibold tracking-[-0.01em] text-zinc-100">{title}</h2>
-      {subtitle ? <p className="mt-1 text-[11px] leading-5 text-zinc-600">{subtitle}</p> : null}
-      <div className="mt-3.5">{children}</div>
+    <section className="rounded-[18px] border border-white/[0.06] bg-white/[0.024] p-3 sm:p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-zinc-100">{title}</h2>
+          {subtitle ? <p className="mt-1 text-[11px] leading-4 text-zinc-500">{subtitle}</p> : null}
+        </div>
+      </div>
+      <div className="mt-3">{children}</div>
     </section>
   );
 }
@@ -303,7 +307,7 @@ function Panel({
 function SourceMessage({ value, empty }: { value: Source<unknown>; empty: string }) {
   const label = statusLabel(value);
   return (
-    <div className="rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-3 text-sm text-zinc-500">
+    <div className="rounded-[16px] border border-dashed border-white/[0.08] bg-black/15 px-3 py-3 text-sm text-zinc-500">
       {label || empty}
     </div>
   );
@@ -511,20 +515,20 @@ function OverviewPage() {
   ];
 
   return (
-    <div className="space-y-3 overflow-x-hidden pb-6 sm:space-y-5 sm:overflow-visible sm:pb-0">
+    <div className="space-y-3 overflow-x-hidden pb-6 sm:space-y-4 lg:space-y-5 sm:overflow-visible sm:pb-0">
       <div className="flex items-center justify-between gap-3 sm:hidden">
         <div className="min-w-0">
           <h1 className="truncate text-[24px] font-semibold tracking-[-0.055em] text-white">Facility Overview</h1>
-          <p className="mt-1 text-[11px] text-zinc-600">Operational attention center</p>
+          <p className="mt-1 text-[11px] text-zinc-500">Operational attention center</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={load} disabled={loading} className="grid h-10 w-10 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-sky-200 backdrop-blur-xl disabled:opacity-50" aria-label="Refresh overview">
+          <button type="button" onClick={load} disabled={loading} className="grid h-10 w-10 place-items-center rounded-[14px] border border-white/[0.06] bg-white/[0.03] text-sky-200 disabled:opacity-50" aria-label="Refresh overview">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </button>
-          <Link href="/messages" className="grid h-10 w-10 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-sky-200 backdrop-blur-xl" aria-label="Open messages">
+          <Link href="/messages" className="grid h-10 w-10 place-items-center rounded-[14px] border border-white/[0.06] bg-white/[0.03] text-sky-200" aria-label="Open messages">
             <Users className="h-4 w-4" />
           </Link>
-          <Link href="/alerts" className="grid h-10 w-10 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-sky-200 backdrop-blur-xl" aria-label="Open notifications">
+          <Link href="/alerts" className="grid h-10 w-10 place-items-center rounded-[14px] border border-white/[0.06] bg-white/[0.03] text-sky-200" aria-label="Open notifications">
             <ShieldAlert className="h-4 w-4" />
           </Link>
         </div>
@@ -552,12 +556,23 @@ function OverviewPage() {
         </Panel>
       ) : null}
 
-      <section className="rounded-[22px] border border-white/[0.07] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-3.5 sm:p-4.5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div className="max-w-3xl"><p className="text-[10px] uppercase tracking-[0.16em] text-sky-200/70">Operational Attention Center</p><h2 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-white">{estateName} is {estateState.toLowerCase()}</h2><p className="mt-1.5 text-sm text-zinc-400">{displayedFacilityAction}</p></div><div className="flex flex-wrap gap-2"><Link href="/facility-intelligence?focus=1" className="rounded-lg border border-sky-400/15 bg-sky-500/8 px-3 py-2 text-xs text-sky-100">Ask Oyi</Link><Link href="/facility-intelligence?module=workflows" className="rounded-lg border border-white/[0.08] bg-black/10 px-3 py-2 text-xs text-zinc-300">Open Queue</Link><Link href="/alerts" className="rounded-lg border border-white/[0.08] bg-black/10 px-3 py-2 text-xs text-zinc-300">Open Incidents</Link></div></div>
-        <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">{[["Attention", attention.length, "text-amber-100"],["Overdue", workflowMetrics.overdue, "text-amber-100"],["Escalated", workflowMetrics.escalated, "text-rose-100"],["Verification", verificationSummary.pending + verificationSummary.overdue + verificationSummary.failed, "text-sky-100"]].map(([label, value, color]) => <div key={String(label)} className="rounded-[18px] border border-white/[0.07] bg-black/10 p-2.5"><span className="text-[10px] uppercase tracking-[0.14em] text-zinc-600">{label}</span><b className={`mt-1 block text-lg ${color}`}>{loading ? "—" : value}</b></div>)}</div>
+      <section className="rounded-[18px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.028),rgba(255,255,255,0.012))] p-3 sm:p-4">
+        <div className="grid gap-3 xl:grid-cols-12 xl:items-end">
+          <div className="xl:col-span-8">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/70">Operational Attention Center</p>
+            <h2 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.04em] text-white sm:text-[1.75rem]">{estateName} is {estateState.toLowerCase()}</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">{displayedFacilityAction}</p>
+          </div>
+          <div className="flex flex-wrap gap-2 xl:col-span-4 xl:justify-end">
+            <Link href="/facility-intelligence?focus=1" className="rounded-[14px] border border-sky-400/15 bg-sky-500/8 px-3 py-2 text-xs text-sky-100">Ask Oyi</Link>
+            <Link href="/facility-intelligence?module=workflows" className="rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-xs text-zinc-300">Open Queue</Link>
+            <Link href="/alerts" className="rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-xs text-zinc-300">Open Incidents</Link>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">{[["Attention", attention.length, "text-amber-100"],["Overdue", workflowMetrics.overdue, "text-amber-100"],["Escalated", workflowMetrics.escalated, "text-rose-100"],["Verification", verificationSummary.pending + verificationSummary.overdue + verificationSummary.failed, "text-sky-100"]].map(([label, value, color]) => <div key={String(label)} className="rounded-[16px] border border-white/[0.05] bg-black/10 px-3 py-2.5"><span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</span><b className={`mt-1 block text-lg font-semibold tracking-[-0.03em] ${color}`}>{loading ? "—" : value}</b></div>)}</div>
       </section>
 
-      <div className="grid gap-3 xl:grid-cols-12">
+      <div className="grid gap-3 xl:grid-cols-12 xl:items-stretch">
         <div className="xl:col-span-5">
           <Panel title="Attention Stack" subtitle="The five highest-ranked items requiring review.">
               {attention.length ? (
@@ -565,9 +580,9 @@ function OverviewPage() {
                   {attention.map((item) => (
                     <Link key={item.id} href={item.href} className="block">
                       <OisListItem
-                        className="gap-2 p-2"
+                        className="gap-2"
                         title={<span className="block truncate text-sm font-medium text-zinc-100">{item.title}</span>}
-                        meta={<span className="text-[11px] text-zinc-600">{item.domain}</span>}
+                        meta={<span className="text-[11px] text-zinc-500">{item.domain}</span>}
                         action={<span className="text-[11px] text-zinc-500">{item.action}</span>}
                       />
                     </Link>
@@ -584,7 +599,7 @@ function OverviewPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-12">
+      <div className="grid gap-3 xl:grid-cols-12 xl:items-stretch">
         <div className="xl:col-span-7">
           <FacilityIntelligenceExposure onMetrics={setWorkflowMetrics} />
         </div>
@@ -593,7 +608,7 @@ function OverviewPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-12">
+      <div className="grid gap-3 xl:grid-cols-12 xl:items-stretch">
         <div className="xl:col-span-7">
           <Panel title="Operational Health" subtitle="People, security, infrastructure, and finance posture.">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
