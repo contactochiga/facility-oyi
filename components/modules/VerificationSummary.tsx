@@ -1,5 +1,7 @@
 "use client";
 
+import OisCard from "@/components/ois/OisCard";
+
 export type VerificationSummaryValue = {
   pending: number;
   overdue: number;
@@ -16,9 +18,9 @@ export default function VerificationSummary({ summary, loading = false }: { summ
   ];
 
   return <div className="grid grid-cols-4 gap-2 text-center text-xs">
-    {metrics.map(([label, value, color]) => <div key={label} className="rounded-xl bg-black/20 p-2">
+    {metrics.map(([label, value, color]) => <OisCard key={label} as="div" variant="evidence" className="p-2">
       <b className={`block ${color}`}>{loading ? "—" : value}</b>
       <span className="block text-[10px] text-zinc-500">{label}</span>
-    </div>)}
+    </OisCard>)}
   </div>;
 }
