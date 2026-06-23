@@ -26,6 +26,7 @@ import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import API from "@/services/api";
 import { facilityService, type HomeInviteRow } from "@/services/facilityService";
+import { loadFacilityAttention, type AttentionSeverity, type FacilityAttentionItem } from "@/services/facilityAttentionService";
 import { oyiService, type OyiAwareness } from "@/services/oyiService";
 import { useSessionStore } from "@/store/useSessionStore";
 import type { FacilityOverview } from "@/types/facility";
@@ -37,17 +38,6 @@ import UnifiedInfrastructurePosture from "@/components/modules/UnifiedInfrastruc
 
 type LoadStatus = "loading" | "ready" | "error" | "permission";
 type Source<T> = { status: LoadStatus; data: T; message?: string };
-type Severity = "critical" | "warning" | "info";
-type AttentionItem = {
-  id: string;
-  severity: Severity;
-  domain: string;
-  title: string;
-  detail: string;
-  href: string;
-  action: string;
-  time?: string | null;
-};
 
 type MobileMetricItem = {
   label: string;
@@ -73,7 +63,6 @@ type OverviewSources = {
   devices: Source<any[]>;
   maintenance: Source<any[]>;
   visitors: Source<any[]>;
-  notifications: Source<any[]>;
   cameras: Source<any[]>;
   reports: Source<any[]>;
   community: Source<any[]>;
@@ -91,7 +80,6 @@ function emptySources(): OverviewSources {
     devices: source<any[]>([]),
     maintenance: source<any[]>([]),
     visitors: source<any[]>([]),
-    notifications: source<any[]>([]),
     cameras: source<any[]>([]),
     reports: source<any[]>([]),
     community: source<any[]>([]),
@@ -272,7 +260,7 @@ function SourceMessage({ value, empty }: { value: Source<unknown>; empty: string
   );
 }
 
-function severityClass(severity: Severity) {
+function severityClass(severity: AttentionSeverity) {
   if (severity === "critical") return "border-red-500/25 bg-red-500/[0.08] text-red-200";
   if (severity === "warning") return "border-amber-500/25 bg-amber-500/[0.08] text-amber-200";
   return "border-sky-500/20 bg-sky-500/[0.07] text-sky-200";
@@ -306,10 +294,12 @@ function OverviewPage() {
   const [awarenessStatus, setAwarenessStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [workflowMetrics, setWorkflowMetrics] = useState({ active: 0, overdue: 0, escalated: 0, verification: 0 });
   const [verificationSummary, setVerificationSummary] = useState({ pending: 0, overdue: 0, failed: 0, verifiedToday: 0 });
+  const [attentionSource, setAttentionSource] = useState<Source<FacilityAttentionItem[]>>(source([]));
 
   const load = useCallback(async () => {
     setLoading(true);
     setSources(emptySources());
+    setAttentionSource(source([], "loading"));
 
     const [overviewState, estatesState] = await Promise.all([
       loadSource(facilityService.overview(), null),
@@ -325,6 +315,7 @@ function OverviewPage() {
 
     if (!nextEstateId) {
       setSources({ ...emptySources(), overview: overviewState });
+      setAttentionSource(source([], "ready"));
       setBackendAwareness(null);
       setAwarenessStatus("idle");
       setLoading(false);
@@ -334,21 +325,22 @@ function OverviewPage() {
 
     setAwarenessStatus("loading");
     setBackendAwareness(null);
-    const [homes, devices, maintenance, visitors, notifications, cameras, reports, community, awareness] =
+    const [homes, devices, maintenance, visitors, cameras, reports, community, awareness, attentionState] =
       await Promise.all([
         loadSource(facilityService.listHomes(nextEstateId).then((res) => res.homes || []), []),
         loadSource(API.get("/facility/devices").then((res) => listFrom(res.data, ["devices", "items"])), []),
         loadSource(API.get("/facility/maintenance").then((res) => listFrom(res.data, ["requests", "items"])), []),
         loadSource(API.get("/facility/visitors", { params: { today: true } }).then((res) => listFrom(res.data, ["visitors", "items"])), []),
-        loadSource(API.get("/notifications", { params: { unread: true } }).then((res) => listFrom(res.data, ["items", "data"])), []),
         loadSource(API.get(`/cameras/estate/${encodeURIComponent(nextEstateId)}`).then((res) => listFrom(res.data, ["items", "cameras"])), []),
         loadSource(API.get("/messages/mod/reports", { params: { status: "open", limit: 40 } }).then((res) => listFrom(res.data, ["reports", "items"])), []),
         loadSource(API.get(`/community/posts/estate/${encodeURIComponent(nextEstateId)}`).then((res) => listFrom(res.data, ["posts", "items"])), []),
         oyiService.awareness({ estate_id: nextEstateId }).catch(() => null),
+        loadSource(loadFacilityAttention(), []),
       ]);
 
     setBackendAwareness(awareness?.headline ? awareness : null);
     setAwarenessStatus(awareness?.headline ? "ready" : "error");
+    setAttentionSource(attentionState);
 
     let invites: Source<HomeInviteRow[]> = source([], homes.status === "ready" ? "ready" : homes.status);
     if (homes.status === "ready" && homes.data.length) {
@@ -370,7 +362,6 @@ function OverviewPage() {
       devices,
       maintenance,
       visitors,
-      notifications,
       cameras,
       reports,
       community,
@@ -406,85 +397,7 @@ function OverviewPage() {
     return String(item?.status || "").toLowerCase() === "expired" || (!!expiry && expiry < Date.now());
   });
 
-  const attention = useMemo<AttentionItem[]>(() => {
-    const items: AttentionItem[] = [];
-    for (const item of sources.notifications.data) {
-      if (item?.routing?.attention_eligible !== true) continue;
-      const routing = item.routing;
-      items.push({
-        id: `notification-${item.id}`,
-        severity: routing.source_type === "incident" ? "critical" : "warning",
-        domain: String(routing.source_type || "notification").replace(/_/g, " "),
-        title: item.title || "Unread operational notification",
-        detail: item.message || "Review this notification.",
-        href: "/alerts",
-        action: routing.actionability === "acknowledge" ? "Acknowledge alert" : "Review alert",
-        time: item.created_at,
-      });
-    }
-    for (const item of offlineDevices) {
-      items.push({
-        id: `device-${item.id}`,
-        severity: "warning",
-        domain: "Device registry",
-        title: `${item.name || item.label || "Device"} requires attention`,
-        detail: item.room_name || item.home_name || "Review device connectivity and assignment.",
-        href: "/devices",
-        action: "Review device",
-        time: item.updated_at || item.created_at,
-      });
-    }
-    for (const item of openMaintenance) {
-      items.push({
-        id: `maintenance-${item.id}`,
-        severity: String(item.priority || "").toLowerCase() === "urgent" ? "critical" : "warning",
-        domain: "Maintenance",
-        title: item.title || "Open maintenance request",
-        detail: item.status || "Awaiting assignment",
-        href: "/maintenance",
-        action: "Open request",
-        time: item.created_at,
-      });
-    }
-    for (const item of pendingVisitors) {
-      items.push({
-        id: `visitor-${item.id}`,
-        severity: "info",
-        domain: "Visitor access",
-        title: `${item.visitor_name || item.full_name || "Visitor"} is awaiting review`,
-        detail: item.purpose || "Visitor approval pending",
-        href: "/visitors",
-        action: "Verify visitor",
-        time: item.created_at,
-      });
-    }
-    for (const item of sources.reports.data) {
-      items.push({
-        id: `report-${item.id}`,
-        severity: "warning",
-        domain: "Community moderation",
-        title: item.reason || "Community report requires review",
-        detail: item.status || "Open report",
-        href: "/messages",
-        action: "Review report",
-        time: item.created_at,
-      });
-    }
-    for (const item of expiredInvites) {
-      items.push({
-        id: `invite-${item.id}`,
-        severity: "info",
-        domain: "Resident access",
-        title: `${item.invited_email || "Resident"} invitation expired`,
-        detail: "Rotate and resend the invitation if access is still required.",
-        href: "/homes",
-        action: "Manage invites",
-        time: item.expires_at,
-      });
-    }
-    const rank: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
-    return items.sort((a, b) => rank[a.severity] - rank[b.severity]);
-  }, [expiredInvites, offlineDevices, openMaintenance, pendingVisitors, sources.notifications.data, sources.reports.data]);
+  const attention = attentionSource.data;
 
   const unresolvedSourceCount = Object.values(sources).filter(
     (item) => item.status === "error" || item.status === "permission"
@@ -510,7 +423,6 @@ function OverviewPage() {
       : awarenessStatus === "error"
       ? "Oyi awareness is unavailable, showing local operational context."
       : backendAwareness?.recommended_action || backendAwareness?.summary || "Tap a strip below to open the right workflow.";
-  const attentionPreview = attention.slice(0, 5);
 
   async function createEstate() {
     if (estateForm.name.trim().length < 2) return;
@@ -598,9 +510,9 @@ function OverviewPage() {
       </section>
 
       <Panel title="Attention Stack" subtitle="The five highest-ranked items requiring review.">
-          {attentionPreview.length ? (
+          {attention.length ? (
             <div className="space-y-2">
-              {attentionPreview.map((item) => (
+              {attention.map((item) => (
                 <Link key={item.id} href={item.href} className="flex gap-3 rounded-xl border border-white/10 bg-black/15 p-3 transition hover:border-sky-400/25 hover:bg-white/[0.045]">
                   <span className={`mt-0.5 h-fit rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em] ${severityClass(item.severity)}`}>
                     {item.severity}
@@ -616,9 +528,8 @@ function OverviewPage() {
               ))}
             </div>
           ) : (
-            <SourceMessage value={sources.notifications} empty="No critical attention required." />
+            <SourceMessage value={attentionSource} empty="No critical attention required." />
           )}
-          {attention.length > 5 ? <Link href="/alerts" className="mt-3 inline-flex text-xs text-sky-200">View all attention <ChevronRight className="ml-1 h-3.5 w-3.5" /></Link> : null}
       </Panel>
 
       <OperatorQueue limit={5} />
