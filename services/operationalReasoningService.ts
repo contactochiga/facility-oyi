@@ -5,6 +5,7 @@ import {
 } from "@/lib/operationalReasoning";
 import { buildAwarenessFromSignal } from "@/services/contextAwarenessEngine";
 import { loadFacilityAttention, type FacilityAttentionItem } from "@/services/facilityAttentionService";
+import { evaluateOyiCoreRuntime } from "@/services/oyiCoreRuntimeService";
 import { signalFromFacilityAttention } from "@/services/signalAwarenessService";
 import type { NormalizedSignal } from "@/lib/operationalSignal";
 
@@ -25,7 +26,11 @@ export function deriveRealtimeOperationalInsights(input: RealtimeReasoningInput)
 
 export async function loadOperationalInsights(): Promise<OperationalInsight[]> {
   const attention = await loadFacilityAttention();
-  return buildOperationalInsights({
-    signals: attention.map(signalFromFacilityAttention),
-  });
+  const signals = attention.map(signalFromFacilityAttention);
+  try {
+    const bundle = await evaluateOyiCoreRuntime(signals);
+    return bundle.insights;
+  } catch {
+    return buildOperationalInsights({ signals });
+  }
 }

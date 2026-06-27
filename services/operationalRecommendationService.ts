@@ -4,6 +4,7 @@ import {
 } from "@/lib/operationalRecommendations";
 import { normalizeSignal, type NormalizedSignal } from "@/lib/operationalSignal";
 import { loadFacilityAttention } from "@/services/facilityAttentionService";
+import { evaluateOyiCoreRuntime } from "@/services/oyiCoreRuntimeService";
 import { loadOperationalInsights, type RealtimeReasoningInput } from "@/services/operationalReasoningService";
 import { buildAwarenessFromSignal } from "@/services/contextAwarenessEngine";
 import { signalFromFacilityAttention } from "@/services/signalAwarenessService";
@@ -24,12 +25,16 @@ export function deriveRealtimeOperationalRecommendations(input: RealtimeRecommen
 }
 
 export async function loadOperationalRecommendations(): Promise<OperationalRecommendation[]> {
-  const [attention, insights] = await Promise.all([
-    loadFacilityAttention(),
-    loadOperationalInsights(),
-  ]);
-  return buildOperationalRecommendations({
-    signals: attention.map(signalFromFacilityAttention),
-    insights,
-  });
+  const attention = await loadFacilityAttention();
+  const signals = attention.map(signalFromFacilityAttention);
+  try {
+    const bundle = await evaluateOyiCoreRuntime(signals);
+    return bundle.recommendations;
+  } catch {
+    const insights = await loadOperationalInsights();
+    return buildOperationalRecommendations({
+      signals,
+      insights,
+    });
+  }
 }

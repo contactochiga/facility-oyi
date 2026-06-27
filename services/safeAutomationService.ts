@@ -2,6 +2,7 @@ import type { OperationalRecommendation } from "@/lib/operationalRecommendations
 import { buildAutomationPlans, type AutomationPlan } from "@/lib/safeAutomationRuntime";
 import { normalizeSignal, type NormalizedSignal } from "@/lib/operationalSignal";
 import { loadFacilityAttention } from "@/services/facilityAttentionService";
+import { evaluateOyiCoreRuntime } from "@/services/oyiCoreRuntimeService";
 import { loadOperationalInsights, type RealtimeReasoningInput } from "@/services/operationalReasoningService";
 import { loadOperationalRecommendations } from "@/services/operationalRecommendationService";
 import { buildAwarenessFromSignal } from "@/services/contextAwarenessEngine";
@@ -27,14 +28,20 @@ export function deriveRealtimeAutomationPlans(input: RealtimeAutomationInput): A
 }
 
 export async function loadAutomationPlans(): Promise<AutomationPlan[]> {
-  const [attention, insights, recommendations] = await Promise.all([
-    loadFacilityAttention(),
-    loadOperationalInsights(),
-    loadOperationalRecommendations(),
-  ]);
-  return buildAutomationPlans({
-    signals: attention.map(signalFromFacilityAttention),
-    insights,
-    recommendations,
-  });
+  const attention = await loadFacilityAttention();
+  const signals = attention.map(signalFromFacilityAttention);
+  try {
+    const bundle = await evaluateOyiCoreRuntime(signals);
+    return bundle.automationPlans;
+  } catch {
+    const [insights, recommendations] = await Promise.all([
+      loadOperationalInsights(),
+      loadOperationalRecommendations(),
+    ]);
+    return buildAutomationPlans({
+      signals,
+      insights,
+      recommendations,
+    });
+  }
 }

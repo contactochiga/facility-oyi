@@ -5,6 +5,7 @@ import {
 } from "@/lib/conversationRuntime";
 import { ensureRuntimeSubscriptions } from "@/lib/runtimeSubscriptions";
 import { loadFacilityAttention, loadFacilityAwareness } from "@/services/facilityAttentionService";
+import { runOyiCoreConversation } from "@/services/oyiCoreRuntimeService";
 import { loadOperationalInsights } from "@/services/operationalReasoningService";
 import { loadOperationalRecommendations } from "@/services/operationalRecommendationService";
 import { loadAutomationPlans } from "@/services/safeAutomationService";
@@ -19,17 +20,22 @@ export async function runConversationRuntime(request: ConversationRequest): Prom
     loadOperationalRecommendations(),
     loadAutomationPlans(),
   ]);
-
-  const response = buildConversationResponse({
-    request,
-    signals: attention.map(signalFromFacilityAttention),
-    awareness,
-    insights,
-    recommendations,
-    automationPlans,
-    permissions: request.actor?.permissions || [],
-    context: request.context,
-  });
+  const signals = attention.map(signalFromFacilityAttention);
+  let response: ConversationResponse;
+  try {
+    response = await runOyiCoreConversation(request, signals);
+  } catch {
+    response = buildConversationResponse({
+      request,
+      signals,
+      awareness,
+      insights,
+      recommendations,
+      automationPlans,
+      permissions: request.actor?.permissions || [],
+      context: request.context,
+    });
+  }
   runtime.publishConversation({
     event: "conversation.runtime",
     conversationRequest: request,

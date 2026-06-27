@@ -6,6 +6,7 @@ import {
 import { buildExecutiveBriefing, type ExecutiveBriefing, type ExecutivePeriod } from "@/lib/executiveRuntime";
 import { ensureRuntimeSubscriptions } from "@/lib/runtimeSubscriptions";
 import { loadFacilityAttention, loadFacilityAwareness } from "@/services/facilityAttentionService";
+import { loadOyiCoreExecutiveBriefing } from "@/services/oyiCoreRuntimeService";
 import { loadOperationalInsights } from "@/services/operationalReasoningService";
 import { loadOperationalRecommendations } from "@/services/operationalRecommendationService";
 import { loadAutomationPlans } from "@/services/safeAutomationService";
@@ -42,11 +43,12 @@ export async function loadExecutiveBriefing(period: ExecutivePeriod = "daily"): 
     loadOperationalRecommendations(),
     loadAutomationPlans(),
   ]);
+  const signals = attention.map(signalFromFacilityAttention);
 
   const conversationSummaries: ConversationResponse[] = [
     buildConversationResponse({
       request: executiveConversationRequest(period),
-      signals: attention.map(signalFromFacilityAttention),
+      signals,
       awareness,
       insights,
       recommendations,
@@ -54,15 +56,20 @@ export async function loadExecutiveBriefing(period: ExecutivePeriod = "daily"): 
     }),
   ];
 
-  const briefing = buildExecutiveBriefing({
-    period,
-    signals: attention.map(signalFromFacilityAttention),
-    awareness,
-    insights,
-    recommendations,
-    automationPlans,
-    conversationSummaries,
-  });
+  let briefing: ExecutiveBriefing;
+  try {
+    briefing = await loadOyiCoreExecutiveBriefing(period, signals);
+  } catch {
+    briefing = buildExecutiveBriefing({
+      period,
+      signals,
+      awareness,
+      insights,
+      recommendations,
+      automationPlans,
+      conversationSummaries,
+    });
+  }
 
   runtime.publishExecutive({
     event: "executive.runtime",

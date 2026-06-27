@@ -3,6 +3,7 @@
 import { io, type Socket } from "socket.io-client";
 import { ensureRuntimeSubscriptions } from "@/lib/runtimeSubscriptions";
 import { useFacilityRealtimeStore } from "@/store/useFacilityRealtimeStore";
+import { normalizeSignal } from "@/lib/operationalSignal";
 import { receiveOperationalSignal } from "@/lib/universalSignalRuntime";
 import { buildAwarenessFromSignal } from "@/services/contextAwarenessEngine";
 import { deriveRealtimeOperationalInsights } from "@/services/operationalReasoningService";
@@ -41,14 +42,30 @@ function apiBase() {
 
 function emitLocal(event: string, payload: Record<string, any>) {
   const runtime = ensureRuntimeSubscriptions();
-  const receipt = receiveOperationalSignal(signalInputFromRealtimePayload(event, payload || {}));
+  const serverSignal = payload?.operational_signal as Record<string, any> | undefined;
+  const serverAwareness = payload?.operational_awareness;
+  const serverInsights = Array.isArray(payload?.operational_insights) ? payload.operational_insights : [];
+  const serverRecommendations = Array.isArray(payload?.operational_recommendations) ? payload.operational_recommendations : [];
+  const serverAutomationPlans = Array.isArray(payload?.operational_automation_plans) ? payload.operational_automation_plans : [];
+  const receipt = serverSignal
+    ? {
+        accepted: true,
+        signal: normalizeSignal(serverSignal),
+        priority: payload?.receipt?.priority || payload?.signal_priority || "normal",
+        duplicate: Boolean(payload?.receipt?.duplicate),
+        outputs: Array.isArray(payload?.receipt?.outputs) ? payload.receipt.outputs : [],
+        issues: Array.isArray(payload?.receipt?.issues) ? payload.receipt.issues : [],
+        receivedAt: payload?.receipt?.receivedAt || new Date().toISOString(),
+        auditId: payload?.receipt?.auditId || `${event}:${serverSignal.id || Date.now()}`,
+      }
+    : receiveOperationalSignal(signalInputFromRealtimePayload(event, payload || {}));
   if (!receipt.accepted) return;
   const signalPayload = { ...payload, operational_signal: receipt.signal, signal_priority: receipt.priority };
   useFacilityRealtimeStore.getState().pushEvent(event, signalPayload);
-  const awareness = buildAwarenessFromSignal(receipt.signal);
-  const insights = deriveRealtimeOperationalInsights({ signal: receipt.signal, awareness });
-  const recommendations = deriveRealtimeOperationalRecommendations({ signal: receipt.signal, awareness, insights });
-  const automationPlans = deriveRealtimeAutomationPlans({ signal: receipt.signal, awareness, insights, recommendations });
+  const awareness = serverAwareness || buildAwarenessFromSignal(receipt.signal);
+  const insights = serverInsights.length ? serverInsights : deriveRealtimeOperationalInsights({ signal: receipt.signal, awareness });
+  const recommendations = serverRecommendations.length ? serverRecommendations : deriveRealtimeOperationalRecommendations({ signal: receipt.signal, awareness, insights });
+  const automationPlans = serverAutomationPlans.length ? serverAutomationPlans : deriveRealtimeAutomationPlans({ signal: receipt.signal, awareness, insights, recommendations });
   const detail = { event, payload: signalPayload, signal: receipt.signal, awareness, insights, recommendations, automationPlans, receipt, source: "facility_realtime" };
   runtime.publishSignal(detail);
   runtime.publishAwareness(detail);
