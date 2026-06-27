@@ -1,6 +1,7 @@
 "use client";
 
 import { io, type Socket } from "socket.io-client";
+import { ensureRuntimeSubscriptions } from "@/lib/runtimeSubscriptions";
 import { useFacilityRealtimeStore } from "@/store/useFacilityRealtimeStore";
 import { receiveOperationalSignal } from "@/lib/universalSignalRuntime";
 import { buildAwarenessFromSignal } from "@/services/contextAwarenessEngine";
@@ -37,19 +38,17 @@ function apiBase() {
 }
 
 function emitLocal(event: string, payload: Record<string, any>) {
+  const runtime = ensureRuntimeSubscriptions();
   const receipt = receiveOperationalSignal(signalInputFromRealtimePayload(event, payload || {}));
   if (!receipt.accepted) return;
   const signalPayload = { ...payload, operational_signal: receipt.signal, signal_priority: receipt.priority };
   useFacilityRealtimeStore.getState().pushEvent(event, signalPayload);
-  if (typeof window !== "undefined") {
-    const awareness = buildAwarenessFromSignal(receipt.signal);
-    const insights = deriveRealtimeOperationalInsights({ signal: receipt.signal, awareness });
-    window.dispatchEvent(new CustomEvent("facility:realtime-event", { detail: { event, payload: signalPayload, signal: receipt.signal, receipt } }));
-    window.dispatchEvent(new CustomEvent("facility:awareness", { detail: { event, payload: signalPayload, signal: receipt.signal, awareness, receipt } }));
-    if (insights.length) {
-      window.dispatchEvent(new CustomEvent("facility:insight", { detail: { event, payload: signalPayload, signal: receipt.signal, awareness, insights, receipt } }));
-    }
-  }
+  const awareness = buildAwarenessFromSignal(receipt.signal);
+  const insights = deriveRealtimeOperationalInsights({ signal: receipt.signal, awareness });
+  const detail = { event, payload: signalPayload, signal: receipt.signal, awareness, insights, receipt, source: "facility_realtime" };
+  runtime.publishSignal(detail);
+  runtime.publishAwareness(detail);
+  runtime.publishInsights(detail);
 }
 
 export function connectFacilityRealtime(input: { token: string; estateId?: string | null; userId?: string | null }) {
