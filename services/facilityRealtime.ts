@@ -6,6 +6,7 @@ import { useFacilityRealtimeStore } from "@/store/useFacilityRealtimeStore";
 import { receiveOperationalSignal } from "@/lib/universalSignalRuntime";
 import { buildAwarenessFromSignal } from "@/services/contextAwarenessEngine";
 import { deriveRealtimeOperationalInsights } from "@/services/operationalReasoningService";
+import { deriveRealtimeOperationalRecommendations } from "@/services/operationalRecommendationService";
 import { signalInputFromRealtimePayload } from "@/services/signalAwarenessService";
 
 let socket: Socket | null = null;
@@ -45,10 +46,12 @@ function emitLocal(event: string, payload: Record<string, any>) {
   useFacilityRealtimeStore.getState().pushEvent(event, signalPayload);
   const awareness = buildAwarenessFromSignal(receipt.signal);
   const insights = deriveRealtimeOperationalInsights({ signal: receipt.signal, awareness });
-  const detail = { event, payload: signalPayload, signal: receipt.signal, awareness, insights, receipt, source: "facility_realtime" };
+  const recommendations = deriveRealtimeOperationalRecommendations({ signal: receipt.signal, awareness, insights });
+  const detail = { event, payload: signalPayload, signal: receipt.signal, awareness, insights, recommendations, receipt, source: "facility_realtime" };
   runtime.publishSignal(detail);
   runtime.publishAwareness(detail);
   runtime.publishInsights(detail);
+  runtime.publishRecommendations(detail);
 }
 
 export function connectFacilityRealtime(input: { token: string; estateId?: string | null; userId?: string | null }) {

@@ -8,7 +8,7 @@ import { loadFacilityAttention, type FacilityAttentionItem } from "@/services/fa
 import { signalFromFacilityAttention } from "@/services/signalAwarenessService";
 import type { NormalizedSignal } from "@/lib/operationalSignal";
 
-type RealtimeReasoningInput = {
+export type RealtimeReasoningInput = {
   signal: Partial<NormalizedSignal> & Record<string, unknown>;
   awareness?: ReturnType<typeof buildAwarenessFromSignal>;
   attention?: FacilityAttentionItem[];
