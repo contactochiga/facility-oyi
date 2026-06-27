@@ -7,6 +7,7 @@ import { receiveOperationalSignal } from "@/lib/universalSignalRuntime";
 import { buildAwarenessFromSignal } from "@/services/contextAwarenessEngine";
 import { deriveRealtimeOperationalInsights } from "@/services/operationalReasoningService";
 import { deriveRealtimeOperationalRecommendations } from "@/services/operationalRecommendationService";
+import { deriveRealtimeAutomationPlans } from "@/services/safeAutomationService";
 import { signalInputFromRealtimePayload } from "@/services/signalAwarenessService";
 
 let socket: Socket | null = null;
@@ -47,11 +48,13 @@ function emitLocal(event: string, payload: Record<string, any>) {
   const awareness = buildAwarenessFromSignal(receipt.signal);
   const insights = deriveRealtimeOperationalInsights({ signal: receipt.signal, awareness });
   const recommendations = deriveRealtimeOperationalRecommendations({ signal: receipt.signal, awareness, insights });
-  const detail = { event, payload: signalPayload, signal: receipt.signal, awareness, insights, recommendations, receipt, source: "facility_realtime" };
+  const automationPlans = deriveRealtimeAutomationPlans({ signal: receipt.signal, awareness, insights, recommendations });
+  const detail = { event, payload: signalPayload, signal: receipt.signal, awareness, insights, recommendations, automationPlans, receipt, source: "facility_realtime" };
   runtime.publishSignal(detail);
   runtime.publishAwareness(detail);
   runtime.publishInsights(detail);
   runtime.publishRecommendations(detail);
+  runtime.publishAutomation(detail);
 }
 
 export function connectFacilityRealtime(input: { token: string; estateId?: string | null; userId?: string | null }) {

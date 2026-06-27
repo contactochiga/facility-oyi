@@ -1,6 +1,7 @@
 import type { NormalizedSignal } from "@/lib/operationalSignal";
 import type { OperationalRecommendation } from "@/lib/operationalRecommendations";
 import type { OperationalInsight } from "@/lib/operationalReasoning";
+import type { AutomationPlan } from "@/lib/safeAutomationRuntime";
 import type { OperationalAwareness } from "@/services/contextAwarenessEngine";
 
 export type RuntimeChannel =
@@ -8,17 +9,22 @@ export type RuntimeChannel =
   | "facility:awareness"
   | "facility:insight"
   | "facility:recommendation"
+  | "facility:automation"
   | "consumer:signal"
   | "consumer:awareness"
   | "consumer:insight"
   | "consumer:recommendation"
+  | "consumer:automation"
   | "office:awareness"
   | "office:insight"
   | "office:recommendation"
+  | "office:automation"
   | "notification:event"
   | "notification:recommendation"
+  | "notification:automation"
   | "activity:event"
   | "activity:recommendation"
+  | "activity:automation"
   | "future:digital-twin"
   | "future:conversation"
   | "future:executive";
@@ -28,23 +34,28 @@ export const RUNTIME_CHANNELS: RuntimeChannel[] = [
   "facility:awareness",
   "facility:insight",
   "facility:recommendation",
+  "facility:automation",
   "consumer:signal",
   "consumer:awareness",
   "consumer:insight",
   "consumer:recommendation",
+  "consumer:automation",
   "office:awareness",
   "office:insight",
   "office:recommendation",
+  "office:automation",
   "notification:event",
   "notification:recommendation",
+  "notification:automation",
   "activity:event",
   "activity:recommendation",
+  "activity:automation",
   "future:digital-twin",
   "future:conversation",
   "future:executive",
 ];
 
-export type RuntimePayloadKind = "signal" | "awareness" | "insight" | "recommendation";
+export type RuntimePayloadKind = "signal" | "awareness" | "insight" | "recommendation" | "automation";
 
 export type RuntimeDeliveryPayload = {
   event?: string;
@@ -53,6 +64,7 @@ export type RuntimeDeliveryPayload = {
   awareness?: OperationalAwareness;
   insights?: OperationalInsight[];
   recommendations?: OperationalRecommendation[];
+  automationPlans?: AutomationPlan[];
   receipt?: Record<string, unknown>;
   source?: string;
 };
@@ -241,6 +253,25 @@ export class RuntimeSubscriptionEngine {
     });
   }
 
+  publishAutomation(payload: RuntimeDeliveryPayload) {
+    if (!payload.automationPlans?.length) return;
+    this.publish({
+      kind: "automation",
+      payload,
+      channels: [
+        "facility:automation",
+        "consumer:automation",
+        "office:automation",
+        "notification:automation",
+        "activity:automation",
+        "future:digital-twin",
+        "future:conversation",
+        "future:executive",
+      ],
+      dedupeKey: payload.automationPlans.map((item) => item.id).join(","),
+    });
+  }
+
   replay(id: string, count = DEFAULT_REPLAY) {
     const state = this.registry.get(id);
     if (!state) return;
@@ -269,7 +300,7 @@ export class RuntimeSubscriptionEngine {
 
     this.register({
       id: "facility-runtime",
-      channels: ["facility:signal", "facility:awareness", "facility:insight", "facility:recommendation"],
+      channels: ["facility:signal", "facility:awareness", "facility:insight", "facility:recommendation", "facility:automation"],
       replay: 0,
       onEvent: (delivery) => {
         dispatchBrowserEvent(delivery.channel, delivery.payload);
@@ -278,7 +309,7 @@ export class RuntimeSubscriptionEngine {
 
     this.register({
       id: "consumer-runtime",
-      channels: ["consumer:signal", "consumer:awareness", "consumer:insight", "consumer:recommendation"],
+      channels: ["consumer:signal", "consumer:awareness", "consumer:insight", "consumer:recommendation", "consumer:automation"],
       replay: 0,
       onEvent: (delivery) => {
         dispatchBrowserEvent(delivery.channel, delivery.payload);
@@ -287,7 +318,7 @@ export class RuntimeSubscriptionEngine {
 
     this.register({
       id: "office-runtime",
-      channels: ["office:awareness", "office:insight", "office:recommendation"],
+      channels: ["office:awareness", "office:insight", "office:recommendation", "office:automation"],
       replay: 0,
       onEvent: (delivery) => {
         dispatchBrowserEvent(delivery.channel, delivery.payload);
@@ -296,7 +327,7 @@ export class RuntimeSubscriptionEngine {
 
     this.register({
       id: "activity-runtime",
-      channels: ["activity:event", "activity:recommendation"],
+      channels: ["activity:event", "activity:recommendation", "activity:automation"],
       replay: 0,
       onEvent: (delivery) => {
         dispatchBrowserEvent(delivery.channel, delivery.payload);
@@ -305,7 +336,7 @@ export class RuntimeSubscriptionEngine {
 
     this.register({
       id: "notification-runtime",
-      channels: ["notification:event", "notification:recommendation"],
+      channels: ["notification:event", "notification:recommendation", "notification:automation"],
       replay: 0,
       onEvent: (delivery) => {
         if (delivery.kind === "signal") return;
