@@ -4,6 +4,7 @@ import { io, type Socket } from "socket.io-client";
 import { useFacilityRealtimeStore } from "@/store/useFacilityRealtimeStore";
 import { receiveOperationalSignal } from "@/lib/universalSignalRuntime";
 import { buildAwarenessFromSignal } from "@/services/contextAwarenessEngine";
+import { deriveRealtimeOperationalInsights } from "@/services/operationalReasoningService";
 import { signalInputFromRealtimePayload } from "@/services/signalAwarenessService";
 
 let socket: Socket | null = null;
@@ -42,8 +43,12 @@ function emitLocal(event: string, payload: Record<string, any>) {
   useFacilityRealtimeStore.getState().pushEvent(event, signalPayload);
   if (typeof window !== "undefined") {
     const awareness = buildAwarenessFromSignal(receipt.signal);
+    const insights = deriveRealtimeOperationalInsights({ signal: receipt.signal, awareness });
     window.dispatchEvent(new CustomEvent("facility:realtime-event", { detail: { event, payload: signalPayload, signal: receipt.signal, receipt } }));
     window.dispatchEvent(new CustomEvent("facility:awareness", { detail: { event, payload: signalPayload, signal: receipt.signal, awareness, receipt } }));
+    if (insights.length) {
+      window.dispatchEvent(new CustomEvent("facility:insight", { detail: { event, payload: signalPayload, signal: receipt.signal, awareness, insights, receipt } }));
+    }
   }
 }
 
