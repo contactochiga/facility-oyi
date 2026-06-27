@@ -1,5 +1,6 @@
 import type { NormalizedSignal } from "@/lib/operationalSignal";
 import type { ConversationRequest, ConversationResponse } from "@/lib/conversationRuntime";
+import type { ExecutiveBriefing } from "@/lib/executiveRuntime";
 import type { OperationalRecommendation } from "@/lib/operationalRecommendations";
 import type { OperationalInsight } from "@/lib/operationalReasoning";
 import type { AutomationPlan } from "@/lib/safeAutomationRuntime";
@@ -32,6 +33,12 @@ export type RuntimeChannel =
   | "conversation:navigation"
   | "conversation:action"
   | "conversation:summary"
+  | "executive:briefing"
+  | "executive:summary"
+  | "executive:risk"
+  | "executive:portfolio"
+  | "executive:health"
+  | "executive:recommendation"
   | "future:digital-twin"
   | "future:conversation"
   | "future:executive";
@@ -63,12 +70,18 @@ export const RUNTIME_CHANNELS: RuntimeChannel[] = [
   "conversation:navigation",
   "conversation:action",
   "conversation:summary",
+  "executive:briefing",
+  "executive:summary",
+  "executive:risk",
+  "executive:portfolio",
+  "executive:health",
+  "executive:recommendation",
   "future:digital-twin",
   "future:conversation",
   "future:executive",
 ];
 
-export type RuntimePayloadKind = "signal" | "awareness" | "insight" | "recommendation" | "automation" | "conversation";
+export type RuntimePayloadKind = "signal" | "awareness" | "insight" | "recommendation" | "automation" | "conversation" | "executive";
 
 export type RuntimeDeliveryPayload = {
   event?: string;
@@ -80,6 +93,7 @@ export type RuntimeDeliveryPayload = {
   automationPlans?: AutomationPlan[];
   conversationRequest?: ConversationRequest;
   conversationResponse?: ConversationResponse;
+  executiveBriefing?: ExecutiveBriefing;
   receipt?: Record<string, unknown>;
   source?: string;
 };
@@ -305,6 +319,23 @@ export class RuntimeSubscriptionEngine {
     });
   }
 
+  publishExecutive(payload: RuntimeDeliveryPayload) {
+    this.publish({
+      kind: "executive",
+      payload,
+      channels: [
+        "executive:briefing",
+        "executive:summary",
+        "executive:risk",
+        "executive:portfolio",
+        "executive:health",
+        "executive:recommendation",
+        "future:executive",
+      ],
+      dedupeKey: payload.executiveBriefing?.id || payload.event,
+    });
+  }
+
   replay(id: string, count = DEFAULT_REPLAY) {
     const state = this.registry.get(id);
     if (!state) return;
@@ -397,10 +428,10 @@ export class RuntimeSubscriptionEngine {
 
     this.register({
       id: "executive-runtime",
-      channels: ["future:executive"],
+      channels: ["executive:briefing", "executive:summary", "executive:risk", "executive:portfolio", "executive:health", "executive:recommendation", "future:executive"],
       replay: 0,
       onEvent: (delivery) => {
-        dispatchBrowserEvent("future:executive", delivery.payload);
+        dispatchBrowserEvent(delivery.channel, delivery.payload);
       },
     });
   }
