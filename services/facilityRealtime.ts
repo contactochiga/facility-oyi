@@ -2,7 +2,9 @@
 
 import { io, type Socket } from "socket.io-client";
 import { useFacilityRealtimeStore } from "@/store/useFacilityRealtimeStore";
-import { awarenessFromRealtimePayload } from "@/services/signalAwarenessService";
+import { receiveOperationalSignal } from "@/lib/universalSignalRuntime";
+import { buildAwarenessFromSignal } from "@/services/contextAwarenessEngine";
+import { signalInputFromRealtimePayload } from "@/services/signalAwarenessService";
 
 let socket: Socket | null = null;
 let activeToken = "";
@@ -34,11 +36,14 @@ function apiBase() {
 }
 
 function emitLocal(event: string, payload: Record<string, any>) {
-  useFacilityRealtimeStore.getState().pushEvent(event, payload);
+  const receipt = receiveOperationalSignal(signalInputFromRealtimePayload(event, payload || {}));
+  if (!receipt.accepted) return;
+  const signalPayload = { ...payload, operational_signal: receipt.signal, signal_priority: receipt.priority };
+  useFacilityRealtimeStore.getState().pushEvent(event, signalPayload);
   if (typeof window !== "undefined") {
-    const awareness = awarenessFromRealtimePayload(event, payload || {});
-    window.dispatchEvent(new CustomEvent("facility:realtime-event", { detail: { event, payload } }));
-    window.dispatchEvent(new CustomEvent("facility:awareness", { detail: { event, payload, awareness } }));
+    const awareness = buildAwarenessFromSignal(receipt.signal);
+    window.dispatchEvent(new CustomEvent("facility:realtime-event", { detail: { event, payload: signalPayload, signal: receipt.signal, receipt } }));
+    window.dispatchEvent(new CustomEvent("facility:awareness", { detail: { event, payload: signalPayload, signal: receipt.signal, awareness, receipt } }));
   }
 }
 

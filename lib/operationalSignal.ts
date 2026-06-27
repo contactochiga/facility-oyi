@@ -15,6 +15,7 @@ export type SignalType =
   | "telemetry";
 
 export type SignalSeverity = "info" | "attention" | "warning" | "critical";
+export type SignalPriority = "low" | "normal" | "high" | "urgent";
 
 export type SignalSource =
   | "infrastructure_registry"
@@ -92,6 +93,71 @@ export type NormalizedSignal = {
   metadata: Record<string, unknown>;
   evidence: SignalEvidence[];
 };
+
+export const SIGNAL_TYPES: SignalType[] = [
+  "infrastructure",
+  "operational",
+  "human",
+  "financial",
+  "security",
+  "environmental",
+  "ai",
+  "automation",
+  "maintenance",
+  "community",
+  "communication",
+  "registry",
+  "lifecycle",
+  "telemetry",
+];
+
+export const SIGNAL_PRODUCERS: SignalSource[] = [
+  "infrastructure_registry",
+  "device_adapter",
+  "tuya",
+  "matter",
+  "mqtt",
+  "ble",
+  "onvif",
+  "camera",
+  "smart_lock",
+  "water_meter",
+  "energy_meter",
+  "environmental_sensor",
+  "edge_runtime",
+  "estate_registry",
+  "visitor_registry",
+  "resident_action",
+  "maintenance",
+  "accounting",
+  "wallet",
+  "community",
+  "service",
+  "report",
+  "office",
+  "consumer",
+  "ai",
+  "automation",
+  "future_module",
+];
+
+export const SIGNAL_REQUIRED_FIELDS = [
+  "id",
+  "type",
+  "source",
+  "domain",
+  "entity",
+  "estate",
+  "building",
+  "room",
+  "actor",
+  "severity",
+  "confidence",
+  "timestamp",
+  "context",
+  "metadata",
+  "evidence",
+] as const;
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -194,4 +260,45 @@ export function normalizeSignal(input: Partial<NormalizedSignal> & Record<string
       };
     }),
   };
+}
+
+export function validateSignal(signal: NormalizedSignal) {
+  const issues: string[] = [];
+  if (!text(signal.id)) issues.push("id is required");
+  if (!SIGNAL_TYPES.includes(signal.type)) issues.push(`unsupported signal type: ${signal.type}`);
+  if (!text(signal.source)) issues.push("source is required");
+  if (!text(signal.domain)) issues.push("domain is required");
+  if (!signal.entity || typeof signal.entity !== "object") issues.push("entity is required");
+  if (!signal.estate || typeof signal.estate !== "object") issues.push("estate scope is required");
+  if (!signal.building || typeof signal.building !== "object") issues.push("building scope is required");
+  if (!signal.room || typeof signal.room !== "object") issues.push("room scope is required");
+  if (!signal.actor || typeof signal.actor !== "object") issues.push("actor is required");
+  if (!["info", "attention", "warning", "critical"].includes(signal.severity)) issues.push(`unsupported severity: ${signal.severity}`);
+  if (!Number.isFinite(signal.confidence) || signal.confidence < 0 || signal.confidence > 1) issues.push("confidence must be between 0 and 1");
+  if (!text(signal.timestamp) || Number.isNaN(new Date(signal.timestamp).getTime())) issues.push("valid timestamp is required");
+  if (!signal.context || typeof signal.context !== "object" || Array.isArray(signal.context)) issues.push("context must be an object");
+  if (!signal.metadata || typeof signal.metadata !== "object" || Array.isArray(signal.metadata)) issues.push("metadata must be an object");
+  if (!Array.isArray(signal.evidence)) issues.push("evidence must be an array");
+  return { ok: issues.length === 0, issues };
+}
+
+export function signalDeduplicationKey(signal: NormalizedSignal) {
+  return [
+    signal.type,
+    signal.source,
+    signal.domain,
+    signal.entity.type || "entity",
+    signal.entity.id || signal.entity.name || "unknown",
+    signal.entity.status || signal.severity,
+    signal.estate.id || "estate",
+    signal.building.id || "building",
+    signal.room.id || "room",
+  ].join(":").toLowerCase();
+}
+
+export function signalPriority(signal: NormalizedSignal): SignalPriority {
+  if (signal.severity === "critical" && signal.confidence >= 0.65) return "urgent";
+  if (signal.severity === "critical" || signal.severity === "warning") return "high";
+  if (signal.severity === "attention") return "normal";
+  return "low";
 }

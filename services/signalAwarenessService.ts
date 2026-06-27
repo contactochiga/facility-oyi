@@ -34,8 +34,8 @@ function domainFromEvent(event: string) {
   return "operational";
 }
 
-export function awarenessFromRealtimePayload(event: string, payload: Record<string, unknown>): OperationalAwareness {
-  return buildAwarenessFromSignal({
+export function signalInputFromRealtimePayload(event: string, payload: Record<string, unknown>) {
+  return {
     id: text(payload.id || payload.event_id || `${event}:${payload.updated_at || payload.created_at || Date.now()}`),
     source: sourceFromEvent(event),
     domain: domainFromEvent(event),
@@ -63,7 +63,11 @@ export function awarenessFromRealtimePayload(event: string, payload: Record<stri
     },
     metadata: { ...payload, event },
     evidence: [{ type: event, source: sourceFromEvent(event), summary: text(payload.message || payload.description || payload.summary || payload.status), timestamp: text(payload.timestamp || payload.created_at || payload.updated_at) }],
-  });
+  };
+}
+
+export function awarenessFromRealtimePayload(event: string, payload: Record<string, unknown>): OperationalAwareness {
+  return buildAwarenessFromSignal(signalInputFromRealtimePayload(event, payload));
 }
 
 export function signalFromFacilityAttention(item: FacilityAttentionItem): NormalizedSignal {
