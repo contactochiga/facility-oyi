@@ -3,22 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Activity,
   AlertTriangle,
-  Bell,
   Building2,
   ChevronRight,
   Clock3,
   Eye,
   KeyRound,
-  LockKeyhole,
-  PlugZap,
   RefreshCw,
   Search,
-  Settings,
-  ShieldCheck,
   SlidersHorizontal,
-  UserCog,
   Users,
   X,
 } from "lucide-react";
@@ -31,6 +24,7 @@ import { facilityService, type EstateMembershipRow, type InfrastructureOperation
 import { notificationService, type AlertItem } from "@/services/notificationService";
 import superAdminService from "@/services/superAdminService";
 import { hasPermission, PERMISSION_KEYS, permissionsForRole } from "@/lib/oyiFoundation";
+import { iconForTab } from "@/lib/oisIconRegistry";
 import { useSessionStore } from "@/store/useSessionStore";
 
 type Tab = "operators" | "roles" | "permissions" | "audit" | "integrations" | "notifications" | "security" | "settings";
@@ -39,14 +33,14 @@ type Source<T> = { status: LoadStatus; data: T; message?: string };
 type Detail = { title: string; subtitle?: string; rows: Array<[string, string]>; href?: string };
 
 const TABS: Array<{ key: Tab; label: string; icon: typeof Users }> = [
-  { key: "operators", label: "Operators", icon: Users },
-  { key: "roles", label: "Roles", icon: UserCog },
-  { key: "permissions", label: "Permissions", icon: ShieldCheck },
-  { key: "audit", label: "Audit", icon: Activity },
-  { key: "integrations", label: "Integrations", icon: PlugZap },
-  { key: "notifications", label: "Notifications", icon: Bell },
-  { key: "security", label: "Security", icon: LockKeyhole },
-  { key: "settings", label: "Estate Controls", icon: Settings },
+  { key: "operators", label: "Operators", icon: iconForTab("operators") },
+  { key: "roles", label: "Roles", icon: iconForTab("roles") },
+  { key: "permissions", label: "Permissions", icon: iconForTab("permissions") },
+  { key: "audit", label: "Audit", icon: iconForTab("audit") },
+  { key: "integrations", label: "Integrations", icon: iconForTab("integrations") },
+  { key: "notifications", label: "Notifications", icon: iconForTab("notifications") },
+  { key: "security", label: "Security", icon: iconForTab("security") },
+  { key: "settings", label: "Estate Controls", icon: iconForTab("settings") },
 ];
 
 const ROLE_DEFINITIONS = [

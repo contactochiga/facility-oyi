@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { XMarkIcon } from "@heroicons/react/24/outline";
+import { X } from "lucide-react";
 import SidebarContent from "./SidebarContent";
 
 function SidebarBrand({ onClick }: { onClick?: () => void }) {
@@ -84,7 +84,7 @@ export default function Sidebar({
               className="m-3 rounded-lg p-2 hover:bg-white/10"
               aria-label="Close navigation"
             >
-              <XMarkIcon className="h-5 w-5 text-zinc-300" />
+              <X className="h-5 w-5 text-zinc-300" />
             </button>
           </div>
 

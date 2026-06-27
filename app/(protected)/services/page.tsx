@@ -10,7 +10,7 @@ import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
 import { serviceConfigService, type ServiceConfig } from "@/services/serviceConfigService";
 import { formatMoney } from "@/lib/format";
-import { Activity, Eye, RefreshCw, ShieldCheck, SlidersHorizontal, ToggleLeft, ToggleRight, Wallet } from "lucide-react";
+import { Eye, RefreshCw, SlidersHorizontal, ToggleLeft, ToggleRight } from "lucide-react";
 
 const FALLBACK_SERVICES: ServiceConfig[] = [
   { service_key: "utility_token", title: "Utility Token", description: "Resident electricity token purchase", active: true, status: "pending configuration", billing_mode: "metered" },

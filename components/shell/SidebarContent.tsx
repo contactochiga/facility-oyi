@@ -5,49 +5,21 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  LayoutDashboard,
-  Zap,
-  Wrench,
-  Shield,
-  Car,
-  Wind,
-  Orbit,
   ChevronDown,
   LogOut,
   SlidersHorizontal,
   User as UserIcon,
-  ShieldCheck,
-  Home,
-  BarChart3,
-  UserCog,
-  Wallet,
-  MessageSquare,
   LucideIcon,
 } from "lucide-react";
 
 import { useSessionStore } from "@/store/useSessionStore";
 import { FACILITY_MODULES, visibleModules, type ModuleDefinition } from "@/lib/moduleRegistry";
+import { iconForModule } from "@/lib/oisIconRegistry";
 import { deleteCookie } from "@/lib/auth";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
-
-const MODULE_ICONS: Record<string, LucideIcon> = {
-  overview: LayoutDashboard,
-  "live-infrastructure": Orbit,
-  "estate-structure": Home,
-  "hardware-devices": ShieldCheck,
-  "security-access": Shield,
-  utilities: Zap,
-  "environment-sensors": Wind,
-  "traffic-mobility": Car,
-  maintenance: Wrench,
-  community: MessageSquare,
-  wallets: Wallet,
-  intelligence: BarChart3,
-  administration: UserCog,
-};
 
 type NavItem = ModuleDefinition & { icon: LucideIcon };
 
@@ -117,7 +89,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
     () =>
       visibleModules(user, FACILITY_MODULES).map((item) => ({
         ...item,
-        icon: MODULE_ICONS[item.key] || LayoutDashboard,
+        icon: iconForModule(item.key),
       })),
     [user]
   );

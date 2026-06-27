@@ -7,6 +7,7 @@ import { Mic } from "lucide-react";
 import { facilityMobileModules, type MobileModuleItem } from "./mobileNavConfig";
 import { useSessionStore } from "@/store/useSessionStore";
 import { FACILITY_MODULES, visibleModules } from "@/lib/moduleRegistry";
+import { iconForDomain } from "@/lib/oisIconRegistry";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -26,6 +27,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
   const { user } = useSessionStore();
   const railRef = useRef<HTMLDivElement | null>(null);
   const openingIntelligenceRef = useRef(false);
+  const IntelligenceIcon = iconForDomain("operationalIntelligence");
   const visibleKeys = useMemo(() => new Set(visibleModules(user, FACILITY_MODULES).map((module) => module.key)), [user]);
   const visibleItems = useMemo(() => items.filter((item) => visibleKeys.has(item.key)), [items, visibleKeys]);
   const activeKey = useMemo(() => visibleItems.find((item) => isActive(pathname, item))?.key || "", [pathname, visibleItems]);
@@ -89,7 +91,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
             )}
           >
             <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full border border-sky-200/20 bg-sky-400/12 shadow-[0_0_24px_rgba(56,189,248,0.28)]">
-              <span className="h-4 w-4 rounded-full bg-sky-200 shadow-[0_0_22px_rgba(125,211,252,0.95)]" />
+              <IntelligenceIcon size={18} className="text-sky-100 drop-shadow-[0_0_10px_rgba(125,211,252,0.75)]" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[12px] font-medium tracking-[-0.02em] text-white/86">Operational Intelligence</span>

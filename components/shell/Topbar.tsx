@@ -2,15 +2,15 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Bars3Icon, BellIcon } from "@heroicons/react/24/outline";
 import { useSessionStore } from "@/store/useSessionStore";
 import NotificationsModal from "@/components/notifications/NotificationsModal";
 import { notificationService } from "@/services/notificationService";
 import { loadUnreadMessageCount } from "@/services/facilityCommunicationPostureService";
-import { MessageSquare } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useFacilityShell } from "@/components/shell/FacilityShellContext";
 import { useFacilityRealtimeStore } from "@/store/useFacilityRealtimeStore";
+import { iconForDomain } from "@/lib/oisIconRegistry";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -99,6 +99,7 @@ export default function Topbar({
   const router = useRouter();
   const shell = useFacilityShell();
   const openMenu = onOpenMenu || shell?.openMenu;
+  const CommunicationIcon = iconForDomain("communicationOperations");
 
   const [openNotif, setOpenNotif] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -190,7 +191,7 @@ export default function Topbar({
               aria-label="Open navigation"
               type="button"
             >
-              <Bars3Icon className="h-5 w-5 text-zinc-200" />
+              <Menu className="h-5 w-5 text-zinc-200" />
             </button>
           )}
 
@@ -230,7 +231,7 @@ export default function Topbar({
             type="button"
             onClick={() => router.push("/messages")}
           >
-            <MessageSquare className="h-5 w-5 text-zinc-200" />
+            <CommunicationIcon className="h-5 w-5 text-zinc-200" />
             {messageCount > 0 ? (
               <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[11px] flex items-center justify-center border border-emerald-500/30">
                 {messageCount > 99 ? "99+" : messageCount}
@@ -245,7 +246,7 @@ export default function Topbar({
               type="button"
               onClick={() => setOpenNotif(true)}
             >
-              <BellIcon className="h-5 w-5 text-zinc-200" />
+              <Bell className="h-5 w-5 text-zinc-200" />
 
               {/* ✅ Badge (brand-blue, not red) */}
               {unreadCount > 0 ? (

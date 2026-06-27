@@ -43,11 +43,11 @@ export function visibleTabs<T extends TabDefinition>(user: OyiIdentity | null | 
 }
 
 export const FACILITY_MODULES: ModuleDefinition[] = [
-  { key: "overview", label: "Facility Overview", href: "/overview", startsWith: ["/overview"], anyOf: ["estates.read", "homes.read"] },
+  { key: "overview", label: "Operational Attention Center", href: "/overview", startsWith: ["/overview"], anyOf: ["estates.read", "homes.read"] },
   { key: "live-infrastructure", label: "Live Infrastructure", href: "/live-infrastructure", startsWith: ["/live-infrastructure", "/digital-twin"], anyOf: ["twin.view", "estates.read"] },
   { key: "estate-structure", label: "Estate Registry", href: "/estate-structure", startsWith: ["/estate-structure", "/homes", "/occupancy"], anyOf: ["homes.read", "estates.read"] },
   { key: "hardware-devices", label: "Infrastructure Registry", href: "/hardware-devices", startsWith: ["/hardware-devices", "/devices"], anyOf: ["devices.read"] },
-  { key: "security-access", label: "Security & Access", href: "/security-access", startsWith: ["/security-access", "/security", "/visitors", "/cameras"], anyOf: ["cameras.view", "visitors.manage", "visitors.create"] },
+  { key: "security-access", label: "Security Command", href: "/security-access", startsWith: ["/security-access", "/security", "/visitors", "/cameras"], anyOf: ["cameras.view", "visitors.manage", "visitors.create"] },
   { key: "utilities", label: "Utility Intelligence", href: "/utilities", startsWith: ["/utilities", "/water"], anyOf: ["devices.read", "estates.read"] },
   { key: "environment-sensors", label: "Environmental Awareness", href: "/environment", startsWith: ["/environment"], anyOf: ["devices.read"] },
   { key: "traffic-mobility", label: "Gate Flow Intelligence", href: "/traffic", startsWith: ["/traffic"], anyOf: ["visitors.manage", "estates.read"] },

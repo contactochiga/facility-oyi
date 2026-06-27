@@ -3,18 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
-  Boxes,
   ChevronRight,
   CircleDot,
-  CloudCog,
   Cpu,
   LocateFixed,
   Network,
-  RadioTower,
   RefreshCw,
   Search,
   SlidersHorizontal,
-  ShieldAlert,
 } from "lucide-react";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
@@ -29,16 +25,17 @@ import {
   type InfrastructureDevice,
   type InfrastructureOperations,
 } from "@/services/facilityService";
+import { iconForTab } from "@/lib/oisIconRegistry";
 
 type Tab = "registry" | "discovery" | "assignments" | "providers" | "edge" | "telemetry";
 
 const TABS: Array<{ key: Tab; label: string; icon: typeof Cpu }> = [
-  { key: "registry", label: "Registry", icon: Boxes },
-  { key: "discovery", label: "Discovery", icon: Search },
-  { key: "assignments", label: "Ownership", icon: LocateFixed },
-  { key: "providers", label: "Provider Readiness", icon: CloudCog },
-  { key: "edge", label: "Oyi Edge", icon: RadioTower },
-  { key: "telemetry", label: "Telemetry", icon: ShieldAlert },
+  { key: "registry", label: "Registry", icon: iconForTab("registry") },
+  { key: "discovery", label: "Discovery", icon: iconForTab("discovery") },
+  { key: "assignments", label: "Ownership", icon: iconForTab("assignments") },
+  { key: "providers", label: "Provider Readiness", icon: iconForTab("providers") },
+  { key: "edge", label: "Oyi Edge", icon: iconForTab("edge") },
+  { key: "telemetry", label: "Telemetry", icon: iconForTab("telemetry") },
 ];
 
 function text(value: any, fallback = "Unavailable") {
