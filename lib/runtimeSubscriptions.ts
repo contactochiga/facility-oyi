@@ -1,4 +1,5 @@
 import type { NormalizedSignal } from "@/lib/operationalSignal";
+import type { ConversationRequest, ConversationResponse } from "@/lib/conversationRuntime";
 import type { OperationalRecommendation } from "@/lib/operationalRecommendations";
 import type { OperationalInsight } from "@/lib/operationalReasoning";
 import type { AutomationPlan } from "@/lib/safeAutomationRuntime";
@@ -25,6 +26,12 @@ export type RuntimeChannel =
   | "activity:event"
   | "activity:recommendation"
   | "activity:automation"
+  | "conversation:request"
+  | "conversation:response"
+  | "conversation:intent"
+  | "conversation:navigation"
+  | "conversation:action"
+  | "conversation:summary"
   | "future:digital-twin"
   | "future:conversation"
   | "future:executive";
@@ -50,12 +57,18 @@ export const RUNTIME_CHANNELS: RuntimeChannel[] = [
   "activity:event",
   "activity:recommendation",
   "activity:automation",
+  "conversation:request",
+  "conversation:response",
+  "conversation:intent",
+  "conversation:navigation",
+  "conversation:action",
+  "conversation:summary",
   "future:digital-twin",
   "future:conversation",
   "future:executive",
 ];
 
-export type RuntimePayloadKind = "signal" | "awareness" | "insight" | "recommendation" | "automation";
+export type RuntimePayloadKind = "signal" | "awareness" | "insight" | "recommendation" | "automation" | "conversation";
 
 export type RuntimeDeliveryPayload = {
   event?: string;
@@ -65,6 +78,8 @@ export type RuntimeDeliveryPayload = {
   insights?: OperationalInsight[];
   recommendations?: OperationalRecommendation[];
   automationPlans?: AutomationPlan[];
+  conversationRequest?: ConversationRequest;
+  conversationResponse?: ConversationResponse;
   receipt?: Record<string, unknown>;
   source?: string;
 };
@@ -272,6 +287,24 @@ export class RuntimeSubscriptionEngine {
     });
   }
 
+  publishConversation(payload: RuntimeDeliveryPayload) {
+    this.publish({
+      kind: "conversation",
+      payload,
+      channels: [
+        "conversation:request",
+        "conversation:response",
+        "conversation:intent",
+        "conversation:navigation",
+        "conversation:action",
+        "conversation:summary",
+        "future:conversation",
+        "future:executive",
+      ],
+      dedupeKey: payload.conversationResponse?.id || payload.conversationRequest?.id || payload.event,
+    });
+  }
+
   replay(id: string, count = DEFAULT_REPLAY) {
     const state = this.registry.get(id);
     if (!state) return;
@@ -346,10 +379,10 @@ export class RuntimeSubscriptionEngine {
 
     this.register({
       id: "conversation-runtime",
-      channels: ["future:conversation"],
+      channels: ["conversation:request", "conversation:response", "conversation:intent", "conversation:navigation", "conversation:action", "conversation:summary", "future:conversation"],
       replay: 0,
       onEvent: (delivery) => {
-        dispatchBrowserEvent("future:conversation", delivery.payload);
+        dispatchBrowserEvent(delivery.channel, delivery.payload);
       },
     });
 
