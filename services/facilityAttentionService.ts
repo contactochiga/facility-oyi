@@ -1,4 +1,5 @@
 import { facilityService } from "./facilityService";
+import { awarenessFromFacilityAttention } from "@/services/signalAwarenessService";
 
 export type AttentionSeverity = "critical" | "warning" | "info";
 export type AttentionCategory =
@@ -420,4 +421,8 @@ export async function loadFacilityAttention(): Promise<FacilityAttentionItem[]> 
     ...infrastructureItems(infrastructure, utilities.items || [], cameras.items || []),
     ...predictionItems(predictions.predictions || []),
   ]);
+}
+
+export async function loadFacilityAwareness() {
+  return awarenessFromFacilityAttention(await loadFacilityAttention());
 }

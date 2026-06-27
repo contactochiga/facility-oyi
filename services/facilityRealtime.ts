@@ -2,6 +2,7 @@
 
 import { io, type Socket } from "socket.io-client";
 import { useFacilityRealtimeStore } from "@/store/useFacilityRealtimeStore";
+import { awarenessFromRealtimePayload } from "@/services/signalAwarenessService";
 
 let socket: Socket | null = null;
 let activeToken = "";
@@ -35,7 +36,9 @@ function apiBase() {
 function emitLocal(event: string, payload: Record<string, any>) {
   useFacilityRealtimeStore.getState().pushEvent(event, payload);
   if (typeof window !== "undefined") {
+    const awareness = awarenessFromRealtimePayload(event, payload || {});
     window.dispatchEvent(new CustomEvent("facility:realtime-event", { detail: { event, payload } }));
+    window.dispatchEvent(new CustomEvent("facility:awareness", { detail: { event, payload, awareness } }));
   }
 }
 
