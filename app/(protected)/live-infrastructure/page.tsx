@@ -163,8 +163,8 @@ export default function LiveInfrastructureModule() {
         <Panel title="Source Integrity" subtitle="Unavailable telemetry stays visible instead of becoming synthetic zeroes.">
           <div className="space-y-2 text-sm text-zinc-400">
             <p>Device registry: {status === "ready" ? `${registry.length} entries` : sourceText(status, "Pending source", "Backend unavailable")}</p>
-            <p>Telemetry events: {status === "ready" ? `${telemetry.length} records` : sourceText(status, "Awaiting telemetry", "Backend unavailable")}</p>
-            <p>Camera source: {status === "ready" ? `${cameras.length} bound cameras` : "No live source configured"}</p>
+            <p>Telemetry events: {status === "ready" ? `${telemetry.length} signals` : sourceText(status, "Awaiting telemetry", "Backend unavailable")}</p>
+            <p>Camera source: {status === "ready" ? `${cameras.length} bound cameras` : "No live source ready"}</p>
             <p>Edge source: {status === "ready" ? `${edgeNodes.length} nodes` : "Awaiting live source"}</p>
           </div>
         </Panel>

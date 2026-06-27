@@ -119,7 +119,7 @@ export default function HomeRoomsPage() {
     <div className="space-y-6">
       <Topbar
         title="Rooms"
-        subtitle="Manage the spaces that appear in the resident home context."
+        subtitle="Review the spaces that appear in the resident home context."
         rightSlot={
           <Link href="/homes?view=rooms" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200 transition hover:bg-white/10">
             <ArrowLeft className="h-4 w-4" /> Back to Homes

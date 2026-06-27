@@ -10,7 +10,7 @@ import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
 import { serviceConfigService, type ServiceConfig } from "@/services/serviceConfigService";
 import { formatMoney } from "@/lib/format";
-import { Activity, Eye, RefreshCw, Settings, ShieldCheck, ToggleLeft, ToggleRight, Wallet } from "lucide-react";
+import { Activity, Eye, RefreshCw, ShieldCheck, SlidersHorizontal, ToggleLeft, ToggleRight, Wallet } from "lucide-react";
 
 const FALLBACK_SERVICES: ServiceConfig[] = [
   { service_key: "utility_token", title: "Utility Token", description: "Resident electricity token purchase", active: true, status: "pending configuration", billing_mode: "metered" },
@@ -28,7 +28,7 @@ function readiness(config: ServiceConfig) {
   if (!isEnabled(config)) return "Unavailable";
   const status = lower(config.status);
   if (/maintenance/.test(status)) return "Maintenance mode";
-  if (/pending|config/.test(status)) return "Pending configuration";
+  if (/pending|config/.test(status)) return "Pending readiness";
   return "Available";
 }
 function readinessTone(label: string) { if (label === "Available") return "stable"; if (label === "Maintenance mode") return "warning"; if (label === "Unavailable") return "unavailable"; return "pending"; }
@@ -79,7 +79,7 @@ export default function FacilityServicesPage() {
 
   const enabled = configs.filter(isEnabled).length;
   const disabled = configs.length - enabled;
-  const pending = configs.filter((config) => readiness(config) === "Pending configuration").length;
+  const pending = configs.filter((config) => readiness(config) === "Pending readiness").length;
 
   const consumerImpact = useMemo(() => [
     { label: "Visitor services", enabled: true, source: "Security & Access / Visitors" },
@@ -90,25 +90,25 @@ export default function FacilityServicesPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Services Administration" subtitle="Resident-facing service readiness, configuration, impact and audit visibility" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Service Readiness" subtitle="Resident-facing service readiness, impact, and audit visibility" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
-      {configError ? <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">Configuration source: {configError}. Showing contract defaults as Pending configuration, not live settings.</div> : null}
+      {configError ? <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">Readiness source: {configError}. Showing contract defaults as Pending readiness, not live controls.</div> : null}
 
       <section className="grid gap-3 md:grid-cols-4">
-        <Metric label="Configured services" value={configs.length} hint="From config endpoint or contract defaults" />
+        <Metric label="Service registry" value={configs.length} hint="From readiness endpoint or contract defaults" />
         <Metric label="Enabled" value={enabled} hint="Resident-facing services active" />
         <Metric label="Disabled" value={disabled} hint="Unavailable to residents" />
-        <Metric label="Pending config" value={pending} hint="Needs backend settings source" />
+        <Metric label="Pending readiness" value={pending} hint="Needs backend controls source" />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <OisCard className="p-5">
-          <h2 className="text-sm font-semibold text-white">Configured services</h2>
+          <h2 className="text-sm font-semibold text-white">Service Registry</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {configs.map((config) => {
               const ready = readiness(config);
-              return <OisCard key={serviceKey(config)} variant="evidence" className="p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-white">{serviceTitle(config)}</h3><p className="mt-1 text-xs leading-5 text-zinc-500">{config.description || "No description configured."}</p></div><OisStatusBadge status={readinessTone(ready)} label={ready} className="uppercase" /></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><Field label="Billing" value={config.billing_mode || "Pending source"} /><Field label="Suggested" value={config.suggested_amount ? formatMoney(Number(config.suggested_amount), "NGN") : "Pending source"} /></div><div className="mt-4 flex flex-wrap gap-2"><Button variant="ghost" onClick={() => setSelected(config)} className="gap-2"><Eye className="h-4 w-4" />Details</Button><Button variant={isEnabled(config) ? "secondary" : "primary"} onClick={() => void toggleService(config)} disabled={saving || Boolean(configError)} className="gap-2">{isEnabled(config) ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}{isEnabled(config) ? "Disable" : "Enable"}</Button></div></OisCard>;
+              return <OisCard key={serviceKey(config)} variant="evidence" className="p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-white">{serviceTitle(config)}</h3><p className="mt-1 text-xs leading-5 text-zinc-500">{config.description || "No readiness description supplied."}</p></div><OisStatusBadge status={readinessTone(ready)} label={ready} className="uppercase" /></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><Field label="Billing" value={config.billing_mode || "Pending source"} /><Field label="Suggested" value={config.suggested_amount ? formatMoney(Number(config.suggested_amount), "NGN") : "Pending source"} /></div><div className="mt-4 flex flex-wrap gap-2"><Button variant="ghost" onClick={() => setSelected(config)} className="gap-2"><Eye className="h-4 w-4" />Review</Button><Button variant={isEnabled(config) ? "secondary" : "primary"} onClick={() => void toggleService(config)} disabled={saving || Boolean(configError)} className="gap-2">{isEnabled(config) ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}{isEnabled(config) ? "Disable" : "Enable"}</Button></div></OisCard>;
             })}
           </div>
         </OisCard>
@@ -116,14 +116,14 @@ export default function FacilityServicesPage() {
         <aside className="space-y-4">
           <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Consumer impact preview</h2><div className="mt-4 space-y-2">{consumerImpact.map((item) => <OisListItem key={item.label} title={item.label} description={item.source} status={item.enabled ? "stable" : "unavailable"} />)}</div></OisCard>
           <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Service finance signal</h2><div className="mt-4 grid gap-2"><Field label="Estate wallet" value={formatMoney(wallet.balance, "NGN")} /><Field label="Outstanding" value={formatMoney(wallet.outstanding, "NGN")} /><Field label="Collected this month" value={formatMoney(wallet.collected, "NGN")} /></div></OisCard>
-          <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Change audit visibility</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Audit events appear when the backend records service configuration changes. No local audit records are fabricated.</p></OisCard>
+          <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Readiness Activity</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Audit events appear when the backend records service readiness changes. No local audit activity is fabricated.</p></OisCard>
         </aside>
       </section>
 
-      <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Recent resident service activity</h2><div className="mt-4 space-y-2">{payments.slice(0, 10).map((payment, index) => <OisListItem key={payment.id || payment.reference || index} title={payment.service_title || payment.type || "Service payment"} description={`${payment.home_label || payment.home_name || "Home pending"} · ${payment.amount ? formatMoney(Number(payment.amount), "NGN") : "Amount pending"}`} meta={dateLabel(payment.created_at)} status={readinessTone(payment.status || "Pending configuration")} />)}{!payments.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident service activity has synced yet.</div> : null}</div></OisCard>
+      <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Recent resident service activity</h2><div className="mt-4 space-y-2">{payments.slice(0, 10).map((payment, index) => <OisListItem key={payment.id || payment.reference || index} title={payment.service_title || payment.type || "Service payment"} description={`${payment.home_label || payment.home_name || "Home pending"} · ${payment.amount ? formatMoney(Number(payment.amount), "NGN") : "Amount pending"}`} meta={dateLabel(payment.created_at)} status={readinessTone(payment.status || "Pending readiness")} />)}{!payments.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident service activity has synced yet.</div> : null}</div></OisCard>
 
-      <OisDrawer open={Boolean(selected)} onClose={() => setSelected(null)} title={selected ? serviceTitle(selected) : "Service configuration"} subtitle={selected ? `Service configuration · ${serviceKey(selected)}` : undefined} width="md">
-        {selected ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selected.description || "No description configured."}</p><p className="mt-2 text-xs text-zinc-500">{selected.account_label || "Pending source"}</p></div><OisStatusBadge status={readinessTone(readiness(selected))} label={readiness(selected)} /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Field label="Service key" value={serviceKey(selected)} /><Field label="Readiness" value={<OisStatusBadge status={readinessTone(readiness(selected))} label={readiness(selected)} />} /><Field label="Account label" value={selected.account_label || "Pending source"} /><Field label="Account hint" value={selected.account_hint || "Pending source"} /><Field label="Unit cost" value={selected.unit_cost ? formatMoney(Number(selected.unit_cost), "NGN") : "Pending source"} /><Field label="Updated" value={dateLabel(selected.updated_at)} /></div><div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-zinc-400"><Settings className="mb-2 h-4 w-4 text-sky-200" />Configuration editor uses <code>/services/config/:serviceKey</code>. If the operator lacks <code>settings.manage</code>, controls remain visible but fail closed through backend permissions.</div></div> : null}
+      <OisDrawer open={Boolean(selected)} onClose={() => setSelected(null)} title={selected ? serviceTitle(selected) : "Service readiness"} subtitle={selected ? `Readiness · ${serviceKey(selected)}` : undefined} width="md">
+        {selected ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selected.description || "No readiness description supplied."}</p><p className="mt-2 text-xs text-zinc-500">{selected.account_label || "Pending source"}</p></div><OisStatusBadge status={readinessTone(readiness(selected))} label={readiness(selected)} /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Field label="Service key" value={serviceKey(selected)} /><Field label="Readiness" value={<OisStatusBadge status={readinessTone(readiness(selected))} label={readiness(selected)} />} /><Field label="Account label" value={selected.account_label || "Pending source"} /><Field label="Account hint" value={selected.account_hint || "Pending source"} /><Field label="Unit cost" value={selected.unit_cost ? formatMoney(Number(selected.unit_cost), "NGN") : "Pending source"} /><Field label="Updated" value={dateLabel(selected.updated_at)} /></div><div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-zinc-400"><SlidersHorizontal className="mb-2 h-4 w-4 text-sky-200" />Readiness controls use <code>/services/config/:serviceKey</code>. If the operator lacks <code>settings.manage</code>, controls remain visible but fail closed through backend permissions.</div></div> : null}
       </OisDrawer>
     </div>
   );

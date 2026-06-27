@@ -97,7 +97,7 @@ export default function UtilitiesPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Utilities Operations" subtitle="Power, water, network, waste and environmental operations" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Utility Intelligence" subtitle="Power, water, network, waste, and environmental utility posture." rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -126,7 +126,7 @@ export default function UtilitiesPage() {
 
       <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
         <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-          <h2 className="text-sm font-semibold text-white">Utility alert center</h2>
+          <h2 className="text-sm font-semibold text-white">Utility Attention</h2>
           <p className="mt-1 text-xs text-zinc-500">Outages, degraded states and restored service events appear only when backed by maintenance or notification sources.</p>
           <div className="mt-4 space-y-2">
             {utilityEvents.map((event) => (

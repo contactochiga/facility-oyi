@@ -127,7 +127,7 @@ export default function AccountPage() {
     <Suspense
       fallback={
         <div className="space-y-7">
-          <Topbar title="Account" subtitle="Profile • Settings • Permissions" />
+          <Topbar title="Account" subtitle="Profile • Preferences • Permissions" />
           <OisCard className="p-6">
             <div className="text-sm text-zinc-400">Loading account…</div>
           </OisCard>
@@ -271,7 +271,7 @@ function AccountInner() {
 
   return (
     <div className="space-y-7">
-      <Topbar title="Account" subtitle="Profile • Settings • Permissions" showNotifications />
+      <Topbar title="Account" subtitle="Profile • Preferences • Permissions" showNotifications />
 
       {/* TAB SWITCH */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -280,7 +280,7 @@ function AccountInner() {
             Profile
           </Button>
           <Button variant={tab === "settings" ? "primary" : "ghost"} onClick={() => setTab("settings")}>
-            Settings
+            Preferences
           </Button>
         </div>
 
@@ -348,7 +348,7 @@ function AccountInner() {
       {tab === "settings" && (
         <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-2">
           <OisCard className="p-6">
-            <div className="text-lg font-semibold text-white">Notification Settings</div>
+            <div className="text-lg font-semibold text-white">Notification Preferences</div>
             <div className="text-sm text-zinc-400 mt-1">What this operator account should send/receive.</div>
 
             <div className="space-y-3 mt-5">
@@ -397,7 +397,7 @@ function AccountInner() {
 
             <div className="mt-5 flex gap-2 flex-wrap">
               <Button onClick={saveSettings} disabled={saving}>
-                {saving ? "Saving..." : "Save Settings"}
+                {saving ? "Saving..." : "Save Preferences"}
               </Button>
 
               <Button variant="ghost" onClick={testNotification} disabled={testingNotif}>
@@ -406,7 +406,7 @@ function AccountInner() {
             </div>
 
             <div className="text-xs text-zinc-500 mt-3">
-              Settings are saved locally for now. Next step is persisting to DB + enabling broadcast.
+              Preferences are saved locally for now. Next step is persisting to DB + enabling broadcast.
             </div>
           </OisCard>
 

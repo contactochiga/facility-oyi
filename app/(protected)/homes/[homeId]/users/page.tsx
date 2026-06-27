@@ -51,7 +51,7 @@ type EditMemberForm = {
 
 const ROLE_OPTIONS: Array<{ value: InviteRole; label: string; hint: string }> = [
   { value: "owner", label: "Home Owner", hint: "Full home access" },
-  { value: "admin", label: "Admin", hint: "Manage home access" },
+  { value: "admin", label: "Access Lead", hint: "Own home access" },
   { value: "resident", label: "Resident", hint: "Everyday resident access" },
   { value: "guest", label: "Guest", hint: "Limited temporary access" },
 ];
@@ -338,7 +338,7 @@ export default function HomeUsersPage() {
     <div className="space-y-6">
       <Topbar
         title="Members & Access"
-        subtitle="Manage residents, roles, and secure home invitations."
+        subtitle="Review residents, roles, and secure home invitations."
         rightSlot={
           <Link
             href="/homes"
@@ -362,9 +362,9 @@ export default function HomeUsersPage() {
 
       <section className="glass flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-300">Home access control</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-300">Home access ownership</p>
           <p className="mt-1 text-sm text-zinc-300">
-            {canManage ? "Invite residents and manage existing home permissions." : "Review the members currently assigned to this home."}
+            {canManage ? "Invite residents and review existing home permissions." : "Review the members currently assigned to this home."}
           </p>
         </div>
         <div className="flex gap-2">

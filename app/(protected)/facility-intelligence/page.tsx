@@ -353,8 +353,8 @@ export default function FacilityIntelligenceModule() {
         <div className="flex min-w-0 items-center gap-3">
           <button type="button" onClick={() => router.back()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-zinc-200 transition active:scale-95" aria-label="Back to Facility modules"><ArrowLeft className="h-4 w-4" /></button>
           <div className="min-w-0">
-            <h1 className="truncate text-[18px] font-semibold tracking-[-0.04em] text-white">Facility Intelligence</h1>
-            <p className="mt-0.5 text-xs text-zinc-500">Ask what’s happening across your facility.</p>
+            <h1 className="truncate text-[18px] font-semibold tracking-[-0.04em] text-white">Operational Intelligence</h1>
+            <p className="mt-0.5 text-xs text-zinc-500">Ask Oyi what needs attention across the facility.</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -366,7 +366,7 @@ export default function FacilityIntelligenceModule() {
 
       <section ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-4 pr-1" style={{ paddingBottom: `calc(${composerHeight + 18}px + env(safe-area-inset-bottom))`, scrollPaddingBottom: `calc(${composerHeight + 24}px + env(safe-area-inset-bottom))`, WebkitOverflowScrolling: "touch" }}>
         <div className="space-y-3">
-          {!messages.length ? <p className="pt-[18vh] text-center text-sm text-zinc-500">Ask Oyi about operations, infrastructure, or attention.</p> : null}
+          {!messages.length ? <p className="pt-[18vh] text-center text-sm text-zinc-500">Ask Oyi about attention, infrastructure, ownership, or verification.</p> : null}
           {messages.map((message) => {
             const mine = message.role === "user";
             return (
@@ -410,7 +410,7 @@ export default function FacilityIntelligenceModule() {
               }
             }}
             rows={1}
-            placeholder="Message Oyi Facility..."
+            placeholder="Ask Operational Intelligence..."
             className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1 py-2.5 text-sm leading-5 text-white outline-none placeholder:text-zinc-500"
           />
           <button type="button" onClick={() => inputRef.current?.focus()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-300">

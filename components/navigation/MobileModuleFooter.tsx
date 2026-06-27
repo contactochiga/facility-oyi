@@ -81,7 +81,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
           <button
             type="button"
             onClick={openIntelligence}
-            aria-label="Message Oyi Facility"
+            aria-label="Open Operational Intelligence"
             aria-current={intelligenceActive ? "page" : undefined}
             className={cn(
               "flex min-w-full shrink-0 snap-start items-center gap-3 rounded-[24px] border border-sky-300/15 bg-[radial-gradient(circle_at_14%_18%,rgba(56,189,248,0.18),rgba(255,255,255,0.052)_42%,rgba(255,255,255,0.025)_100%)] px-3 py-2.5 text-left text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_30px_rgba(56,189,248,0.18)] transition active:scale-[0.99]",
@@ -92,8 +92,8 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
               <span className="h-4 w-4 rounded-full bg-sky-200 shadow-[0_0_22px_rgba(125,211,252,0.95)]" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[12px] font-medium tracking-[-0.02em] text-white/86">Message Oyi Facility...</span>
-              <span className="mt-0.5 block text-[10px] text-white/42">Ask about visitors, maintenance, security, or operations</span>
+              <span className="block text-[12px] font-medium tracking-[-0.02em] text-white/86">Operational Intelligence</span>
+              <span className="mt-0.5 block text-[10px] text-white/42">Ask Oyi about attention, ownership, verification, or continuity</span>
             </span>
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.055] text-sky-100 shadow-[0_0_20px_rgba(56,189,248,0.16)]">
               <Mic size={16} />

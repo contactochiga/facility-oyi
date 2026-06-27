@@ -111,7 +111,7 @@ export default function OccupancyPage() {
                   <td className="px-4 py-3 text-zinc-300">{home.suspended_member_count ?? "Pending source"}</td>
                   <td className="px-4 py-3">
                     <Link href={`/homes/${home.id}/users`} className="inline-flex items-center gap-1 text-xs text-sky-200 hover:text-sky-100">
-                      Manage access <ChevronRight className="h-3.5 w-3.5" />
+                      Review access <ChevronRight className="h-3.5 w-3.5" />
                     </Link>
                   </td>
                 </tr>

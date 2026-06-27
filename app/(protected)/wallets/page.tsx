@@ -88,32 +88,32 @@ export default function WalletsPage() {
     { header: "Status", cell: ({ row }) => <OisStatusBadge status={statusTone(row.original.status)} label={row.original.status || "pending"} /> },
     { header: "Reference", cell: ({ row }) => <span className="font-mono text-xs text-zinc-400">{row.original.reference || row.original.id || "-"}</span> },
     { header: "Timestamp", cell: ({ row }) => <span className="text-xs text-zinc-400">{dateLabel(row.original.created_at)}</span> },
-    { id: "actions", header: "", cell: ({ row }) => <Button variant="ghost" onClick={() => setSelected(row.original)} className="gap-2"><Eye className="h-4 w-4" />Details</Button> },
+    { id: "actions", header: "", cell: ({ row }) => <Button variant="ghost" onClick={() => setSelected(row.original)} className="gap-2"><Eye className="h-4 w-4" />Review</Button> },
   ], [wallet.currency]);
 
   if (!canRead) {
-    return <div className="space-y-6"><Topbar title="Wallet Operations" subtitle="Finance permissions required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: wallets.read.</div></div>;
+    return <div className="space-y-6"><Topbar title="Financial Posture" subtitle="Finance permissions required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: wallets.read.</div></div>;
   }
 
   return (
     <div className="space-y-6">
-      <Topbar title="Wallet Operations" subtitle="Estate finance, resident service payments, failed transactions, and finance attention queue" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Financial Posture" subtitle="Estate balance, resident service payments, failed transactions, and financial attention queue" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">{notice}</div> : null}
 
       <section className="grid gap-3 md:grid-cols-4">
-        <Metric label="Wallet balance" value={formatMoney(wallet.balance, wallet.currency)} hint="Estate overview source" />
-        <Metric label="Recent transactions" value={rows.length} hint="Service payment records" />
+        <Metric label="Estate balance" value={formatMoney(wallet.balance, wallet.currency)} hint="Estate overview source" />
+        <Metric label="Payment activity" value={rows.length} hint="Service payment signals" />
         <Metric label="Pending" value={pending.length} hint="Pending or processing" />
         <Metric label="Failed" value={failed.length} hint="Requires operator review" />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <OisCard className="p-4"><div className="hidden md:block"><DataTable data={rows} columns={columns} title="Transaction Registry" searchKey="reference" /></div><div className="space-y-2 md:hidden">{rows.map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Wallet transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${row.home_name || row.user_name || "Estate payment"}`} meta={dateLabel(row.created_at)} status={statusTone(row.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => setSelected(row)} className="w-full text-left" />)}{!rows.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No transaction records are available.</p> : null}</div></OisCard>
+        <OisCard className="p-4"><div className="hidden md:block"><DataTable data={rows} columns={columns} title="Transaction Flow" searchKey="reference" /></div><div className="space-y-2 md:hidden">{rows.map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Wallet transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${row.home_name || row.user_name || "Estate payment"}`} meta={dateLabel(row.created_at)} status={statusTone(row.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => setSelected(row)} className="w-full text-left" />)}{!rows.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No transaction activity is available.</p> : null}</div></OisCard>
         <aside className="space-y-4">
-          <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Wallet attention queue</h2><div className="mt-3 space-y-2">{[...failed, ...pending].slice(0, 8).map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${dateLabel(row.created_at)}`} status={statusTone(row.status)} onClick={() => setSelected(row)} className="w-full text-left" />)}{![...failed, ...pending].length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No failed or pending finance items.</div> : null}</div></OisCard>
+          <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Financial Attention Queue</h2><div className="mt-3 space-y-2">{[...failed, ...pending].slice(0, 8).map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${dateLabel(row.created_at)}`} status={statusTone(row.status)} onClick={() => setSelected(row)} className="w-full text-left" />)}{![...failed, ...pending].length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No failed or pending financial items.</div> : null}</div></OisCard>
           <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Operational exports</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Export Pending Backend Support. No local export is generated until a backend export contract exists.</p><Button variant="ghost" disabled className="mt-3 gap-2"><Download className="h-4 w-4" />Export pending</Button></OisCard>
-          <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Permissions</h2><p className="mt-2 text-sm text-zinc-400">Read: wallets.read · Manage: wallets.manage</p><p className="mt-2 text-xs text-zinc-500">Manage available: {canManage ? "Yes" : "No"}</p></OisCard>
+          <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Access</h2><p className="mt-2 text-sm text-zinc-400">Read: wallets.read · Ownership: wallets.manage</p><p className="mt-2 text-xs text-zinc-500">Ownership available: {canManage ? "Yes" : "No"}</p></OisCard>
         </aside>
       </section>
 

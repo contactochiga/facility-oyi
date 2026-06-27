@@ -75,7 +75,7 @@ export default function WaterPage() {
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Wrench className="h-4 w-4 text-amber-200" />Water event timeline</h2>
             <div className="mt-4 space-y-2">
               {openWaterTickets.slice(0, 8).map((ticket) => <Link key={ticket.id} href="/maintenance" className="block rounded-xl border border-white/10 bg-black/20 p-3"><div className="text-sm text-white">{ticket.title}</div><div className="mt-1 text-xs text-zinc-500">{ticket.status} · {dateLabel(ticket.created_at)}</div></Link>)}
-              {!openWaterTickets.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No active water events. No historical records are generated without backend data.</div> : null}
+              {!openWaterTickets.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No active water events. No historical activity is generated without backend data.</div> : null}
             </div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-sm leading-6 text-zinc-400">Live pressure, tank level, and meter readings are pending telemetry integration. This page currently uses device registry state and maintenance events only.</div>

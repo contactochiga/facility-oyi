@@ -116,12 +116,12 @@ export default function FacilityMessagesPage() {
   const escalated = reports.filter((report) => /escalated|high|urgent|abuse|threat/.test(`${report.reason || ""} ${report.status || ""}`.toLowerCase()));
 
   if (!canRead) {
-    return <div className="space-y-6"><Topbar title="Message Center" subtitle="Messaging permissions required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
+    return <div className="space-y-6"><Topbar title="Communication Operations" subtitle="Messaging permissions required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
   }
 
   return (
     <div className="space-y-6">
-      <Topbar title="Message Center" subtitle="Inbox, resident threads, operator communications, reports and escalations" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Communication Operations" subtitle="Inbox, resident threads, operator communications, reports, and escalations" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
@@ -130,7 +130,7 @@ export default function FacilityMessagesPage() {
         <Metric label="Unread" value={unreadThreads.length} hint="Threads with unread messages" />
         <Metric label="Open reports" value={reports.length} hint="Moderation reports" />
         <Metric label="Escalations" value={escalated.length} hint="High-priority reports by real report text" />
-        <Metric label="Residents" value={residents.length} hint="Reachable resident records" />
+        <Metric label="Residents" value={residents.length} hint="Reachable resident signals" />
       </section>
 
       <div className="flex flex-wrap gap-2">{(["inbox", "resident_threads", "operator_threads", "reports", "escalations"] as Tab[]).map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={cn("rounded-full border px-3 py-2 text-xs capitalize", tab === item ? "border-sky-400/40 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white")}>{item.replace(/_/g, " ")}</button>)}</div>
@@ -148,7 +148,7 @@ export default function FacilityMessagesPage() {
             <div className="flex gap-2 border-t border-white/10 pt-3"><input value={compose} onChange={(e) => setCompose(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } }} disabled={!activeThread || !canWrite} placeholder={canWrite ? "Send message..." : "Permission required: community.write"} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none disabled:opacity-50" /><Button onClick={() => void send()} disabled={!activeThread || !compose.trim() || !canWrite} className="gap-2"><Send className="h-4 w-4" />Send</Button></div>
           </OisCard>
 
-          <OisCard as="aside" className="p-4"><h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Search className="h-4 w-4 text-sky-200" />Start conversation</h2><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search residents" className="mt-3 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none" /><div className="mt-3 max-h-[420px] space-y-2 overflow-auto">{filteredResidents.map((resident) => <OisListItem key={resident.id} title={nameOf(resident)} description={resident.role || "resident"} onClick={() => void startDirect(String(resident.id))} className={cn("w-full text-left", !canWrite ? "pointer-events-none opacity-50" : "")} />)}{!filteredResidents.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident records available.</div> : null}</div></OisCard>
+          <OisCard as="aside" className="p-4"><h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Search className="h-4 w-4 text-sky-200" />Start conversation</h2><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search residents" className="mt-3 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none" /><div className="mt-3 max-h-[420px] space-y-2 overflow-auto">{filteredResidents.map((resident) => <OisListItem key={resident.id} title={nameOf(resident)} description={resident.role || "resident"} onClick={() => void startDirect(String(resident.id))} className={cn("w-full text-left", !canWrite ? "pointer-events-none opacity-50" : "")} />)}{!filteredResidents.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident signals available.</div> : null}</div></OisCard>
         </section>
       )}
 

@@ -72,7 +72,7 @@ export default function TrafficPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Traffic & Gate Flow" subtitle="Visitor movement, access actions, and gate telemetry readiness." rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
+      <Topbar title="Gate Flow Intelligence" subtitle="Visitor movement, access actions, and gate telemetry readiness." rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -85,7 +85,7 @@ export default function TrafficPage() {
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-          <h2 className="text-sm font-semibold text-white">Recent gate events</h2>
+          <h2 className="text-sm font-semibold text-white">Gate Flow Activity</h2>
           <p className="mt-1 text-xs text-zinc-500">Derived from visitor lifecycle until dedicated gate telemetry is connected.</p>
           <div className="mt-4 space-y-2">{gateRows.map((row) => <div key={row.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-3"><DoorOpen className="h-4 w-4 text-sky-200" /><span className="min-w-0 flex-1"><span className="block truncate text-sm text-white">{row.title}</span><span className="text-xs text-zinc-500">{row.detail} · {when(row.time)}</span></span><span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase text-zinc-300">{row.status}</span></div>)}{!gateRows.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No gate movement recorded today.</p> : null}</div>
         </div>

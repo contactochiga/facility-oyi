@@ -320,7 +320,7 @@ export default function HomesPage() {
   return (
     <div className="space-y-7">
       <Topbar
-        title="Homes"
+        title="Home Registry"
         subtitle="Operational home registry, occupancy, rooms, and resident access."
         rightSlot={
           <Link
@@ -426,20 +426,20 @@ export default function HomesPage() {
                 className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-100 hover:bg-white/10 transition"
               >
                 <Building2 className="h-4 w-4" />
-                Manage Rooms
+                Open Rooms
               </Link>
               <Link
                 href={`/homes/${home.id}/users?estateId=${encodeURIComponent(estateId || "")}`}
                 className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-100 hover:bg-white/10 transition"
               >
                 <Users className="h-4 w-4" />
-                Manage Members
+                Open Access
               </Link>
               <Link href="/occupancy" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-100 hover:bg-white/10 transition">
                 View Occupancy
               </Link>
               <Button variant="ghost" onClick={() => toggleHome(home.id)}>
-                {openHomeId === home.id ? "Collapse" : "Open Details"}
+                {openHomeId === home.id ? "Collapse" : "Open Overview"}
               </Button>
             </div>
           </OisCard>
@@ -463,7 +463,7 @@ export default function HomesPage() {
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
           <div className="text-sm font-medium">Homes ({filteredHomes.length})</div>
           <div className="text-xs text-zinc-500">
-            Open a home to manage meters, rooms, and users
+            Open a home to review meters, rooms, and access
           </div>
         </div>
 
@@ -513,9 +513,8 @@ export default function HomesPage() {
                       <tr className="border-b border-white/10 bg-white/[0.03]">
                         <td colSpan={5} className="px-5 py-5">
                           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                            {/* Home Details */}
                             <div className="space-y-3">
-                              <div className="text-sm font-medium text-zinc-100">Home Details</div>
+                              <div className="text-sm font-medium text-zinc-100">Home Overview</div>
                               <div className="grid grid-cols-2 gap-3">
                                 <Field label="Electricity Meter" value={h.electricity_meter} />
                                 <Field label="Water Meter" value={h.water_meter} />
@@ -543,7 +542,6 @@ export default function HomesPage() {
                                     {rLoading ? "Loading..." : "Reload Rooms"}
                                   </Button>
 
-                                  {/* ✅ Manage Rooms (keeps estateId in query) */}
                                   <a
                                     href={`/homes/${h.id}/rooms?estateId=${encodeURIComponent(
                                       estateId || ""
@@ -551,7 +549,7 @@ export default function HomesPage() {
                                     className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm bg-white/5 border border-white/10 hover:bg-white/10 transition"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    Manage Rooms
+                                    Open Rooms
                                   </a>
 
                                   <a
@@ -561,7 +559,7 @@ export default function HomesPage() {
                                     className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm bg-white/5 border border-white/10 hover:bg-white/10 transition"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    Manage Members
+                                    Open Access
                                   </a>
                                   <Button
                                     variant="ghost"
@@ -593,7 +591,7 @@ export default function HomesPage() {
                               </div>
 
                               <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-xs text-zinc-400">
-                                Use <span className="text-zinc-200">Manage Members</span> to invite residents, update access roles, and disable or remove memberships without leaving the home context.
+                                Use <span className="text-zinc-200">Open Access</span> to invite residents, update access roles, and disable or remove memberships without leaving the home context.
                               </div>
                             </div>
                           </div>
@@ -619,10 +617,10 @@ export default function HomesPage() {
       <OisDrawer
         open={Boolean(selectedMobileHome)}
         onClose={() => setMobileHomeId(null)}
-        title={selectedMobileHome?.name || "Home detail"}
+        title={selectedMobileHome?.name || "Home overview"}
         subtitle={selectedMobileHome ? `${[selectedMobileHome.block, selectedMobileHome.unit].filter(Boolean).join(" / ") || "No block or unit assigned"} · ${String(selectedMobileHome.occupancy_status || "pending source").replace(/_/g, " ")}` : undefined}
         width="md"
-        footer={selectedMobileHome ? <div className="flex flex-wrap gap-2"><Link href={`/homes/${selectedMobileHome.id}/rooms?estateId=${encodeURIComponent(estateId || "")}`} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100"><Building2 className="h-4 w-4" />Manage Rooms</Link><Link href={`/homes/${selectedMobileHome.id}/users?estateId=${encodeURIComponent(estateId || "")}`} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100"><Users className="h-4 w-4" />Manage Members</Link><Button variant="ghost" onClick={() => { setMobileHomeId(null); openEdit(selectedMobileHome); }}><Pencil className="mr-2 h-4 w-4" />Edit Home</Button></div> : null}
+        footer={selectedMobileHome ? <div className="flex flex-wrap gap-2"><Link href={`/homes/${selectedMobileHome.id}/rooms?estateId=${encodeURIComponent(estateId || "")}`} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100"><Building2 className="h-4 w-4" />Open Rooms</Link><Link href={`/homes/${selectedMobileHome.id}/users?estateId=${encodeURIComponent(estateId || "")}`} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100"><Users className="h-4 w-4" />Open Access</Link><Button variant="ghost" onClick={() => { setMobileHomeId(null); openEdit(selectedMobileHome); }}><Pencil className="mr-2 h-4 w-4" />Edit Home</Button></div> : null}
       >
         {selectedMobileHome ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-white">{selectedMobileHome.description || "No home description recorded."}</p><p className="mt-2 text-xs text-zinc-500">Pending invites {selectedMobileHome.pending_invite_count || 0} · Devices {selectedMobileHome.device_count ?? "Pending source"}</p></div><OisStatusBadge status={occupancyStatus(selectedMobileHome.occupancy_status)} label={String(selectedMobileHome.occupancy_status || "pending source").replace(/_/g, " ")} /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Field label="Members" value={selectedMobileHome.member_count ?? "Pending source"} /><Field label="Rooms" value={selectedMobileHome.room_count ?? "Pending source"} /><Field label="Electricity Meter" value={selectedMobileHome.electricity_meter} /><Field label="Water Meter" value={selectedMobileHome.water_meter} /><Field label="Internet ID" value={selectedMobileHome.internet_id} /><Field label="Gate Code" value={selectedMobileHome.gate_code} /></div><OisCard variant="evidence" className="p-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-white">Rooms</h3><Button variant="ghost" onClick={() => void loadRooms(selectedMobileHome.id)} disabled={roomsLoading[selectedMobileHome.id]}>{roomsLoading[selectedMobileHome.id] ? "Loading..." : "Reload"}</Button></div><div className="mt-3 space-y-2">{roomsLoading[selectedMobileHome.id] ? <p className="text-sm text-zinc-400">Loading rooms…</p> : (roomsByHome[selectedMobileHome.id] || []).length ? (roomsByHome[selectedMobileHome.id] || []).map((room) => <OisListItem key={room.id} title={room.name} description={`${room.type || "—"}${room.floor !== null && room.floor !== undefined ? ` • Floor ${room.floor}` : ""}`} meta={`${room.id.slice(0, 8)}…`} />) : <p className="text-sm text-zinc-400">No rooms yet.</p>}</div></OisCard></div> : null}
       </OisDrawer>

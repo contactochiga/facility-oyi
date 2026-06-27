@@ -133,12 +133,12 @@ export default function CommunityPage() {
   const visibleRows = tab === "announcements" ? announcements : tab === "posts" ? posts : tab === "media" ? mediaPosts : tab === "pinned" ? pinned : tab === "moderation" ? flagged : [];
 
   if (!canRead) {
-    return <div className="space-y-6"><Topbar title="Community Operations" subtitle="Community permissions required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
+    return <div className="space-y-6"><Topbar title="Community Signals" subtitle="Community permissions required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
   }
 
   return (
     <div className="space-y-6">
-      <Topbar title="Community Operations" subtitle="Announcements, posts, reports, media, pinned content and moderation" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Community Signals" subtitle="Announcements, posts, reports, media, pinned content, and moderation attention" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
@@ -163,7 +163,7 @@ export default function CommunityPage() {
         </OisCard>
         <aside className="space-y-4">
           <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Announcement attention queue</h2><div className="mt-3 space-y-2"><Field label="Pending review" value={pendingReview} /><Field label="Recently edited" value={recentEdited.length} /><Field label="Pinned notices" value={pinned.length} /><Field label="Scheduling" value="Scheduling Pending Backend Support" /><Field label="Targeting" value="Targeting Not Configured" /></div></OisCard>
-          <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Moderation audit visibility</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Moderator, timestamp and action appear when returned by moderation endpoints. No local moderation history is fabricated.</p></OisCard>
+          <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Moderation Activity</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Moderator, timestamp and action appear when returned by moderation endpoints. No local moderation activity is fabricated.</p></OisCard>
           <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Resident communications</h2><Field label="Unread communications" value="Awaiting communication metrics" /><Field label="Community health" value={pendingReview ? "Review required" : "No live source configured"} /></OisCard>
         </aside>
       </section>
@@ -178,7 +178,7 @@ export default function CommunityPage() {
 }
 
 function PostList({ rows, canWrite, canModerate, onEdit, onModerate }: { rows: CommunityPost[]; canWrite: boolean; canModerate: boolean; onEdit: (post: CommunityPost) => void; onModerate: (post: CommunityPost) => void }) {
-  return <div className="mt-4 space-y-2">{rows.map((post) => <OisCard key={post.id} variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-white">{titleOf(post)}</h3><p className="mt-1 text-xs text-zinc-500">{authorOf(post)} · {dateLabel(post.created_at)}</p></div><OisStatusBadge status={statusTone(post.status)} label={post.status || "active"} className="uppercase" /></div><p className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-400">{bodyOf(post)}</p><div className="mt-4 grid gap-2 sm:grid-cols-4"><Field label="Created by" value={authorOf(post)} /><Field label="Created" value={dateLabel(post.created_at)} /><Field label="Last edited" value={dateLabel(post.updated_at)} /><Field label="Audience" value={post.audience_type || "Entire Estate"} /></div><div className="mt-3 flex flex-wrap gap-2">{canWrite ? <Button variant="ghost" onClick={() => onEdit(post)} className="gap-2"><Edit className="h-4 w-4" />Edit</Button> : null}{canModerate ? <Button variant="ghost" onClick={() => onModerate(post)} className="gap-2"><ShieldAlert className="h-4 w-4" />Moderate</Button> : null}</div></OisCard>)}{!rows.length ? <div className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No records in this lane.</div> : null}</div>;
+  return <div className="mt-4 space-y-2">{rows.map((post) => <OisCard key={post.id} variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-white">{titleOf(post)}</h3><p className="mt-1 text-xs text-zinc-500">{authorOf(post)} · {dateLabel(post.created_at)}</p></div><OisStatusBadge status={statusTone(post.status)} label={post.status || "active"} className="uppercase" /></div><p className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-400">{bodyOf(post)}</p><div className="mt-4 grid gap-2 sm:grid-cols-4"><Field label="Created by" value={authorOf(post)} /><Field label="Created" value={dateLabel(post.created_at)} /><Field label="Last edited" value={dateLabel(post.updated_at)} /><Field label="Audience" value={post.audience_type || "Entire Estate"} /></div><div className="mt-3 flex flex-wrap gap-2">{canWrite ? <Button variant="ghost" onClick={() => onEdit(post)} className="gap-2"><Edit className="h-4 w-4" />Edit</Button> : null}{canModerate ? <Button variant="ghost" onClick={() => onModerate(post)} className="gap-2"><ShieldAlert className="h-4 w-4" />Moderate</Button> : null}</div></OisCard>)}{!rows.length ? <div className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No signals in this lane.</div> : null}</div>;
 }
 
 function ReportList({ reports, canModerate, onOpen }: { reports: ModerationReport[]; canModerate: boolean; onOpen: (report: ModerationReport) => void }) {

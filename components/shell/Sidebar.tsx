@@ -32,7 +32,7 @@ function SidebarBrand({ onClick }: { onClick?: () => void }) {
             Oyi Facility
           </div>
           <div className="text-xs text-zinc-400 truncate">
-            Infrastructure control plane
+            Infrastructure operating system
           </div>
         </div>
       </Link>

@@ -44,7 +44,7 @@ export default function EnvironmentPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Environment Operations" subtitle="Environmental sensors, HVAC/service events, and telemetry readiness" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Environmental Awareness" subtitle="Environmental sensors, HVAC/service events, and telemetry readiness" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
 
       <section className="grid gap-3 md:grid-cols-4">
@@ -56,7 +56,7 @@ export default function EnvironmentPage() {
 
       <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Thermometer className="h-4 w-4 text-sky-200" />Environmental source registry</h2>
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Thermometer className="h-4 w-4 text-sky-200" />Environmental Signal Registry</h2>
           <div className="mt-4 grid gap-2 md:grid-cols-2">
             {envDevices.map((device) => (
               <div key={device.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
@@ -68,7 +68,7 @@ export default function EnvironmentPage() {
         </div>
         <aside className="space-y-4">
           <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Wrench className="h-4 w-4 text-amber-200" />Environment event timeline</h2>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Wrench className="h-4 w-4 text-amber-200" />Environmental Activity</h2>
             <div className="mt-4 space-y-2">{openEnvTickets.slice(0, 8).map((ticket) => <Link key={ticket.id} href="/maintenance" className="block rounded-xl border border-white/10 bg-black/20 p-3"><div className="text-sm text-white">{ticket.title}</div><div className="mt-1 text-xs text-zinc-500">{ticket.status} · {dateLabel(ticket.created_at)}</div></Link>)}{!openEnvTickets.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No environment events from backend sources.</div> : null}</div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-sm leading-6 text-zinc-400"><Leaf className="mb-3 h-5 w-5 text-emerald-200" />Temperature, humidity, AQI, waste and external environmental readings remain hidden until a live telemetry source is configured.</div>

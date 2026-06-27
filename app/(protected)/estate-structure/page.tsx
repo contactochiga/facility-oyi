@@ -94,7 +94,7 @@ export default function EstateStructurePage() {
   return (
     <div className="space-y-6">
       <Topbar
-        title="Estate Structure"
+        title="Estate Registry"
         subtitle="Homes, rooms, residents, invitations, and access posture."
         rightSlot={
           <Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2">
@@ -105,10 +105,10 @@ export default function EstateStructurePage() {
       />
 
       <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.11),transparent_35%),linear-gradient(145deg,rgba(255,255,255,0.05),rgba(255,255,255,0.018))] p-5">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Estate operations context</p>
+        <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Estate registry context</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">{data?.estate?.name || "Estate context"}</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-          Review residential capacity, activation gaps, room readiness, and access lifecycle issues without leaving the estate context.
+          Residential continuity is visible across capacity, activation gaps, room readiness, and access lifecycle attention.
         </p>
       </section>
 
@@ -165,14 +165,14 @@ export default function EstateStructurePage() {
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-          <h2 className="text-sm font-semibold text-white">Quick Actions</h2>
+          <h2 className="text-sm font-semibold text-white">Registry Actions</h2>
           <div className="mt-4 grid gap-2">
             {[
               ["Add Home", "/homes?action=create", Home],
               ["Invite Resident", "/homes?view=access", UserPlus],
-              ["Manage Homes", "/homes", Building2],
+              ["Open Home Registry", "/homes", Building2],
               ["Review Pending Invites", "/homes?view=access", DoorOpen],
-              ["Manage Rooms", "/homes?view=rooms", Layers3],
+              ["Open Room Registry", "/homes?view=rooms", Layers3],
               ["View Occupancy", "/occupancy", Users],
             ].map(([label, href, Icon]) => (
               <Link key={String(label)} href={String(href)} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-2.5 text-sm text-zinc-300 transition hover:border-sky-400/25 hover:text-white">
@@ -188,7 +188,7 @@ export default function EstateStructurePage() {
       <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-white">Access Posture</h2>
+            <h2 className="text-sm font-semibold text-white">Resident Access Posture</h2>
             <p className="mt-1 text-xs leading-5 text-zinc-500">Membership signals derived from active estate homes.</p>
           </div>
           <UserCheck className="h-4 w-4 text-emerald-200" />
