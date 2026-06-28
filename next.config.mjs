@@ -12,6 +12,7 @@ const nextConfig = {
   // Lint runs through the deterministic npm script; the installed legacy Next
   // ESLint dependency chain is incomplete and must not make production builds interactive.
   eslint: { ignoreDuringBuilds: true },
+  typescript: { tsconfigPath: "./tsconfig.next.json" },
 };
 
 export default nextConfig;
