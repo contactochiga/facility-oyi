@@ -60,6 +60,8 @@ export async function loadExecutiveBriefing(period: ExecutivePeriod = "daily"): 
   try {
     briefing = await loadOyiCoreExecutiveBriefing(period, signals);
   } catch {
+    // Temporary compatibility fallback for executive surfaces until all
+    // loaders rely exclusively on backend-generated briefings.
     briefing = buildExecutiveBriefing({
       period,
       signals,

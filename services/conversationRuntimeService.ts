@@ -25,6 +25,8 @@ export async function runConversationRuntime(request: ConversationRequest): Prom
   try {
     response = await runOyiCoreConversation(request, signals);
   } catch {
+    // Temporary compatibility fallback for page stability if backend
+    // conversation runtime is unavailable.
     response = buildConversationResponse({
       request,
       signals,

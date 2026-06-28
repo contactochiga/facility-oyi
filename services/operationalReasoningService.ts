@@ -31,6 +31,8 @@ export async function loadOperationalInsights(): Promise<OperationalInsight[]> {
     const bundle = await evaluateOyiCoreRuntime(signals);
     return bundle.insights;
   } catch {
+    // Temporary compatibility fallback until every Facility data source has
+    // backend runtime parity. Realtime paths should prefer backend evaluation.
     return buildOperationalInsights({ signals });
   }
 }

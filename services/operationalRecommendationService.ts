@@ -31,6 +31,8 @@ export async function loadOperationalRecommendations(): Promise<OperationalRecom
     const bundle = await evaluateOyiCoreRuntime(signals);
     return bundle.recommendations;
   } catch {
+    // Temporary compatibility fallback while legacy overview loaders still
+    // depend on local page stability if backend runtime is unavailable.
     const insights = await loadOperationalInsights();
     return buildOperationalRecommendations({
       signals,
