@@ -148,7 +148,7 @@ export default function VisitorsPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Visitor Access Registry" subtitle="Queue, verification, activity, and access lifecycle." strip={[{ label: "Healthy", value: pending || expiredCount ? "Review" : "Stable", detail: "Access posture", tone: pending || expiredCount ? "warning" : "stable" }, { label: "Visitors", value: items.length, detail: todayOnly ? "Today only" : "Visible queue", tone: "attention" }, { label: "Attention", value: pending + expiredCount, detail: "Pending or expired", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Runtime sync", tone: "info" }]} />
+      <Topbar title="Visitor Access Registry" subtitle="Verification and access flow" strip={[{ label: "Healthy", value: pending || expiredCount ? "Review" : "Stable", detail: "Access posture", tone: pending || expiredCount ? "warning" : "stable" }, { label: "Visitors", value: items.length, detail: todayOnly ? "Today only" : "Visible queue", tone: "attention" }, { label: "Attention", value: pending + expiredCount, detail: "Pending or expired", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Runtime sync", tone: "info" }]} />
       <OisPageToolbar
         searchValue={query}
         onSearchChange={setQuery}

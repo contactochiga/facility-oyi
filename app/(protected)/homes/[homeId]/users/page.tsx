@@ -336,7 +336,7 @@ export default function HomeUsersPage() {
     <div className="space-y-6">
       <Topbar
         title="Members & Access"
-        subtitle="Review residents, roles, and secure home invitations."
+        subtitle="Residents and home access"
         strip={[
           { label: "Active", value: String(stats.active), detail: "Current home access", tone: "stable" },
           { label: "Pending", value: String(stats.pending), detail: "Awaiting setup", tone: "warning" },

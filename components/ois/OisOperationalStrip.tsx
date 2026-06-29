@@ -18,16 +18,16 @@ function toneClass(tone?: OisOperationalStripItem["tone"]) {
 
 export default function OisOperationalStrip({ items, className = "" }: { items: OisOperationalStripItem[]; className?: string }) {
   return (
-    <section className={`ois-operational-strip px-[var(--ois-space-4)] py-[var(--ois-space-3)] ${className}`.trim()}>
+    <section className={`ois-operational-strip px-[var(--ois-space-3)] py-2.5 ${className}`.trim()}>
       <div className="flex gap-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((item) => (
-          <div key={`${item.label}:${item.value}`} className="min-w-[128px] flex-1 border-l border-white/5 px-3 first:border-l-0 first:pl-0 last:pr-0">
-            <div className={`flex items-center gap-2 text-[13px] font-medium ${toneClass(item.tone)}`}>
+          <div key={`${item.label}:${item.value}`} className="min-w-[132px] flex-1 border-l border-white/5 px-2.5 first:border-l-0 first:pl-0 last:pr-0">
+            <div className={`flex items-center gap-1.5 whitespace-nowrap text-[13px] font-semibold leading-4 ${toneClass(item.tone)}`}>
               {item.icon ? <span className="shrink-0">{item.icon}</span> : null}
               <span className="truncate">{item.value}</span>
             </div>
-            <div className="mt-1 text-[11px] text-[var(--ois-text-secondary)]">{item.label}</div>
-            {item.detail ? <div className="mt-0.5 text-[11px] text-[var(--ois-text-muted)]">{item.detail}</div> : null}
+            <div className="mt-0.5 truncate text-[10px] uppercase tracking-[0.08em] text-[var(--ois-text-secondary)]">{item.label}</div>
+            {item.detail ? <div className="truncate text-[10px] text-[var(--ois-text-muted)]">{item.detail}</div> : null}
           </div>
         ))}
       </div>

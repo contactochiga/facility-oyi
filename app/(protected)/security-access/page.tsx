@@ -98,7 +98,7 @@ export default function SecurityAccessPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Security & Access" subtitle="Visitors, gates, cameras, incidents, and emergency response." strip={[{ label: "Visitors", value: loading ? "Loading" : activeVisitors.length }, { label: "Attention", value: loading ? "Loading" : anomalies.length }, { label: "Health", value: anomalies.length ? "Review" : "Stable" }, { label: "Action", value: "Open queue" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
+      <Topbar title="Security & Access" subtitle="Visitors, incidents, and gates" strip={[{ label: "Visitors", value: loading ? "Loading" : activeVisitors.length }, { label: "Attention", value: loading ? "Loading" : anomalies.length }, { label: "Health", value: anomalies.length ? "Review" : "Stable" }, { label: "Action", value: "Open queue" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
 
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}

@@ -12,8 +12,8 @@ export default function OisRegistryHeader({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <div className="text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--ois-text-secondary)]">{title}</div>
-        {caption ? <div className="mt-1 text-[12px] text-[var(--ois-text-muted)]">{caption}</div> : null}
+        <div className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--ois-text-primary)]">{title}</div>
+        {caption ? <div className="mt-0.5 text-[11px] text-[var(--ois-text-muted)]">{caption}</div> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>

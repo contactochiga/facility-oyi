@@ -90,7 +90,7 @@ export default function FacilityServicesPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Service Readiness" subtitle="Resident-facing service readiness, impact, and audit visibility" strip={[{ label: "Healthy", value: disabled ? "Mixed" : "Stable", detail: "Readiness posture", tone: disabled ? "warning" : "stable" }, { label: "Enabled", value: enabled, detail: "Resident-facing", tone: "attention" }, { label: "Pending", value: pending, detail: "Needs configuration", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Registry sync", tone: "info" }]} />
+      <Topbar title="Service Readiness" subtitle="Resident service controls" strip={[{ label: "Healthy", value: disabled ? "Mixed" : "Stable", detail: "Readiness posture", tone: disabled ? "warning" : "stable" }, { label: "Enabled", value: enabled, detail: "Resident-facing", tone: "attention" }, { label: "Pending", value: pending, detail: "Needs configuration", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Registry sync", tone: "info" }]} />
       <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search service readiness..." />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}

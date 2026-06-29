@@ -98,13 +98,13 @@ export default function UtilitiesPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Utility Intelligence" subtitle="Power, water, network, waste, and environmental utility posture." strip={[{ label: "Domains", value: summary?.domains?.length || 4 }, { label: "Attention", value: utilityEvents.length }, { label: "Health", value: utilityEvents.length ? "Review" : "Stable" }, { label: "Action", value: "Open utility lane" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Utility Intelligence" subtitle="Power, water, and network" strip={[{ label: "Domains", value: summary?.domains?.length || 4 }, { label: "Attention", value: utilityEvents.length }, { label: "Health", value: utilityEvents.length ? "Review" : "Stable" }, { label: "Action", value: "Open utility lane" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Utility intelligence is sourced from device, maintenance, and alert signals." />
 
       <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
         <OisCard className="p-5">
-          <OisRegistryHeader title="Utility Registry" caption="Operational domains, source state, device coverage, and linked event counts." />
+          <OisRegistryHeader title="Utility Registry" caption={loading ? "Loading records" : `${(summary?.domains || []).length || 4} records`} />
           <div className="mt-4 space-y-2">
             {(summary?.domains || Object.keys(DOMAIN_META).map((key) => ({ key, state: "waiting", devices: 0, online: 0, openTickets: 0, alerts: 0 })) as any).map((domain: any) => {
               const meta = DOMAIN_META[domain.key as UtilityDomain];

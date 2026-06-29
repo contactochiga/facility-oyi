@@ -265,7 +265,7 @@ export default function MaintenancePage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Maintenance Continuity" subtitle="Maintenance queue, ownership, scheduling, resident communication, and lifecycle readiness" strip={[{ label: "Healthy", value: stats.unassigned || stats.escalated ? "Review" : "Stable", detail: "Queue posture", tone: stats.unassigned || stats.escalated ? "warning" : "stable" }, { label: "Open", value: stats.open, detail: "Active requests", tone: "attention" }, { label: "Attention", value: stats.unassigned + stats.escalated, detail: "Unassigned or escalated", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Queue sync", tone: "info" }]} />
+      <Topbar title="Maintenance Continuity" subtitle="Work orders and ownership" strip={[{ label: "Healthy", value: stats.unassigned || stats.escalated ? "Review" : "Stable", detail: "Queue posture", tone: stats.unassigned || stats.escalated ? "warning" : "stable" }, { label: "Open", value: stats.open, detail: "Active requests", tone: "attention" }, { label: "Attention", value: stats.unassigned + stats.escalated, detail: "Unassigned or escalated", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Queue sync", tone: "info" }]} />
       <OisPageToolbar
         filterSlot={
           <div className="flex flex-wrap gap-2">
@@ -289,7 +289,7 @@ export default function MaintenancePage() {
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
       <OisCard className="p-4">
-        <OisRegistryHeader title="Maintenance Queue" caption="Ownership, status, and resident continuity for every work order." />
+        <OisRegistryHeader title="Maintenance Queue" caption={loading ? "Loading records" : `${filtered.length} records`} />
         <div className="mt-4 hidden md:block">
           <DataTable data={filtered} columns={columns} title="Maintenance Queue" searchKey="title" />
         </div>

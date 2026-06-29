@@ -121,12 +121,12 @@ export default function WalletsPage() {
   ], [wallet.currency]);
 
   if (!canRead) {
-    return <div className="space-y-6"><Topbar title="Financial Posture" subtitle="Finance permissions required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: wallets.read.</div></div>;
+    return <div className="space-y-6"><Topbar title="Financial Posture" subtitle="Finance access required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: wallets.read.</div></div>;
   }
 
   return (
     <div className="space-y-6">
-      <Topbar title="Financial Posture" subtitle="Estate balance, resident service payments, failed transactions, and financial attention queue" strip={[{ label: "Healthy", value: pending.length || failed.length ? "Review" : "Stable", detail: "Financial posture", tone: pending.length || failed.length ? "warning" : "stable" }, { label: "Payments", value: rows.length, detail: "Visible transactions", tone: "attention" }, { label: "Attention", value: pending.length + failed.length, detail: "Pending or failed", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Runtime sync", tone: "info" }]} />
+      <Topbar title="Financial Posture" subtitle="Transactions and payment review" strip={[{ label: "Healthy", value: pending.length || failed.length ? "Review" : "Stable", detail: "Financial posture", tone: pending.length || failed.length ? "warning" : "stable" }, { label: "Payments", value: rows.length, detail: "Visible transactions", tone: "attention" }, { label: "Attention", value: pending.length + failed.length, detail: "Pending or failed", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Runtime sync", tone: "info" }]} />
       <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search transaction registry..." />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">{notice}</div> : null}

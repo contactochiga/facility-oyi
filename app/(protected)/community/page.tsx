@@ -133,12 +133,12 @@ export default function CommunityPage() {
   const visibleRows = tab === "announcements" ? announcements : tab === "posts" ? posts : tab === "media" ? mediaPosts : tab === "pinned" ? pinned : tab === "moderation" ? flagged : [];
 
   if (!canRead) {
-    return <div className="space-y-6"><Topbar title="Community Signals" subtitle="Community permissions required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
+    return <div className="space-y-6"><Topbar title="Community Signals" subtitle="Community access required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
   }
 
   return (
     <div className="space-y-6">
-      <Topbar title="Community Signals" subtitle="Announcements, posts, reports, media, pinned content, and moderation attention" strip={[{ label: "Reports", value: reports.length }, { label: "Attention", value: pendingReview }, { label: "Health", value: pendingReview ? "Review" : "Stable" }, { label: "Action", value: "Moderate queue" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Community Signals" subtitle="Posts, reports, and notices" strip={[{ label: "Reports", value: reports.length }, { label: "Attention", value: pendingReview }, { label: "Health", value: pendingReview ? "Review" : "Stable" }, { label: "Action", value: "Moderate queue" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
@@ -155,7 +155,7 @@ export default function CommunityPage() {
       />
 
       <OisCard className="p-4">
-        <OisRegistryHeader title="Community Feed" caption="Announcements, posts, reports, and moderation signals within the current estate context." />
+        <OisRegistryHeader title="Community Feed" caption={loading ? "Loading records" : `${visibleRows.length || reports.length} records`} />
         <div className="mt-4">
           {tab === "reports" ? <ReportList reports={reports} canModerate={canModerate} onOpen={(report) => { setModerationTarget(report); setModerationAction("dismiss"); }} /> : <PostList rows={visibleRows} canModerate={canModerate} canWrite={canWrite || canBroadcast} onEdit={openCompose} onModerate={(post) => { setModerationTarget(post); setModerationAction("active"); }} />}
         </div>

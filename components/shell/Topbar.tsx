@@ -18,15 +18,15 @@ export default function Topbar({
   rightSlot?: React.ReactNode;
 }) {
   return (
-    <header className="space-y-3">
+    <header className="space-y-2.5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           {subtitle ? (
-            <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--ois-text-secondary)]">
+            <p className="text-[12px] text-[var(--ois-text-secondary)]">
               {subtitle}
             </p>
           ) : null}
-          <h1 className="mt-1 text-[var(--ois-type-page-title)] font-semibold tracking-[-0.04em] text-[var(--ois-text-primary)]">
+          <h1 className="mt-0.5 text-[var(--ois-type-page-title)] font-semibold tracking-[-0.04em] text-[var(--ois-text-primary)]">
             {title}
           </h1>
         </div>

@@ -101,7 +101,7 @@ export default function LiveInfrastructureModule() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Live Infrastructure" subtitle="Estate-scoped infrastructure posture, spatial routes, device registry, cameras, Edge, utilities, and maintenance attention." strip={[{ label: "Status", value: status === "error" ? "Degraded" : status === "ready" ? "Live" : "Loading" }, { label: "Attention", value: attention.length }, { label: "Health", value: attention.length ? "Review" : "Stable" }, { label: "Action", value: "Open infrastructure" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={status === "loading"} className="gap-2"><RefreshCw className={`h-4 w-4 ${status === "loading" ? "animate-spin" : ""}`} />Refresh</Button>} />
+      <Topbar title="Live Infrastructure" subtitle="Realtime estate operations" strip={[{ label: "Status", value: status === "error" ? "Degraded" : status === "ready" ? "Live" : "Loading" }, { label: "Attention", value: attention.length }, { label: "Health", value: attention.length ? "Review" : "Stable" }, { label: "Action", value: "Open infrastructure" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={status === "loading"} className="gap-2"><RefreshCw className={`h-4 w-4 ${status === "loading" ? "animate-spin" : ""}`} />Refresh</Button>} />
       <OisPageToolbar onRefresh={() => void load()} refreshing={status === "loading"} searchPlaceholder="Live infrastructure routes operations into active Facility registries and work surfaces." />
       {error ? <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">{error}</p> : null}
 

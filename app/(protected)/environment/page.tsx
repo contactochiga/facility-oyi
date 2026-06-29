@@ -41,13 +41,13 @@ export default function EnvironmentPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Environmental Awareness" subtitle="Environmental sensors, HVAC/service events, and telemetry readiness" strip={[{ label: "Status", value: envDevices.length ? "Live" : "Pending" }, { label: "Attention", value: unavailable + openEnvTickets.length }, { label: "Health", value: unavailable || openEnvTickets.length ? "Review" : "Stable" }, { label: "Action", value: "Inspect sensors" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Environmental Awareness" subtitle="Sensors and comfort signals" strip={[{ label: "Status", value: envDevices.length ? "Live" : "Pending" }, { label: "Attention", value: unavailable + openEnvTickets.length }, { label: "Health", value: unavailable || openEnvTickets.length ? "Review" : "Stable" }, { label: "Action", value: "Inspect sensors" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Environmental awareness is sourced from sensor registry and maintenance signals." />
 
       <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <OisCard className="p-5">
-          <OisRegistryHeader title="Environmental Signal Registry" caption="Environment-related registry entries, telemetry state, and mapped room context." action={<Thermometer className="h-4 w-4 text-sky-200" />} />
+          <OisRegistryHeader title="Environmental Registry" caption={loading ? "Loading records" : `${envDevices.length} records`} action={<Thermometer className="h-4 w-4 text-sky-200" />} />
           <div className="mt-4 grid gap-2 md:grid-cols-2">
             {envDevices.map((device) => (
               <OisListItem key={device.id} title={device.name || "Unnamed sensor"} description={`${device.type || device.category || "Unknown type"} · ${device.room || "Estate/shared infrastructure"}`} meta={`${isOnline(device) ? "Online" : "Review required"} · ${dateLabel((device as any).last_seen_at || (device as any).updated_at)}`} status={isOnline(device) ? "stable" : /offline|error|unavailable|down/.test(lower(device.status)) ? "critical" : "pending"} />

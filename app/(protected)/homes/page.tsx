@@ -322,7 +322,7 @@ export default function HomesPage() {
     <div className="space-y-7">
       <Topbar
         title="Home Registry"
-        subtitle="Operational home registry, occupancy, rooms, and resident access."
+        subtitle="Homes and resident access"
         strip={[
           { label: "Healthy", value: summary.pending || summary.vacant ? "Review" : "Stable", detail: "Registry posture", tone: summary.pending || summary.vacant ? "warning" : "stable" },
           { label: "Homes", value: summary.total, detail: "Registered units", tone: "attention" },

@@ -72,7 +72,7 @@ export default function TrafficPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Gate Flow Intelligence" subtitle="Visitor movement, access actions, and gate telemetry readiness." strip={[{ label: "Status", value: accessDevices.length ? "Observed" : "Pending" }, { label: "Attention", value: pending }, { label: "Health", value: pending || !accessDevices.length ? "Review" : "Stable" }, { label: "Action", value: "Review movement" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
+      <Topbar title="Gate Flow Intelligence" subtitle="Movement and access telemetry" strip={[{ label: "Status", value: accessDevices.length ? "Observed" : "Pending" }, { label: "Attention", value: pending }, { label: "Health", value: pending || !accessDevices.length ? "Review" : "Stable" }, { label: "Action", value: "Review movement" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">

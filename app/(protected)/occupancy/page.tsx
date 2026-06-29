@@ -52,7 +52,7 @@ export default function OccupancyPage() {
     <div className="space-y-6">
       <Topbar
         title="Occupancy"
-        subtitle="Resident assignment posture derived from active home memberships."
+        subtitle="Resident assignment overview"
         strip={[
           { label: "Homes", value: value(summary?.homes), detail: "Registered units", tone: "attention" },
           { label: "Occupied", value: value(summary?.occupied_homes), detail: "Active members linked", tone: "stable" },

@@ -70,7 +70,7 @@ export default function EstateStructurePage() {
     <div className="space-y-6">
       <Topbar
         title="Estate Registry"
-        subtitle="Homes, rooms, residents, invitations, and access posture."
+        subtitle="Homes and access registry"
         strip={[
           { label: "Estate", value: data?.estate?.name || "Context pending", detail: "Linked context", tone: "stable" },
           { label: "Homes", value: loading ? "Loading" : summary?.homes || 0, detail: "Registered units", tone: "attention" },

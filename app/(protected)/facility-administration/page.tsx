@@ -249,7 +249,7 @@ export default function FacilityAdministrationModule() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Operational Governance" subtitle="Operators, roles, permissions, audit, integrations, notifications, security and estate controls." strip={[{ label: "Operators", value: operators.status === "ready" ? operators.data.length : "Pending" }, { label: "Attention", value: suspendedOperators.length + pendingOperators.length }, { label: "Health", value: suspendedOperators.length || pendingOperators.length ? "Review" : "Stable" }, { label: "Action", value: "Review governance" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>} />
+      <Topbar title="Operational Governance" subtitle="Operators, roles, and audit" strip={[{ label: "Operators", value: operators.status === "ready" ? operators.data.length : "Pending" }, { label: "Attention", value: suspendedOperators.length + pendingOperators.length }, { label: "Health", value: suspendedOperators.length || pendingOperators.length ? "Review" : "Stable" }, { label: "Action", value: "Review governance" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>} />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Operators" value={operators.status === "ready" ? operators.data.length : sourceLabel(operators)} hint="Estate staff and operator memberships" />

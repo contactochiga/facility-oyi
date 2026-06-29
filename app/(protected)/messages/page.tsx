@@ -115,12 +115,12 @@ export default function FacilityMessagesPage() {
   const escalated = reports.filter((report) => /escalated|high|urgent|abuse|threat/.test(`${report.reason || ""} ${report.status || ""}`.toLowerCase()));
 
   if (!canRead) {
-    return <div className="space-y-6"><Topbar title="Communication Operations" subtitle="Messaging permissions required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
+    return <div className="space-y-6"><Topbar title="Communication Operations" subtitle="Messaging access required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
   }
 
   return (
     <div className="space-y-6">
-      <Topbar title="Communication Operations" subtitle="Inbox, resident threads, operator communications, reports, and escalations" strip={[{ label: "Status", value: threads.length ? "Live" : "Pending" }, { label: "Attention", value: unreadThreads.length + reports.length }, { label: "Health", value: escalated.length ? "Review" : "Stable" }, { label: "Action", value: tab === "reports" ? "Review reports" : "Open thread" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Communication Operations" subtitle="Threads, reports, and escalations" strip={[{ label: "Status", value: threads.length ? "Live" : "Pending" }, { label: "Attention", value: unreadThreads.length + reports.length }, { label: "Health", value: escalated.length ? "Review" : "Stable" }, { label: "Action", value: tab === "reports" ? "Review reports" : "Open thread" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
