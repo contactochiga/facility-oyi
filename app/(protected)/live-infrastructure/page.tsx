@@ -110,7 +110,7 @@ export default function LiveInfrastructureModule() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Live Infrastructure" subtitle="Estate-scoped infrastructure posture, spatial routes, device registry, cameras, Edge, utilities, and maintenance attention." rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={status === "loading"} className="gap-2"><RefreshCw className={`h-4 w-4 ${status === "loading" ? "animate-spin" : ""}`} />Refresh</Button>} />
+      <Topbar title="Live Infrastructure" subtitle="Estate-scoped infrastructure posture, spatial routes, device registry, cameras, Edge, utilities, and maintenance attention." strip={[{ label: "Status", value: status === "error" ? "Degraded" : status === "ready" ? "Live" : "Loading" }, { label: "Attention", value: attention.length }, { label: "Health", value: attention.length ? "Review" : "Stable" }, { label: "Action", value: "Open infrastructure" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={status === "loading"} className="gap-2"><RefreshCw className={`h-4 w-4 ${status === "loading" ? "animate-spin" : ""}`} />Refresh</Button>} />
 
       <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_34%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-5">
         <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Infrastructure command surface</p>

@@ -277,7 +277,7 @@ export default function MaintenancePage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Maintenance Continuity" subtitle="Maintenance queue, ownership, scheduling, resident communication, and lifecycle readiness" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />Refresh</Button>} />
+      <Topbar title="Maintenance Continuity" subtitle="Maintenance queue, ownership, scheduling, resident communication, and lifecycle readiness" strip={[{ label: "Open", value: stats.open }, { label: "Attention", value: stats.unassigned + stats.escalated }, { label: "Health", value: stats.unassigned || stats.escalated ? "Review" : "Stable" }, { label: "Action", value: "Assign requests" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 

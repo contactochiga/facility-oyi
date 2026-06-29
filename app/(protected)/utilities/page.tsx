@@ -97,7 +97,7 @@ export default function UtilitiesPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Utility Intelligence" subtitle="Power, water, network, waste, and environmental utility posture." rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Utility Intelligence" subtitle="Power, water, network, waste, and environmental utility posture." strip={[{ label: "Domains", value: summary?.domains?.length || 4 }, { label: "Attention", value: utilityEvents.length }, { label: "Health", value: utilityEvents.length ? "Review" : "Stable" }, { label: "Action", value: "Open utility lane" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

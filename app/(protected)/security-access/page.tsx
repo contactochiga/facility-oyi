@@ -98,13 +98,7 @@ export default function SecurityAccessPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Security & Access" subtitle="Visitors, gates, cameras, incidents, and emergency response." rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
-
-      <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(239,68,68,0.13),transparent_32%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-5">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-rose-200">Safety runtime</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">Operational security command center</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">Coordinate resident access, visitor verification, camera posture, and incident attention from real estate sources.</p>
-      </section>
+      <Topbar title="Security & Access" subtitle="Visitors, gates, cameras, incidents, and emergency response." strip={[{ label: "Visitors", value: loading ? "Loading" : activeVisitors.length }, { label: "Attention", value: loading ? "Loading" : anomalies.length }, { label: "Health", value: anomalies.length ? "Review" : "Stable" }, { label: "Action", value: "Open queue" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
 
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}

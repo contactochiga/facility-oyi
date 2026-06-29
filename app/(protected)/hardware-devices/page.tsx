@@ -226,27 +226,18 @@ export default function HardwareDevicesPage() {
       <Topbar
         title="Infrastructure Registry"
         subtitle="Registry, discovery, ownership, provider posture, and Edge operations."
+        strip={[
+          { label: "Registry", value: loading ? "Loading" : registry.length },
+          { label: "Attention", value: loading ? "Loading" : attention.length },
+          { label: "Health", value: attention.length ? "Review" : "Stable" },
+          { label: "Action", value: "Review ownership" },
+        ]}
         rightSlot={
           <Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh status
           </Button>
         }
       />
-
-      <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.13),transparent_36%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.19em] text-sky-200/80">Infrastructure registry</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">Infrastructure continuity is source-backed.</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-              Review stable Oyi identities, provider imports, home ownership, and local Edge posture without fabricating telemetry.
-            </p>
-          </div>
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-            Awaiting live subscription · polling fallback every 30 seconds
-          </div>
-        </div>
-      </section>
 
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}

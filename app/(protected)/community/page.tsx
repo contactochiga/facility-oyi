@@ -138,7 +138,7 @@ export default function CommunityPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Community Signals" subtitle="Announcements, posts, reports, media, pinned content, and moderation attention" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Community Signals" subtitle="Announcements, posts, reports, media, pinned content, and moderation attention" strip={[{ label: "Reports", value: reports.length }, { label: "Attention", value: pendingReview }, { label: "Health", value: pendingReview ? "Review" : "Stable" }, { label: "Action", value: "Moderate queue" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 

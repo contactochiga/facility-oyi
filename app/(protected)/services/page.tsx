@@ -90,7 +90,7 @@ export default function FacilityServicesPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Service Readiness" subtitle="Resident-facing service readiness, impact, and audit visibility" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Service Readiness" subtitle="Resident-facing service readiness, impact, and audit visibility" strip={[{ label: "Enabled", value: enabled }, { label: "Pending", value: pending }, { label: "Health", value: disabled ? "Mixed" : "Stable" }, { label: "Action", value: "Review readiness" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
       {configError ? <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">Readiness source: {configError}. Showing contract defaults as Pending readiness, not live controls.</div> : null}

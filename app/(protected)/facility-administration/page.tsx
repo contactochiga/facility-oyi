@@ -249,13 +249,7 @@ export default function FacilityAdministrationModule() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Operational Governance" subtitle="Operators, roles, permissions, audit, integrations, notifications, security and estate controls." rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>} />
-
-      <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_34%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-5">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Operational governance</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">{estate?.name || "Estate governance"}</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">Review Facility operators and governance state using live contracts. Unsupported custom-role, delivery-metric, provider-readiness and branding edits remain read-only pending backend support.</p>
-      </section>
+      <Topbar title="Operational Governance" subtitle="Operators, roles, permissions, audit, integrations, notifications, security and estate controls." strip={[{ label: "Operators", value: operators.status === "ready" ? operators.data.length : "Pending" }, { label: "Attention", value: suspendedOperators.length + pendingOperators.length }, { label: "Health", value: suspendedOperators.length || pendingOperators.length ? "Review" : "Stable" }, { label: "Action", value: "Review governance" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>} />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Operators" value={operators.status === "ready" ? operators.data.length : sourceLabel(operators)} hint="Estate staff and operator memberships" />

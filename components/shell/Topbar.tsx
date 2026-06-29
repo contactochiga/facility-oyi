@@ -181,6 +181,15 @@ export default function Topbar({
     return { email, role, estate };
   }, [user]);
 
+  const stripItems = useMemo(() => {
+    if (!strip?.length) return [];
+    const hasRefresh = strip.some((item) => /refresh/i.test(item.label));
+    const refreshLabel = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return hasRefresh
+      ? strip.slice(0, 5)
+      : [...strip.slice(0, 4), { label: "Refresh", value: refreshLabel }];
+  }, [strip]);
+
   return (
     <>
       <div className="flex items-center justify-between gap-4">
@@ -211,9 +220,9 @@ export default function Topbar({
                 {subtitle}
               </p>
             ) : null}
-            {strip?.length ? (
+            {stripItems.length ? (
               <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/42">
-                {strip.slice(0, 4).map((item) => (
+                {stripItems.map((item) => (
                   <span key={`${item.label}:${item.value}`} className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1">
                     <span className="text-white/36">{item.label}</span>{" "}
                     <span className="text-white/72">{item.value}</span>
