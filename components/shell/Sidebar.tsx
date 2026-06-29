@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { X } from "lucide-react";
 import SidebarContent from "./SidebarContent";
 
 function SidebarBrand({ onClick }: { onClick?: () => void }) {
@@ -74,18 +73,8 @@ export default function Sidebar({
         `}
       >
         <div className="flex h-[100dvh] flex-col">
-          <div className="flex items-center justify-between border-b border-white/10">
-            <div className="flex-1">
-              <SidebarBrand onClick={onClose} />
-            </div>
-
-            <button
-              onClick={onClose}
-              className="m-3 rounded-lg p-2 hover:bg-white/10"
-              aria-label="Close navigation"
-            >
-              <X className="h-5 w-5 text-zinc-300" />
-            </button>
+          <div className="border-b border-white/10">
+            <SidebarBrand onClick={onClose} />
           </div>
 
           <div className="flex-1 overflow-y-auto">

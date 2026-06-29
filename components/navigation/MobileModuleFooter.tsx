@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useMemo, useRef } from "react";
 import { Mic } from "lucide-react";
 import { facilityMobileModules, type MobileModuleItem } from "./mobileNavConfig";
 import { useSessionStore } from "@/store/useSessionStore";
 import { FACILITY_MODULES, visibleModules } from "@/lib/moduleRegistry";
 import { iconForDomain } from "@/lib/oisIconRegistry";
+import { useFacilityAssistantStore } from "@/store/useFacilityAssistantStore";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -23,10 +24,10 @@ function isActive(pathname: string, item: MobileModuleItem) {
 
 export default function MobileModuleFooter({ items = facilityMobileModules }: { items?: MobileModuleItem[] }) {
   const pathname = usePathname() || "/overview";
-  const router = useRouter();
   const { user } = useSessionStore();
   const railRef = useRef<HTMLDivElement | null>(null);
   const openingIntelligenceRef = useRef(false);
+  const openAssistant = useFacilityAssistantStore((state) => state.openAssistant);
   const IntelligenceIcon = iconForDomain("operationalIntelligence");
   const visibleKeys = useMemo(() => new Set(visibleModules(user, FACILITY_MODULES).map((module) => module.key)), [user]);
   const visibleItems = useMemo(() => items.filter((item) => visibleKeys.has(item.key)), [items, visibleKeys]);
@@ -37,7 +38,10 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
   function openIntelligence() {
     if (openingIntelligenceRef.current || intelligenceActive) return;
     openingIntelligenceRef.current = true;
-    router.push("/facility-intelligence?module=mobile-footer&focus=1");
+    openAssistant("Summarize current operational attention and verification priority.");
+    window.setTimeout(() => {
+      openingIntelligenceRef.current = false;
+    }, 240);
   }
 
   function handleRailScroll() {

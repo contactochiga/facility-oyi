@@ -14,6 +14,7 @@ import { WorkflowDetailDrawerHost } from "@/components/modules/WorkflowDetailDra
 import { PredictionDetailDrawerHost } from "@/components/modules/PredictionDetailDrawer";
 import { InfrastructureDetailDrawerHost } from "@/components/modules/InfrastructureDetailDrawer";
 import { useContextStore } from "@/store/useContextStore";
+import FacilityAssistantSheet from "@/components/shell/FacilityAssistantSheet";
 
 export default function ProtectedLayout({
   children,
@@ -99,6 +100,7 @@ export default function ProtectedLayout({
               {children}
             </main>
             {pathname !== "/facility-intelligence" ? <MobileModuleFooter /> : null}
+            <FacilityAssistantSheet />
             <WorkflowDetailDrawerHost />
             <PredictionDetailDrawerHost />
             <InfrastructureDetailDrawerHost />

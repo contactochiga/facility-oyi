@@ -20,6 +20,7 @@ export type OyiAwareness = {
 export type OyiChatResponse = {
   ok?: boolean;
   message: string;
+  reply?: string;
   intent?: string;
   understood?: string;
   execution?: Record<string, any>;

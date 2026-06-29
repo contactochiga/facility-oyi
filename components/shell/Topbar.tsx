@@ -187,7 +187,7 @@ export default function Topbar({
           {openMenu && (
             <button
               onClick={openMenu}
-              className="md:hidden rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10 transition"
+              className="hidden rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10 transition"
               aria-label="Open navigation"
               type="button"
             >

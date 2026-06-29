@@ -62,7 +62,14 @@ async function emitLocal(event: string, payload: Record<string, any>) {
   let recommendations = serverRecommendations;
   let automationPlans = serverAutomationPlans;
 
-  if (!awareness || !insights.length || !recommendations.length || !automationPlans.length) {
+  const hasServerRuntime =
+    Boolean(serverAwareness) ||
+    Boolean(serverSignal) ||
+    serverInsights.length > 0 ||
+    serverRecommendations.length > 0 ||
+    serverAutomationPlans.length > 0;
+
+  if (!hasServerRuntime) {
     try {
       const bundle = await evaluateOyiCoreRuntime([receipt.signal]);
       awareness = awareness || bundle.awareness[0] || null;
