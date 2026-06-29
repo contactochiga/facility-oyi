@@ -322,6 +322,12 @@ export default function HomesPage() {
       <Topbar
         title="Home Registry"
         subtitle="Operational home registry, occupancy, rooms, and resident access."
+        strip={[
+          { label: "Status", value: estateId ? "Linked" : "Pending" },
+          { label: "Attention", value: summary.pending + summary.vacant },
+          { label: "Health", value: summary.pending || summary.vacant ? "Review" : "Stable" },
+          { label: "Action", value: "Open home" },
+        ]}
         rightSlot={
           <Link
             href="/overview"
@@ -332,15 +338,6 @@ export default function HomesPage() {
           </Link>
         }
       />
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[
-          { title: "Homes", value: String(summary.total), hint: "Registered units", icon: Building2, color: "text-blue-400" },
-          { title: "Occupied", value: String(summary.occupied), hint: "Homes with active residents", icon: Users, color: "text-emerald-400" },
-          { title: "Vacant", value: String(summary.vacant), hint: "Homes without assigned residents", icon: Home, color: "text-zinc-300" },
-          { title: "Pending Invites", value: String(summary.pending), hint: "Awaiting resident activation", icon: DoorOpen, color: "text-amber-400" },
-        ].map((item) => <OisCard key={item.title} className="p-4"><div className="flex items-center justify-between gap-3"><div className="text-[10px] uppercase tracking-[0.16em] text-[var(--ois-text-muted)]">{item.title}</div><item.icon className={`h-4 w-4 ${item.color}`} /></div><div className="mt-3 text-2xl font-semibold text-[var(--ois-text-primary)]">{item.value}</div><div className="mt-1 text-xs text-[var(--ois-text-secondary)]">{item.hint}</div></OisCard>)}
-      </div>
 
       <OisCard className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <div>

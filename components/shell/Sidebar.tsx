@@ -40,8 +40,8 @@ function SidebarBrand({ onClick }: { onClick?: () => void }) {
 }
 
 export default function Sidebar({
-  mobileOpen,
-  onClose,
+  mobileOpen: _mobileOpen,
+  onClose: _onClose,
 }: {
   mobileOpen: boolean;
   onClose: () => void;
@@ -53,33 +53,6 @@ export default function Sidebar({
         <SidebarBrand />
         <div className="flex-1 overflow-y-auto">
           <SidebarContent />
-        </div>
-      </aside>
-
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Mobile drawer */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[280px]
-          bg-zinc-950 border-r border-white/10
-          transform transition-transform duration-200 ease-out md:hidden
-          ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-        `}
-      >
-        <div className="flex h-[100dvh] flex-col">
-          <div className="border-b border-white/10">
-            <SidebarBrand onClick={onClose} />
-          </div>
-
-          <div className="flex-1 overflow-y-auto">
-            <SidebarContent onNavigate={onClose} />
-          </div>
         </div>
       </aside>
     </>

@@ -6,11 +6,12 @@ import { useSessionStore } from "@/store/useSessionStore";
 import NotificationsModal from "@/components/notifications/NotificationsModal";
 import { notificationService } from "@/services/notificationService";
 import { loadUnreadMessageCount } from "@/services/facilityCommunicationPostureService";
-import { Bell, Menu } from "lucide-react";
+import { Bell, Search, Sparkles, UserCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useFacilityShell } from "@/components/shell/FacilityShellContext";
 import { useFacilityRealtimeStore } from "@/store/useFacilityRealtimeStore";
 import { iconForDomain } from "@/lib/oisIconRegistry";
+import { useFacilityAssistantStore } from "@/store/useFacilityAssistantStore";
+import { useContextStore } from "@/store/useContextStore";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -83,7 +84,6 @@ export default function Topbar({
   title,
   subtitle,
   strip,
-  onOpenMenu,
   showUser = false,
   showNotifications = true,
   rightSlot,
@@ -91,7 +91,6 @@ export default function Topbar({
   title: string;
   subtitle?: string;
   strip?: Array<{ label: string; value: string | number }>;
-  onOpenMenu?: () => void;
 
   showUser?: boolean;
   showNotifications?: boolean;
@@ -99,9 +98,9 @@ export default function Topbar({
 }) {
   const { user } = useSessionStore();
   const router = useRouter();
-  const shell = useFacilityShell();
-  const openMenu = onOpenMenu || shell?.openMenu;
   const CommunicationIcon = iconForDomain("communicationOperations");
+  const openAssistant = useFacilityAssistantStore((state) => state.openAssistant);
+  const { context } = useContextStore();
 
   const [openNotif, setOpenNotif] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -180,6 +179,7 @@ export default function Topbar({
       : "No estate scope";
     return { email, role, estate };
   }, [user]);
+  const estateContextLabel = useMemo(() => String(context?.estate?.name || userLabel.estate || "Facility context"), [context?.estate?.name, userLabel.estate]);
 
   const stripItems = useMemo(() => {
     if (!strip?.length) return [];
@@ -192,38 +192,27 @@ export default function Topbar({
 
   return (
     <>
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-start justify-between gap-3">
         {/* Left */}
-        <div className="flex items-center gap-3 min-w-0">
-          {openMenu && (
-            <button
-              onClick={openMenu}
-              className="hidden rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10 transition"
-              aria-label="Open navigation"
-              type="button"
-            >
-              <Menu className="h-5 w-5 text-zinc-200" />
-            </button>
-          )}
-
+        <div className="min-w-0 flex-1">
           <div className="min-w-0">
-            <div className="flex items-center gap-3 min-w-0">
-              <h1 className="truncate text-lg md:text-xl font-semibold tracking-tight text-white">
+            <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+              <h1 className="truncate text-[17px] font-semibold tracking-[-0.03em] text-white md:text-[19px]">
                 {title}
               </h1>
               <StatusPill ok={backendOk} />
               <RealtimePill />
             </div>
 
-            {subtitle ? (
-              <p className="mt-1 truncate text-sm text-white/55">
-                {subtitle}
-              </p>
-            ) : null}
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-white/46">
+              <span className="truncate text-white/58">{estateContextLabel}</span>
+              {subtitle ? <span className="hidden text-white/24 sm:inline">•</span> : null}
+              {subtitle ? <span className="truncate">{subtitle}</span> : null}
+            </div>
             {stripItems.length ? (
-              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/42">
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-white/42">
                 {stripItems.map((item) => (
-                  <span key={`${item.label}:${item.value}`} className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1">
+                  <span key={`${item.label}:${item.value}`} className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-[5px]">
                     <span className="text-white/36">{item.label}</span>{" "}
                     <span className="text-white/72">{item.value}</span>
                   </span>
@@ -234,25 +223,34 @@ export default function Topbar({
         </div>
 
         {/* Right */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center gap-2">
           {rightSlot ? <div className="flex items-center">{rightSlot}</div> : null}
 
-          <div className="hidden xl:block rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-right">
-            <div className="max-w-[160px] truncate text-xs font-medium text-zinc-200">
-              {userLabel.estate}
-            </div>
-            <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-              {userLabel.role}
-            </div>
-          </div>
+          <button
+            className="grid h-9 w-9 place-items-center rounded-full border border-white/[0.08] bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            aria-label="Search operational context"
+            type="button"
+            onClick={() => openAssistant("Search the current operational context, active module, and runtime state.")}
+          >
+            <Search className="h-4 w-4" />
+          </button>
 
           <button
-            className="rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10 transition relative"
+            className="grid h-9 w-9 place-items-center rounded-full border border-sky-300/16 bg-sky-400/[0.09] text-sky-100 transition hover:bg-sky-400/[0.16]"
+            aria-label="Open Operational Intelligence"
+            type="button"
+            onClick={() => openAssistant("Summarize the current operational attention, verification risk, and recommended next action.")}
+          >
+            <Sparkles className="h-4 w-4" />
+          </button>
+
+          <button
+            className="relative grid h-9 w-9 place-items-center rounded-full border border-white/[0.08] bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
             aria-label="Messages"
             type="button"
             onClick={() => router.push("/messages")}
           >
-            <CommunicationIcon className="h-5 w-5 text-zinc-200" />
+            <CommunicationIcon className="h-4 w-4" />
             {messageCount > 0 ? (
               <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[11px] flex items-center justify-center border border-emerald-500/30">
                 {messageCount > 99 ? "99+" : messageCount}
@@ -262,12 +260,12 @@ export default function Topbar({
 
           {showNotifications ? (
             <button
-              className="rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10 transition relative"
+              className="relative grid h-9 w-9 place-items-center rounded-full border border-white/[0.08] bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
               aria-label="Notifications"
               type="button"
               onClick={() => setOpenNotif(true)}
             >
-              <Bell className="h-5 w-5 text-zinc-200" />
+              <Bell className="h-4 w-4" />
 
               {/* ✅ Badge (brand-blue, not red) */}
               {unreadCount > 0 ? (
@@ -277,6 +275,15 @@ export default function Topbar({
               ) : null}
             </button>
           ) : null}
+
+          <button
+            type="button"
+            onClick={() => router.push("/account")}
+            className="hidden sm:grid h-9 w-9 place-items-center rounded-full border border-white/[0.08] bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            aria-label="Open account"
+          >
+            <UserCircle2 className="h-4 w-4" />
+          </button>
 
           {showUser ? (
             <div className="hidden sm:flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">

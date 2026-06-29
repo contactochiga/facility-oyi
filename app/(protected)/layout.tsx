@@ -1,7 +1,7 @@
 // app/(protected)/layout.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Sidebar from "@/components/shell/Sidebar";
 import { FacilityShellProvider } from "@/components/shell/FacilityShellContext";
 import { isExpired } from "@/lib/auth";
@@ -23,7 +23,6 @@ export default function ProtectedLayout({
 }) {
   const { hydrate, hydrated, token, user } = useSessionStore();
   const { context, refresh: refreshContext, clear: clearContext } = useContextStore();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -60,20 +59,6 @@ export default function ProtectedLayout({
     return () => disconnectFacilityRealtime();
   }, [context?.estate_id, hydrated, token, user]);
 
-  // Close drawer on route change (mobile nav feels clean)
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
-  // Close on ESC
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMobileOpen(false);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
   if (!hydrated || !token || !user || isExpired(user)) {
     return (
       <div className="grid h-screen place-items-center overflow-hidden bg-zinc-950">
@@ -91,12 +76,12 @@ export default function ProtectedLayout({
       <div className="absolute inset-0 bg-grid opacity-[0.10]" />
 
       <div className="relative flex h-screen overflow-hidden">
-        <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+        <Sidebar mobileOpen={false} onClose={() => undefined} />
         <TabletModuleRail />
 
         <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
-          <FacilityShellProvider openMenu={() => setMobileOpen(true)}>
-            <main key={context?.estate_id || (user as any)?.estate_id || "facility"} className={`flex-1 min-h-0 overflow-y-auto p-4 ${pathname === "/facility-intelligence" ? "pb-4 md:pb-6" : "pb-[calc(112px+env(safe-area-inset-bottom))] md:pb-6"} sm:p-6 xl:p-8`}>
+          <FacilityShellProvider openMenu={() => undefined}>
+            <main key={context?.estate_id || (user as any)?.estate_id || "facility"} className={`flex-1 min-h-0 overflow-y-auto px-3 pb-[calc(104px+env(safe-area-inset-bottom))] pt-3 ${pathname === "/facility-intelligence" ? "md:pb-6" : ""} sm:px-5 sm:pb-6 sm:pt-5 xl:px-7 xl:pt-6`}>
               {children}
             </main>
             {pathname !== "/facility-intelligence" ? <MobileModuleFooter /> : null}

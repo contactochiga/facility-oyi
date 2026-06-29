@@ -62,7 +62,7 @@ export const oyiService = {
     return res.data as OyiAwareness & { ok?: boolean };
   },
 
-  async chat(input: { message: string; estate_id?: string | null; home_id?: string | null; module?: string | null; role?: string | null; thread_id?: string | null; context?: OisContext | null }) {
+  async chat(input: { message: string; estate_id?: string | null; home_id?: string | null; module?: string | null; role?: string | null; thread_id?: string | null; context?: OisContext | null; page?: string | null; route?: string | null; filters?: Record<string, string>; runtime_context?: Record<string, any> | null }) {
     const res = await API.post("/oyi/chat", { surface: "facility", ...input });
     return res.data as OyiChatResponse;
   },

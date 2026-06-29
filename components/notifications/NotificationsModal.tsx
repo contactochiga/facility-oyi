@@ -135,14 +135,6 @@ export default function NotificationsModal({
               <Button variant="ghost" onClick={load} disabled={loading}>
                 {loading ? "Refreshing..." : "Refresh"}
               </Button>
-
-              <button
-                onClick={onClose}
-                className="rounded-lg px-2 py-1 text-zinc-300 hover:bg-white/5"
-                aria-label="Close notifications"
-              >
-                ✕
-              </button>
             </div>
           </div>
 

@@ -20,7 +20,6 @@ function nameOf(peer: any) { return peer?.full_name || peer?.username || peer?.e
 function dateLabel(value?: string | null) { if (!value) return "Time unavailable"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Time unavailable" : d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 function statusTone(status?: string | null) { const value = String(status || "open").toLowerCase(); if (/resolved|closed|dismissed/.test(value)) return "resolved"; if (/review|pending|open/.test(value)) return "pending"; return "unavailable"; }
 
-function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) { return <OisCard className="p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-[var(--ois-text-muted)]">{label}</div><div className="mt-3 text-2xl font-semibold text-[var(--ois-text-primary)]">{value}</div><div className="mt-1 text-xs text-[var(--ois-text-secondary)]">{hint}</div></OisCard>; }
 function Field({ label, value }: { label: string; value: React.ReactNode }) { return <OisCard variant="evidence" className="p-3"><div className="text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">{label}</div><div className="mt-1 text-sm text-[var(--ois-text-primary)]">{value}</div></OisCard>; }
 
 export default function FacilityMessagesPage() {
@@ -121,17 +120,9 @@ export default function FacilityMessagesPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Communication Operations" subtitle="Inbox, resident threads, operator communications, reports, and escalations" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Communication Operations" subtitle="Inbox, resident threads, operator communications, reports, and escalations" strip={[{ label: "Status", value: threads.length ? "Live" : "Pending" }, { label: "Attention", value: unreadThreads.length + reports.length }, { label: "Health", value: escalated.length ? "Review" : "Stable" }, { label: "Action", value: tab === "reports" ? "Review reports" : "Open thread" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
-
-      <section className="grid gap-3 md:grid-cols-5">
-        <Metric label="Inbox" value={threads.length} hint="Resident/operator threads" />
-        <Metric label="Unread" value={unreadThreads.length} hint="Threads with unread messages" />
-        <Metric label="Open reports" value={reports.length} hint="Moderation reports" />
-        <Metric label="Escalations" value={escalated.length} hint="High-priority reports by real report text" />
-        <Metric label="Residents" value={residents.length} hint="Reachable resident signals" />
-      </section>
 
       <div className="flex flex-wrap gap-2">{(["inbox", "resident_threads", "operator_threads", "reports", "escalations"] as Tab[]).map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={cn("rounded-full border px-3 py-2 text-xs capitalize", tab === item ? "border-sky-400/40 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white")}>{item.replace(/_/g, " ")}</button>)}</div>
 

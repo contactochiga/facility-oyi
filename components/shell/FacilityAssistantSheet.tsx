@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { History, Mic, Sparkles, Volume2, VolumeX } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { oyiService, type OyiThreadMessage } from "@/services/oyiService";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useContextStore } from "@/store/useContextStore";
@@ -79,6 +80,8 @@ export default function FacilityAssistantSheet() {
   const { user } = useSessionStore();
   const { context } = useContextStore();
   const { open, focusHint, closeAssistant } = useFacilityAssistantStore();
+  const pathname = usePathname() || "/overview";
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [threads, setThreads] = useState<Array<{ id: string; title?: string | null; updated_at?: string }>>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -94,6 +97,8 @@ export default function FacilityAssistantSheet() {
   const starter = useMemo(() => (
     (user as any)?.estate_id ? `Summarize current operational attention for ${String((user as any)?.estate_name || "this estate")}.` : "Summarize current operational attention."
   ), [user]);
+  const pageFilters = useMemo(() => Object.fromEntries(Array.from(searchParams.entries()).slice(0, 12)), [searchParams]);
+  const moduleContext = useMemo(() => String(pathname).replace(/^\//, "").split("/")[0] || "overview", [pathname]);
 
   useEffect(() => {
     if (!open) return;
@@ -188,10 +193,21 @@ export default function FacilityAssistantSheet() {
         message,
         estate_id: context?.estate_id || (user as any)?.estate_id || null,
         home_id: context?.home_id || null,
-        module: "mobile-assistant",
+        module: moduleContext,
         role: user?.role || null,
         thread_id: threadId,
         context,
+        page: pathname,
+        route: pathname,
+        filters: pageFilters,
+        runtime_context: {
+          focus_hint: focusHint || null,
+          page: pathname,
+          module: moduleContext,
+          estate_name: context?.estate?.name || (user as any)?.estate_name || null,
+          home_id: context?.home_id || null,
+          filters: pageFilters,
+        },
       });
       if (response.thread_id) setThreadId(response.thread_id);
       const reply = String(response.reply || response.message || "Operational review completed.");
@@ -230,7 +246,7 @@ export default function FacilityAssistantSheet() {
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-white">Operational Intelligence</p>
-              <p className="truncate text-[11px] text-zinc-500">Anchored shell assistant</p>
+              <p className="truncate text-[11px] text-zinc-500">{moduleContext.replace(/-/g, " ")} · anchored shell assistant</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
