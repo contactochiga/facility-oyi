@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Topbar from "@/components/shell/Topbar";
-import Button from "@/components/ui/Button";
 import { deviceService, type FacilityDevice } from "@/services/deviceService";
 import { maintenanceService, type MaintenanceItem } from "@/services/maintenanceService";
-import { Droplets, RefreshCw, Wrench } from "lucide-react";
+import { Droplets, Wrench } from "lucide-react";
 
 function lower(value: unknown) { return String(value || "").toLowerCase(); }
 function isWaterDevice(device: FacilityDevice) { return /water|pump|tank|leak|flow|valve|meter|plumb/.test(`${lower(device.name)} ${lower(device.type)} ${lower(device.category)} ${lower(device.metadata)}`); }
@@ -44,7 +43,7 @@ export default function WaterPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Water Operations" subtitle="Water devices, pump/tank events, leak tickets, and source readiness" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Water Operations" subtitle="Water devices and events" />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
 
       <section className="grid gap-3 md:grid-cols-4">

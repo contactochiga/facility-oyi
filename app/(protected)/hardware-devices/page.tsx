@@ -16,6 +16,7 @@ import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
+import { OisRegistryHeader } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import {
@@ -60,16 +61,6 @@ function tone(status?: string | null) {
 
 function Status({ value }: { value?: string | null }) {
   return <OisStatusBadge status={tone(value)} label={text(value, "unknown").replace(/_/g, " ")} className="uppercase tracking-[0.12em]" />;
-}
-
-function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) {
-  return (
-    <OisCard className="p-4">
-      <p className="text-[10px] uppercase tracking-[0.17em] text-zinc-500">{label}</p>
-      <p className="mt-3 text-2xl font-semibold tracking-tight text-white">{value}</p>
-      <p className="mt-2 text-xs leading-5 text-zinc-500">{hint}</p>
-    </OisCard>
-  );
 }
 
 function location(device: InfrastructureDevice) {
@@ -225,30 +216,19 @@ export default function HardwareDevicesPage() {
     <div className="space-y-6">
       <Topbar
         title="Infrastructure Registry"
-        subtitle="Registry, discovery, ownership, provider posture, and Edge operations."
+        subtitle="Registry, discovery and edge operations"
         strip={[
           { label: "Registry", value: loading ? "Loading" : registry.length },
+          { label: "Assigned", value: loading ? "Loading" : assigned.length },
+          { label: "Pending", value: loading ? "Loading" : pending.length },
           { label: "Attention", value: loading ? "Loading" : attention.length },
+          { label: "Edge", value: loading ? "Loading" : data?.edge_nodes?.length || 0 },
           { label: "Health", value: attention.length ? "Review" : "Stable" },
-          { label: "Action", value: "Review ownership" },
         ]}
-        rightSlot={
-          <Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh status
-          </Button>
-        }
       />
 
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric label="Registry" value={loading ? "Loading" : registry.length} hint="Stable Oyi device identities" />
-        <Metric label="Assigned" value={loading ? "Loading" : assigned.length} hint="Bound to estate homes" />
-        <Metric label="Pending assignment" value={loading ? "Loading" : pending.length} hint="Discovered or imported devices" />
-        <Metric label="Needs attention" value={loading ? "Loading" : attention.length} hint="Offline or error state" />
-        <Metric label="Edge nodes" value={loading ? "Loading" : data?.edge_nodes?.length || 0} hint={data?.sources?.edge_nodes?.available ? "Heartbeat-backed nodes" : "Awaiting live source"} />
-      </section>
 
       <nav className="flex gap-2 overflow-x-auto pb-1">
         {TABS.map(({ key, label, icon: Icon }) => (
@@ -262,8 +242,7 @@ export default function HardwareDevicesPage() {
         <OisCard className="p-5">
           <header className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-white">Registry</h2>
-              <p className="mt-1 text-xs text-zinc-500">External identities remain provider-owned. Oyi IDs remain stable.</p>
+              <OisRegistryHeader title="Device Registry" caption={loading ? "Loading records" : `${filtered.length} records`} />
             </div>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search registry" className="w-full max-w-xs rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40" />
           </header>

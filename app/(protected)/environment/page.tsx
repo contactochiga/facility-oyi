@@ -7,7 +7,7 @@ import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { deviceService, type FacilityDevice } from "@/services/deviceService";
 import { maintenanceService, type MaintenanceItem } from "@/services/maintenanceService";
-import { Leaf, RefreshCw, Thermometer, Wrench } from "lucide-react";
+import { Leaf, Thermometer, Wrench } from "lucide-react";
 
 function lower(value: unknown) { return String(value || "").toLowerCase(); }
 function isEnvironmentDevice(device: FacilityDevice) { return /sensor|temperature|humidity|air|aqi|hvac|environment|smoke|motion|waste/.test(`${lower(device.name)} ${lower(device.type)} ${lower(device.category)} ${lower(device.metadata)}`); }
@@ -41,7 +41,7 @@ export default function EnvironmentPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Environmental Awareness" subtitle="Sensors and comfort signals" strip={[{ label: "Status", value: envDevices.length ? "Live" : "Pending" }, { label: "Attention", value: unavailable + openEnvTickets.length }, { label: "Health", value: unavailable || openEnvTickets.length ? "Review" : "Stable" }, { label: "Action", value: "Inspect sensors" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Environmental Awareness" subtitle="Sensors and comfort signals" strip={[{ label: "Status", value: envDevices.length ? "Live" : "Pending" }, { label: "Attention", value: unavailable + openEnvTickets.length }, { label: "Health", value: unavailable || openEnvTickets.length ? "Review" : "Stable" }, { label: "Action", value: "Inspect sensors" }]} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Environmental awareness is sourced from sensor registry and maintenance signals." />
 

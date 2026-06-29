@@ -9,7 +9,6 @@ import {
   Clock3,
   Eye,
   KeyRound,
-  RefreshCw,
   Search,
   SlidersHorizontal,
   Users,
@@ -249,14 +248,7 @@ export default function FacilityAdministrationModule() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Operational Governance" subtitle="Operators, roles, and audit" strip={[{ label: "Operators", value: operators.status === "ready" ? operators.data.length : "Pending" }, { label: "Attention", value: suspendedOperators.length + pendingOperators.length }, { label: "Health", value: suspendedOperators.length || pendingOperators.length ? "Review" : "Stable" }, { label: "Action", value: "Review governance" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>} />
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Operators" value={operators.status === "ready" ? operators.data.length : sourceLabel(operators)} hint="Estate staff and operator memberships" />
-        <Metric label="Active" value={operators.status === "ready" ? activeOperators.length : sourceLabel(operators)} hint="Operators with active estate access" />
-        <Metric label="Suspended/removed" value={operators.status === "ready" ? suspendedOperators.length : sourceLabel(operators)} hint="Access requires review" />
-        <Metric label="Audit source" value={audit.status === "ready" ? audit.data.length : sourceLabel(audit)} hint="Administrative and operational audit entries" />
-      </section>
+      <Topbar title="Operational Governance" subtitle="Operators, roles, and audit" strip={[{ label: "Operators", value: operators.status === "ready" ? operators.data.length : "Pending" }, { label: "Active", value: operators.status === "ready" ? activeOperators.length : "Pending" }, { label: "Attention", value: suspendedOperators.length + pendingOperators.length }, { label: "Audit", value: audit.status === "ready" ? audit.data.length : "Pending" }, { label: "Health", value: suspendedOperators.length || pendingOperators.length ? "Review" : "Stable" }]} />
 
       <div className="flex flex-wrap gap-2">
         {TABS.map((item) => <button key={item.key} type="button" onClick={() => setTab(item.key)} className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs transition ${tab === item.key ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white"}`}><item.icon className="h-3.5 w-3.5" />{item.label}</button>)}

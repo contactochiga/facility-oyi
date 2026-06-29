@@ -8,13 +8,11 @@ import {
   ChevronRight,
   DoorOpen,
   Home,
-  RefreshCw,
   UserCheck,
   UserX,
   Users,
 } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
-import Button from "@/components/ui/Button";
 import { facilityService, type EstateStructureResponse } from "@/services/facilityService";
 
 function tone(status?: string) {
@@ -59,12 +57,6 @@ export default function OccupancyPage() {
           { label: "Attention", value: value((summary?.vacant_homes || 0) + (summary?.pending_activation_homes || 0) + (summary?.homes_without_residents || 0)), detail: "Vacant, pending, or unassigned", tone: "warning" },
           { label: "Residents", value: value(summary?.active_residents), detail: "Active memberships", tone: "info" },
         ]}
-        rightSlot={
-          <Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
-        }
       />
 
       {error ? <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">{error}</div> : null}

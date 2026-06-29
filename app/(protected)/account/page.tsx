@@ -330,13 +330,6 @@ function AccountInner() {
               {labelValue("Address", estate?.address || "—")}
               {labelValue("Created", when(estate?.created_at || null))}
             </div>
-
-            <div className="mt-4 flex gap-2">
-              <Button variant="ghost" onClick={loadEstate} disabled={loadingEstate}>
-                {loadingEstate ? "Refreshing..." : "Refresh Site"}
-              </Button>
-            </div>
-
             <div className="text-xs text-zinc-500 mt-3">
               This pulls from <span className="text-zinc-200">/facility/estates</span>.
             </div>

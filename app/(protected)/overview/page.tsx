@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  RefreshCw,
   ShieldAlert,
   Users,
 } from "lucide-react";
@@ -366,9 +365,6 @@ function OverviewPage() {
           <p className="mt-1 text-[11px] text-zinc-500">Operational attention center</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={load} disabled={loading} className="grid h-10 w-10 place-items-center rounded-[14px] border border-white/[0.06] bg-white/[0.03] text-sky-200 disabled:opacity-50" aria-label="Refresh overview">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          </button>
           <Link href="/messages" className="grid h-10 w-10 place-items-center rounded-[14px] border border-white/[0.06] bg-white/[0.03] text-sky-200" aria-label="Open messages">
             <Users className="h-4 w-4" />
           </Link>
@@ -379,16 +375,7 @@ function OverviewPage() {
       </div>
 
       <div className="hidden sm:block">
-        <Topbar
-          title="Facility Overview"
-          subtitle="Operational attention center"
-          rightSlot={
-            <Button variant="ghost" onClick={load} disabled={loading} className="gap-2">
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">{loading ? "Refreshing" : "Refresh"}</span>
-            </Button>
-          }
-        />
+        <Topbar title="Facility Overview" subtitle="Operational attention center" />
       </div>
 
       {needsEstate ? (

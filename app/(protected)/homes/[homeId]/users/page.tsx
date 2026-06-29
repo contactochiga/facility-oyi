@@ -365,10 +365,6 @@ export default function HomeUsersPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => void load()} disabled={loading}>
-            <RefreshCw className={cx("mr-2 h-4 w-4", loading && "animate-spin")} />
-            Refresh
-          </Button>
           {canManage ? (
             <Button onClick={openInviteSheet}>
               <UserPlus className="mr-2 h-4 w-4" />

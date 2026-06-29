@@ -13,7 +13,7 @@ import messagesService, { type ModerationReport } from "@/services/messagesServi
 import { facilityService } from "@/services/facilityService";
 import { hasPermission } from "@/lib/oyiFoundation";
 import { useSessionStore } from "@/store/useSessionStore";
-import { Archive, CalendarClock, Edit, Eye, FileText, Megaphone, Pin, RefreshCw, ShieldAlert, X } from "lucide-react";
+import { Archive, CalendarClock, Edit, Eye, FileText, Megaphone, Pin, ShieldAlert, X } from "lucide-react";
 
 type Tab = "announcements" | "posts" | "reports" | "media" | "pinned" | "moderation";
 type ComposeState = { title: string; content: string; category: string; status: string; scheduled_at: string; audienceType: string; pinned: boolean };
@@ -138,7 +138,7 @@ export default function CommunityPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Community Signals" subtitle="Posts, reports, and notices" strip={[{ label: "Reports", value: reports.length }, { label: "Attention", value: pendingReview }, { label: "Health", value: pendingReview ? "Review" : "Stable" }, { label: "Action", value: "Moderate queue" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Community Signals" subtitle="Posts, reports, and notices" strip={[{ label: "Reports", value: reports.length }, { label: "Attention", value: pendingReview }, { label: "Health", value: pendingReview ? "Review" : "Stable" }, { label: "Action", value: "Moderate queue" }]} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 

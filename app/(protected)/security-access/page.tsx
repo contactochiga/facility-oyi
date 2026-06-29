@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Camera, DoorOpen, Lock, RefreshCw, ShieldAlert, UserCheck } from "lucide-react";
+import { AlertTriangle, Camera, DoorOpen, Lock, ShieldAlert, UserCheck } from "lucide-react";
+import { OisRegistryHeader, OisListItem, OisStatusBadge } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService, type InfrastructureOperations } from "@/services/facilityService";
@@ -24,10 +25,6 @@ function tone(value: string) {
   if (["online", "active", "approved", "entered", "resolved"].includes(value)) return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
   if (["offline", "denied", "critical", "error"].includes(value)) return "border-rose-500/20 bg-rose-500/10 text-rose-200";
   return "border-amber-500/20 bg-amber-500/10 text-amber-100";
-}
-
-function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) {
-  return <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><p className="text-[10px] uppercase tracking-[0.17em] text-zinc-500">{label}</p><p className="mt-3 text-2xl font-semibold text-white">{value}</p><p className="mt-2 text-xs text-zinc-500">{hint}</p></div>;
 }
 
 export default function SecurityAccessPage() {
@@ -98,30 +95,21 @@ export default function SecurityAccessPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Security & Access" subtitle="Visitors, incidents, and gates" strip={[{ label: "Visitors", value: loading ? "Loading" : activeVisitors.length }, { label: "Attention", value: loading ? "Loading" : anomalies.length }, { label: "Health", value: anomalies.length ? "Review" : "Stable" }, { label: "Action", value: "Open queue" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
+      <Topbar title="Security & Access" subtitle="Visitors, incidents, and gates" strip={[{ label: "Visitors", value: loading ? "Loading" : activeVisitors.length }, { label: "Pending", value: loading ? "Loading" : pendingVisitors.length }, { label: "Cameras", value: loading ? "Loading" : cameras.length }, { label: "Attention", value: loading ? "Loading" : anomalies.length + unhealthyCameras.length }, { label: "Health", value: anomalies.length || unhealthyCameras.length ? "Review" : "Stable" }]} />
 
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <Metric label="Active visitors" value={loading ? "Loading" : activeVisitors.length} hint="Approved, entered, or active today" />
-        <Metric label="Pending approval" value={loading ? "Loading" : pendingVisitors.length} hint="Visitors needing gate review" />
-        <Metric label="Camera health" value={loading ? "Loading" : `${Math.max(0, cameras.length - unhealthyCameras.length)}/${cameras.length}`} hint={cameras.length ? "Healthy / total cameras" : "No live camera source configured"} />
-        <Metric label="Recent incidents" value={loading ? "Loading" : alerts.length + events.length} hint="Notifications plus camera events" />
-        <Metric label="Access anomalies" value={loading ? "Loading" : anomalies.length} hint="Security, provider, device, or Edge attention" />
-        <Metric label="Realtime" value={infra?.sources?.realtime?.available ? "Ready" : "Polling"} hint="Socket bridge with polling fallback" />
-      </section>
-
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-5">
           <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-            <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-semibold text-white">Visitor verification queue</h2><Link href="/visitors" className="text-xs text-sky-200">Open visitor queue</Link></div>
-            <div className="mt-4 space-y-2">{pendingVisitors.slice(0, 6).map((visitor) => <Link key={visitor.id} href="/visitors" className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-3"><UserCheck className="h-4 w-4 text-sky-200" /><span className="min-w-0 flex-1"><span className="block truncate text-sm text-white">{visitor.visitor_name}</span><span className="text-xs text-zinc-500">{visitor.purpose || "Visitor"} · expires {when(visitor.expires_at)}</span></span><span className={`rounded-full border px-2 py-1 text-[10px] ${tone(status(visitor.status))}`}>{visitor.status}</span></Link>)}{!pendingVisitors.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No pending visitor approvals.</p> : null}</div>
+            <div className="flex items-center justify-between gap-3"><OisRegistryHeader title="Visitor verification queue" caption={loading ? "Loading records" : `${pendingVisitors.length} records`} /><Link href="/visitors" className="text-xs text-sky-200">Open visitor queue</Link></div>
+            <div className="mt-4 space-y-2">{pendingVisitors.slice(0, 6).map((visitor) => <Link key={visitor.id} href="/visitors" className="block"><OisListItem icon={<UserCheck className="h-4 w-4 text-sky-200" />} title={visitor.visitor_name} description={`${visitor.purpose || "Visitor"} · expires ${when(visitor.expires_at)}`} meta={`Created ${when(visitor.created_at)}`} status={status(visitor.status) === "pending" ? "pending" : "stable"} /></Link>)}{!pendingVisitors.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No pending visitor approvals.</p> : null}</div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-            <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-semibold text-white">Camera health and recent events</h2><Link href="/cameras" className="text-xs text-sky-200">Open camera wall</Link></div>
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">{cameras.slice(0, 6).map((camera) => <article key={camera.id} className="rounded-xl border border-white/10 bg-black/15 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-medium text-white">{camera.name || camera.ip || "Camera"}</h3><p className="mt-1 text-xs text-zinc-500">{camera.ip || "IP unavailable"} · {when(camera.last_seen_at)}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] ${tone(status(camera.status || camera.health_status || camera.stream_status))}`}>{camera.status || camera.health_status || "unknown"}</span></div></article>)}{!cameras.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No live camera source configured.</p> : null}</div>
+            <div className="flex items-center justify-between gap-3"><OisRegistryHeader title="Camera health and events" caption={loading ? "Loading records" : `${cameras.length} records`} /><Link href="/cameras" className="text-xs text-sky-200">Open camera wall</Link></div>
+            <div className="mt-4 space-y-2">{cameras.slice(0, 6).map((camera) => <Link key={camera.id} href="/cameras" className="block"><OisListItem icon={<Camera className="h-4 w-4 text-sky-200" />} title={camera.name || camera.ip || "Camera"} description={`${camera.ip || "IP unavailable"} · ${when(camera.last_seen_at)}`} meta={`${events.filter((event) => event.camera_id === camera.id).length} recent events`} status={["offline", "error", "degraded"].includes(status(camera.status || camera.health_status || camera.stream_status)) ? "critical" : "stable"} /></Link>)}{!cameras.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No live camera source configured.</p> : null}</div>
           </div>
         </div>
 

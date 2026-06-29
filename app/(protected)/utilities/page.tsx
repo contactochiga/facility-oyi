@@ -6,7 +6,7 @@ import { OisCard, OisListItem, OisPageToolbar, OisRegistryHeader } from "@/compo
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { utilityService, type UtilitySummary, type UtilityDomain } from "@/services/utilityService";
-import { AlertTriangle, Bolt, Droplets, Leaf, Network, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Bolt, Droplets, Leaf, Network, ShieldCheck } from "lucide-react";
 
 const DOMAIN_META: Record<UtilityDomain, { title: string; icon: typeof Bolt; route: string; description: string }> = {
   power: { title: "Power", icon: Bolt, route: "/utilities", description: "Electricity meters, backup systems, generator links, and outage response." },
@@ -98,7 +98,7 @@ export default function UtilitiesPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Utility Intelligence" subtitle="Power, water, and network" strip={[{ label: "Domains", value: summary?.domains?.length || 4 }, { label: "Attention", value: utilityEvents.length }, { label: "Health", value: utilityEvents.length ? "Review" : "Stable" }, { label: "Action", value: "Open utility lane" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Utility Intelligence" subtitle="Power, water, and network" strip={[{ label: "Domains", value: summary?.domains?.length || 4 }, { label: "Attention", value: utilityEvents.length }, { label: "Health", value: utilityEvents.length ? "Review" : "Stable" }, { label: "Action", value: "Open utility lane" }]} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Utility intelligence is sourced from device, maintenance, and alert signals." />
 

@@ -1,4 +1,4 @@
-import { RefreshCw, Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import Button from "@/components/ui/Button";
 
 export default function OisPageToolbar({
@@ -8,7 +8,6 @@ export default function OisPageToolbar({
   filterSlot,
   sortSlot,
   bulkSlot,
-  refreshLabel = "Refresh",
   onRefresh,
   refreshing = false,
 }: {
@@ -18,7 +17,6 @@ export default function OisPageToolbar({
   filterSlot?: React.ReactNode;
   sortSlot?: React.ReactNode;
   bulkSlot?: React.ReactNode;
-  refreshLabel?: string;
   onRefresh?: () => void;
   refreshing?: boolean;
 }) {
@@ -40,10 +38,6 @@ export default function OisPageToolbar({
           {filterSlot || <Button variant="ghost" className="h-10 gap-2 px-3"><SlidersHorizontal className="h-4 w-4" />Filters</Button>}
           {sortSlot || <Button variant="ghost" className="h-10 px-3">Sort</Button>}
           {bulkSlot || <Button variant="ghost" className="h-10 px-3">Bulk Action</Button>}
-          <Button variant="ghost" onClick={onRefresh} disabled={!onRefresh || refreshing} className="h-10 gap-2 px-3">
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            {refreshLabel}
-          </Button>
         </div>
       </div>
     </section>

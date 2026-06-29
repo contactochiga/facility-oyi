@@ -18,7 +18,6 @@ import {
   Minus,
   Network,
   Plus,
-  RefreshCw,
   Search,
   ShieldAlert,
   Wrench,
@@ -328,7 +327,6 @@ export default function DigitalTwinPage() {
       <Topbar
         title="Digital Twin"
         subtitle="Spatial estate command center with honest model, infrastructure, device, camera, Edge, incident, and maintenance state."
-        rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>}
       />
 
       <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_34%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-5">

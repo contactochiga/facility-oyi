@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, Building2, Pencil, Plus, RefreshCw, X } from "lucide-react";
+import { ArrowLeft, Building2, Pencil, Plus, X } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
@@ -133,9 +133,6 @@ export default function HomeRoomsPage() {
           <p className="mt-1 text-sm text-zinc-300">{items.length} configured rooms · {totalDevices} assigned devices</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
-          </Button>
           <Button onClick={openCreate} disabled={!estateId} className="gap-2">
             <Plus className="h-4 w-4" /> Add Room
           </Button>

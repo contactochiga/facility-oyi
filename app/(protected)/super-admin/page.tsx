@@ -170,18 +170,6 @@ export default function SuperAdminPage() {
   return (
     <div className="space-y-6">
       <Topbar title="Super Admin Command Center" subtitle="All estates • homes • devices • transactions • activities" />
-
-      <div className="flex items-center justify-end">
-        <button
-          type="button"
-          onClick={loadAll}
-          disabled={loading}
-          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-100 hover:bg-white/10 disabled:opacity-50"
-        >
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
-      </div>
-
       {err ? (
         <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">{err}</div>
       ) : null}

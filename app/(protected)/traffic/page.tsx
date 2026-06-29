@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Car, Clock, DoorOpen, RefreshCw, Route, ShieldAlert } from "lucide-react";
+import { DoorOpen } from "lucide-react";
+import { OisListItem, OisRegistryHeader } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
-import Button from "@/components/ui/Button";
 import { visitorService, type VisitorItem } from "@/services/visitorService";
 import { facilityService, type InfrastructureDevice } from "@/services/facilityService";
 
@@ -15,10 +15,6 @@ function when(value?: string | null) {
   if (!value) return "No live timestamp";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "No live timestamp" : date.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-
-function Metric({ label, value, hint, icon: Icon }: { label: string; value: string | number; hint: string; icon: typeof Car }) {
-  return <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] uppercase tracking-[0.17em] text-zinc-500">{label}</p><p className="mt-3 text-2xl font-semibold text-white">{value}</p><p className="mt-2 text-xs text-zinc-500">{hint}</p></div><Icon className="h-5 w-5 text-sky-200" /></div></div>;
 }
 
 export default function TrafficPage() {
@@ -72,25 +68,16 @@ export default function TrafficPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Gate Flow Intelligence" subtitle="Movement and access telemetry" strip={[{ label: "Status", value: accessDevices.length ? "Observed" : "Pending" }, { label: "Attention", value: pending }, { label: "Health", value: pending || !accessDevices.length ? "Review" : "Stable" }, { label: "Action", value: "Review movement" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
+      <Topbar title="Gate Flow Intelligence" subtitle="Movement and access telemetry" strip={[{ label: "Entries", value: loading ? "Loading" : entries }, { label: "Active", value: loading ? "Loading" : Math.max(0, entries - exits) }, { label: "Pending", value: loading ? "Loading" : pending }, { label: "Devices", value: loading ? "Loading" : `${onlineAccess}/${accessDevices.length}` }, { label: "Health", value: pending || !accessDevices.length ? "Review" : "Stable" }]} />
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric label="Entries today" value={loading ? "Loading" : entries} hint="Approved, active, or entered visitors" icon={DoorOpen} />
-        <Metric label="Exits today" value={exits} hint="Visitors marked exited" icon={Route} />
-        <Metric label="Active visitors" value={Math.max(0, entries - exits)} hint="Estimated from visitor lifecycle" icon={Car} />
-        <Metric label="Pending gate actions" value={pending} hint="Visitors awaiting verification" icon={ShieldAlert} />
-        <Metric label="Access devices" value={`${onlineAccess}/${accessDevices.length}`} hint={accessDevices.length ? "Online / total access devices" : "Awaiting gate telemetry"} icon={Clock} />
-      </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-          <h2 className="text-sm font-semibold text-white">Gate Flow Activity</h2>
-          <p className="mt-1 text-xs text-zinc-500">Derived from visitor lifecycle until dedicated gate telemetry is connected.</p>
-          <div className="mt-4 space-y-2">{gateRows.map((row) => <div key={row.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-3"><DoorOpen className="h-4 w-4 text-sky-200" /><span className="min-w-0 flex-1"><span className="block truncate text-sm text-white">{row.title}</span><span className="text-xs text-zinc-500">{row.detail} · {when(row.time)}</span></span><span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase text-zinc-300">{row.status}</span></div>)}{!gateRows.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No gate movement recorded today.</p> : null}</div>
+          <OisRegistryHeader title="Gate Flow Activity" caption={loading ? "Loading records" : `${gateRows.length} records`} />
+          <div className="mt-4 space-y-2">{gateRows.map((row) => <OisListItem key={row.id} icon={<DoorOpen className="h-4 w-4 text-sky-200" />} title={row.title} description={row.detail} meta={when(row.time)} status={row.status === "pending" ? "pending" : row.status === "exited" ? "completed" : "stable"} />)}{!gateRows.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No gate movement recorded today.</p> : null}</div>
         </div>
         <aside className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-          <h2 className="text-sm font-semibold text-white">Gate telemetry source</h2>
+          <OisRegistryHeader title="Gate telemetry source" caption={loading ? "Loading records" : `${accessDevices.length} records`} />
           <p className="mt-2 text-sm leading-6 text-zinc-400">{accessDevices.length ? "Access devices are present in the infrastructure registry. Dedicated throughput counters will appear when gate hardware emits movement telemetry." : "Awaiting gate telemetry. Add access hardware or Edge events to enable live movement source."}</p>
           <div className="mt-4 space-y-2">{accessDevices.slice(0, 8).map((device) => <div key={device.id} className="rounded-xl border border-white/10 bg-black/15 px-3 py-3"><p className="text-sm text-white">{device.name}</p><p className="mt-1 text-xs text-zinc-500">{device.provider} · {device.status} · {device.home?.name || "Estate"}</p></div>)}</div>
         </aside>

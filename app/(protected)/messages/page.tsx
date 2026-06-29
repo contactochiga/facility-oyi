@@ -10,7 +10,7 @@ import Button from "@/components/ui/Button";
 import messagesService, { type MessageLite, type ModerationReport, type ResidentLite, type ThreadLite } from "@/services/messagesService";
 import { hasPermission } from "@/lib/oyiFoundation";
 import { useSessionStore } from "@/store/useSessionStore";
-import { AlertTriangle, CheckCircle, MessageSquare, RefreshCw, Search, Send, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle, MessageSquare, Search, Send, ShieldAlert } from "lucide-react";
 
 type Tab = "inbox" | "resident_threads" | "operator_threads" | "reports" | "escalations";
 type ActionState = "open" | "under_review" | "resolved" | "dismissed";
@@ -120,7 +120,7 @@ export default function FacilityMessagesPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Communication Operations" subtitle="Threads, reports, and escalations" strip={[{ label: "Status", value: threads.length ? "Live" : "Pending" }, { label: "Attention", value: unreadThreads.length + reports.length }, { label: "Health", value: escalated.length ? "Review" : "Stable" }, { label: "Action", value: tab === "reports" ? "Review reports" : "Open thread" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Communication Operations" subtitle="Threads, reports, and escalations" strip={[{ label: "Status", value: threads.length ? "Live" : "Pending" }, { label: "Attention", value: unreadThreads.length + reports.length }, { label: "Health", value: escalated.length ? "Review" : "Stable" }, { label: "Action", value: tab === "reports" ? "Review reports" : "Open thread" }]} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
