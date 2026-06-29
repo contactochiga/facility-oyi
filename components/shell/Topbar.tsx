@@ -82,6 +82,7 @@ function RealtimePill() {
 export default function Topbar({
   title,
   subtitle,
+  strip,
   onOpenMenu,
   showUser = false,
   showNotifications = true,
@@ -89,6 +90,7 @@ export default function Topbar({
 }: {
   title: string;
   subtitle?: string;
+  strip?: Array<{ label: string; value: string | number }>;
   onOpenMenu?: () => void;
 
   showUser?: boolean;
@@ -208,6 +210,16 @@ export default function Topbar({
               <p className="mt-1 truncate text-sm text-white/55">
                 {subtitle}
               </p>
+            ) : null}
+            {strip?.length ? (
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/42">
+                {strip.slice(0, 4).map((item) => (
+                  <span key={`${item.label}:${item.value}`} className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1">
+                    <span className="text-white/36">{item.label}</span>{" "}
+                    <span className="text-white/72">{item.value}</span>
+                  </span>
+                ))}
+              </div>
             ) : null}
           </div>
         </div>

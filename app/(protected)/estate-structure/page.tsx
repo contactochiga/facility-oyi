@@ -96,6 +96,12 @@ export default function EstateStructurePage() {
       <Topbar
         title="Estate Registry"
         subtitle="Homes, rooms, residents, invitations, and access posture."
+        strip={[
+          { label: "Estate", value: data?.estate?.name || "Context pending" },
+          { label: "Homes", value: loading ? "Loading" : summary?.homes || 0 },
+          { label: "Invites", value: loading ? "Loading" : summary?.pending_invitations || 0 },
+          { label: "Access issues", value: loading ? "Loading" : summary?.resident_access_issues || 0 },
+        ]}
         rightSlot={
           <Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -103,14 +109,6 @@ export default function EstateStructurePage() {
           </Button>
         }
       />
-
-      <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.11),transparent_35%),linear-gradient(145deg,rgba(255,255,255,0.05),rgba(255,255,255,0.018))] p-5">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Estate registry context</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">{data?.estate?.name || "Estate context"}</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-          Residential continuity is visible across capacity, activation gaps, room readiness, and access lifecycle attention.
-        </p>
-      </section>
 
       {error ? (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">

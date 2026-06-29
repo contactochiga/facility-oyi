@@ -36,13 +36,25 @@ export async function loadOyiCoreExecutiveBriefing(period: ExecutivePeriod, sign
   return data?.briefing as ExecutiveBriefing;
 }
 
-export async function loadOyiCoreExecutionHistory(limit = 50) {
-  const { data } = await API.get("/oyi/runtime/executions/history", { params: { limit } });
+export type OyiCoreExecutionHistoryParams = {
+  limit?: number;
+  deviceId?: string | null;
+  provider?: string | null;
+  origin?: string | null;
+  action?: string | null;
+  initiatorId?: string | null;
+  status?: string | null;
+};
+
+export async function loadOyiCoreExecutionHistory(params: number | OyiCoreExecutionHistoryParams = 50) {
+  const query = typeof params === "number" ? { limit: params } : params;
+  const { data } = await API.get("/oyi/runtime/executions/history", { params: query });
   return Array.isArray(data?.executions) ? data.executions : [];
 }
 
-export async function loadOyiCoreExecutionStatistics(limit = 200) {
-  const { data } = await API.get("/oyi/runtime/executions/stats/summary", { params: { limit } });
+export async function loadOyiCoreExecutionStatistics(params: number | OyiCoreExecutionHistoryParams = 200) {
+  const query = typeof params === "number" ? { limit: params } : params;
+  const { data } = await API.get("/oyi/runtime/executions/stats/summary", { params: query });
   return {
     statistics: data?.statistics || null,
     operators: Array.isArray(data?.operators) ? data.operators : [],

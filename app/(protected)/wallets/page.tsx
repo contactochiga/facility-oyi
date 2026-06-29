@@ -9,6 +9,7 @@ import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
 import { facilityService } from "@/services/facilityService";
+import { loadOyiCoreExecutionHistory, loadOyiCoreExecutionStatistics } from "@/services/oyiCoreRuntimeService";
 import { walletsService } from "@/services/walletsService";
 import { formatMoney } from "@/lib/format";
 import { useSessionStore } from "@/store/useSessionStore";
@@ -50,6 +51,8 @@ export default function WalletsPage() {
   const [wallet, setWallet] = useState({ balance: 0, outstanding_dues: 0, collected_this_month: 0, currency: "NGN" });
   const [rows, setRows] = useState<WalletActivityRow[]>([]);
   const [selected, setSelected] = useState<WalletActivityRow | null>(null);
+  const [executionHistory, setExecutionHistory] = useState<Array<Record<string, any>>>([]);
+  const [executionStats, setExecutionStats] = useState<Record<string, any> | null>(null);
 
   const permissions = Array.isArray((user as any)?.permissions) ? (user as any).permissions : [];
   const canRead = permissions.includes("wallets.read") || ["admin", "owner", "estate_admin", "finance_operator"].includes(String(user?.role || ""));
@@ -78,9 +81,37 @@ export default function WalletsPage() {
 
   useEffect(() => { void load(); }, []);
 
+  useEffect(() => {
+    let alive = true;
+    void loadOyiCoreExecutionStatistics({ limit: 40, action: "payment" }).then((stats) => {
+      if (alive) setExecutionStats(stats.statistics || null);
+    }).catch(() => {
+      if (alive) setExecutionStats(null);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const pending = rows.filter((row) => /pending|processing|approval/.test(lower(row.status)));
   const failed = rows.filter((row) => /failed|rejected|reversed/.test(lower(row.status)));
   const completed = rows.filter((row) => /completed|success|paid/.test(lower(row.status)));
+
+  useEffect(() => {
+    if (!selected) {
+      setExecutionHistory([]);
+      return;
+    }
+    let alive = true;
+    void loadOyiCoreExecutionHistory({ limit: 8, action: "payment" }).then((executions) => {
+      if (alive) setExecutionHistory(Array.isArray(executions) ? executions : []);
+    }).catch(() => {
+      if (alive) setExecutionHistory([]);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [selected]);
 
   const columns = useMemo<ColumnDef<WalletActivityRow>[]>(() => [
     { header: "Transaction", cell: ({ row }) => <div><div className="text-sm text-white">{row.original.service_title || row.original.type || "Wallet transaction"}</div><div className="mt-1 text-xs text-zinc-500">{row.original.user_name || row.original.user_email || "Resident source pending"}</div></div> },
@@ -97,7 +128,7 @@ export default function WalletsPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Financial Posture" subtitle="Estate balance, resident service payments, failed transactions, and financial attention queue" rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Financial Posture" subtitle="Estate balance, resident service payments, failed transactions, and financial attention queue" strip={[{ label: "Payments", value: rows.length }, { label: "Pending", value: pending.length }, { label: "Failed", value: failed.length }, { label: "Runtime", value: executionStats?.total || 0 }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">{notice}</div> : null}
 
@@ -118,7 +149,7 @@ export default function WalletsPage() {
       </section>
 
       <OisDrawer open={Boolean(selected)} onClose={() => setSelected(null)} title={selected?.service_title || selected?.type || "Wallet transaction"} subtitle={selected ? `${selected.reference || selected.id || "Reference pending"} · ${dateLabel(selected.created_at)}` : undefined} width="md">
-        {selected ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selected.source || selected.user_name || selected.user_email || "Resident wallet source"}</p><p className="mt-2 text-xs text-zinc-500">{selected.destination || "Estate service wallet"}</p></div><div className="flex flex-wrap gap-2"><OisStatusBadge status={statusTone(selected.status)} label={selected.status || "pending"} /><span className="text-lg font-semibold text-white">{formatMoney(Number(selected.amount || 0), selected.currency || wallet.currency)}</span></div></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Detail label="Amount" value={formatMoney(Number(selected.amount || 0), selected.currency || wallet.currency)} /><Detail label="Source" value={selected.source || selected.user_name || selected.user_email || "Resident wallet source"} /><Detail label="Destination" value={selected.destination || "Estate service wallet"} /><Detail label="Reference" value={selected.reference || selected.id} /><Detail label="Status" value={<OisStatusBadge status={statusTone(selected.status)} label={selected.status || "pending"} />} /><Detail label="Timestamp" value={dateLabel(selected.created_at)} /><Detail label="Home" value={selected.home_name || selected.home_label || "Home pending"} /><Detail label="Action" value={/failed|pending|rejected/.test(lower(selected.status)) ? "Review with resident/service provider" : "No operator action required"} /></div></div> : null}
+        {selected ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selected.source || selected.user_name || selected.user_email || "Resident wallet source"}</p><p className="mt-2 text-xs text-zinc-500">{selected.destination || "Estate service wallet"}</p></div><div className="flex flex-wrap gap-2"><OisStatusBadge status={statusTone(selected.status)} label={selected.status || "pending"} /><span className="text-lg font-semibold text-white">{formatMoney(Number(selected.amount || 0), selected.currency || wallet.currency)}</span></div></div></OisCard><OisCard className="p-4"><h3 className="text-sm font-medium text-white">Runtime trace</h3><div className="mt-3 space-y-2">{executionHistory.map((item) => <OisListItem key={item.executionId || item.signalId} title={item.action || "Payment execution"} description={`${item.origin || "system"} · ${item.provider || "backend"}`} meta={`${item.status || "recorded"} · ${dateLabel(item.completedAt || item.requestedAt)}`} />)}{!executionHistory.length ? <p className="rounded-xl border border-dashed border-white/10 p-3 text-sm text-zinc-500">No runtime execution history is available yet.</p> : null}</div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Detail label="Amount" value={formatMoney(Number(selected.amount || 0), selected.currency || wallet.currency)} /><Detail label="Source" value={selected.source || selected.user_name || selected.user_email || "Resident wallet source"} /><Detail label="Destination" value={selected.destination || "Estate service wallet"} /><Detail label="Reference" value={selected.reference || selected.id} /><Detail label="Status" value={<OisStatusBadge status={statusTone(selected.status)} label={selected.status || "pending"} />} /><Detail label="Timestamp" value={dateLabel(selected.created_at)} /><Detail label="Home" value={selected.home_name || selected.home_label || "Home pending"} /><Detail label="Action" value={/failed|pending|rejected/.test(lower(selected.status)) ? "Review with resident/service provider" : "No operator action required"} /></div></div> : null}
       </OisDrawer>
     </div>
   );
