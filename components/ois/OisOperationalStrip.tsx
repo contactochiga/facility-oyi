@@ -19,9 +19,9 @@ function toneClass(tone?: OisOperationalStripItem["tone"]) {
 export default function OisOperationalStrip({ items, className = "" }: { items: OisOperationalStripItem[]; className?: string }) {
   return (
     <section className={`ois-operational-strip px-[var(--ois-space-4)] py-[var(--ois-space-3)] ${className}`.trim()}>
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="flex gap-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((item) => (
-          <div key={`${item.label}:${item.value}`} className="min-w-0 border-l border-white/5 pl-3 first:border-l-0 first:pl-0">
+          <div key={`${item.label}:${item.value}`} className="min-w-[128px] flex-1 border-l border-white/5 px-3 first:border-l-0 first:pl-0 last:pr-0">
             <div className={`flex items-center gap-2 text-[13px] font-medium ${toneClass(item.tone)}`}>
               {item.icon ? <span className="shrink-0">{item.icon}</span> : null}
               <span className="truncate">{item.value}</span>

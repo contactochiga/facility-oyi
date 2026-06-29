@@ -10,11 +10,11 @@ import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
-import { OisMetricCard, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
-import { ArrowLeft, Building2, ChevronRight, DoorOpen, Pencil, Search, Users } from "lucide-react";
+import { Building2, ChevronRight, DoorOpen, Pencil, Users } from "lucide-react";
 
 type HomeRow = {
   id: string;
@@ -324,20 +324,33 @@ export default function HomesPage() {
         title="Home Registry"
         subtitle="Operational home registry, occupancy, rooms, and resident access."
         strip={[
-          { label: "Status", value: estateId ? "Linked" : "Pending" },
-          { label: "Attention", value: summary.pending + summary.vacant },
-          { label: "Health", value: summary.pending || summary.vacant ? "Review" : "Stable" },
-          { label: "Action", value: "Open home" },
+          { label: "Healthy", value: summary.pending || summary.vacant ? "Review" : "Stable", detail: "Registry posture", tone: summary.pending || summary.vacant ? "warning" : "stable" },
+          { label: "Homes", value: summary.total, detail: "Registered units", tone: "attention" },
+          { label: "Attention", value: summary.pending + summary.vacant, detail: "Vacant or pending", tone: "warning" },
+          { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Live registry", tone: "info" },
         ]}
-        rightSlot={
-          <Link
-            href="/overview"
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200 hover:bg-white/10 transition"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Overview
-          </Link>
+      />
+
+      <OisPageToolbar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search homes, blocks, residents..."
+        filterSlot={
+          <div className="flex flex-wrap gap-2">
+            {[
+              ["All Homes", "/homes"],
+              ["Buildings", "/homes?view=buildings"],
+              ["Rooms", "/homes?view=rooms"],
+              ["Access", "/homes?view=access"],
+            ].map(([label, href]) => {
+              const active = href === "/homes" ? view === "all" : href.includes(`view=${view}`);
+              return <Link key={href} href={href} className={`rounded-xl border px-3 py-2 text-xs transition ${active ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-black/15 text-zinc-400 hover:text-white"}`}>{label}</Link>;
+            })}
+          </div>
         }
+        bulkSlot={<Button variant="ghost" onClick={openCreate} disabled={!estateId}>Bulk Action</Button>}
+        onRefresh={load}
+        refreshing={loading}
       />
 
       <OisCard className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
@@ -357,30 +370,6 @@ export default function HomesPage() {
         </div>
       </OisCard>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <OisMetricCard label="Total" value={summary.total} hint="Homes" accent="text-sky-300" />
-        <OisMetricCard label="Occupied" value={summary.occupied} hint="Active residents" accent="text-emerald-300" />
-        <OisMetricCard label="Vacant" value={summary.vacant} hint="No residents" accent="text-amber-300" />
-        <OisMetricCard label="Invites" value={summary.pending} hint="Pending access" accent="text-violet-300" />
-      </section>
-
-      <OisCard className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {[
-            ["All Homes", "/homes"],
-            ["Buildings", "/homes?view=buildings"],
-            ["Rooms", "/homes?view=rooms"],
-            ["Access", "/homes?view=access"],
-          ].map(([label, href]) => {
-            const active = href === "/homes" ? view === "all" : href.includes(`view=${view}`);
-            return <Link key={href} href={href} className={`rounded-xl border px-3 py-2 text-xs transition ${active ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-black/15 text-zinc-400 hover:text-white"}`}>{label}</Link>;
-          })}
-        </div>
-        <label className="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-3 py-2 lg:w-[320px]">
-          <Search className="h-4 w-4 text-zinc-500" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search homes, units, or blocks" className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-zinc-600" />
-        </label>
-      </OisCard>
 
       <div className="space-y-2 md:hidden">
         <OisRegistryHeader title="Homes Registry" caption={`Showing ${filteredHomes.length} of ${homes.length} homes`} />

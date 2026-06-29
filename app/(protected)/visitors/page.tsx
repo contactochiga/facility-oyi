@@ -8,7 +8,7 @@ import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { OisMetricCard, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import { loadOyiCoreExecutionHistory, loadOyiCoreExecutionStatistics } from "@/services/oyiCoreRuntimeService";
 import { visitorService, type VisitorItem, type VisitorTimelineEvent } from "@/services/visitorService";
 
@@ -148,24 +148,25 @@ export default function VisitorsPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Visitor Access Registry" subtitle="Queue, verification, activity, and access lifecycle." strip={[{ label: "Pending", value: pending }, { label: "Active", value: active }, { label: "Overdue", value: expiredCount }, { label: "Runtime", value: executionStats?.total || 0 }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>} />
+      <Topbar title="Visitor Access Registry" subtitle="Queue, verification, activity, and access lifecycle." strip={[{ label: "Healthy", value: pending || expiredCount ? "Review" : "Stable", detail: "Access posture", tone: pending || expiredCount ? "warning" : "stable" }, { label: "Visitors", value: items.length, detail: todayOnly ? "Today only" : "Visible queue", tone: "attention" }, { label: "Attention", value: pending + expiredCount, detail: "Pending or expired", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Runtime sync", tone: "info" }]} />
+      <OisPageToolbar
+        searchValue={query}
+        onSearchChange={setQuery}
+        searchPlaceholder="Search visitor, phone, purpose, or code..."
+        filterSlot={<div className="flex flex-wrap gap-2">{(["all", "pending", "approved", "entered", "exited", "denied"] as Filter[]).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`rounded-xl border px-3 py-2 text-xs uppercase ${filter === item ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{item}</button>)}</div>}
+        sortSlot={<button type="button" onClick={() => setTodayOnly((v) => !v)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">{todayOnly ? "Today" : "All time"}</button>}
+        bulkSlot={<Button variant="ghost" onClick={() => setVerifyOpen(true)} className="gap-2"><KeyRound className="h-4 w-4" />Verify code</Button>}
+        onRefresh={() => void load()}
+        refreshing={loading}
+      />
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <OisMetricCard label="Total" value={loading ? "Loading" : items.length} hint={todayOnly ? "Today only" : "Visible visitors"} accent="text-sky-300" />
-        <OisMetricCard label="Active" value={active} hint="Approved or entered" accent="text-emerald-300" />
-        <OisMetricCard label="Pending" value={pending} hint="Awaiting review" accent="text-amber-300" />
-        <OisMetricCard label="Expired" value={expiredCount} hint="Access past expiry" accent="text-violet-300" />
-      </section>
-
       <OisCard className="p-5">
-        <OisRegistryHeader title="Visitors Registry" caption="Queue, verification, and lifecycle activity" action={<div className="flex flex-wrap gap-2"><button type="button" onClick={() => setTodayOnly((v) => !v)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">{todayOnly ? "Today" : "All time"}</button><Button onClick={() => setVerifyOpen(true)} className="gap-2"><KeyRound className="h-4 w-4" /> Verify code</Button></div>} />
+        <OisRegistryHeader title="Visitors Registry" caption="Queue, verification, and lifecycle activity" />
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">{(["all", "pending", "approved", "entered", "exited", "denied"] as Filter[]).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`rounded-xl border px-3 py-2 text-xs uppercase ${filter === item ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{item}</button>)}</div>
           <div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => visitorService.exportReport({ today: todayOnly, format: "csv" })} className="gap-2"><Download className="h-4 w-4" /> Export</Button><Button variant="danger" onClick={() => setLockdownOpen(true)} className="gap-2"><ShieldAlert className="h-4 w-4" /> Lockdown</Button></div>
         </div>
-        <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2"><Search className="h-4 w-4 text-zinc-500" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search visitor, phone, purpose, or code" className="w-full bg-transparent text-sm text-white outline-none" /></div>
         <div className="mt-4 hidden overflow-x-auto md:block">
           <table className="w-full min-w-[900px] text-left text-xs"><thead className="text-[10px] uppercase tracking-[0.14em] text-zinc-600"><tr><th className="pb-3">Visitor</th><th>Phone</th><th>Purpose</th><th>Access</th><th>Status</th><th>Created</th><th /></tr></thead><tbody className="divide-y divide-white/5">{filtered.map((visitor) => { const s = expired(visitor) ? "expired" : status(visitor.status); return <tr key={visitor.id} className="text-zinc-300"><td className="py-3 pr-3 font-medium text-white">{visitor.visitor_name}</td><td>{visitor.visitor_phone}</td><td>{visitor.purpose || "Visitor"}</td><td className="font-mono text-[11px]">{visitor.access_code || "Unavailable"}<span className="block pt-1 font-sans text-zinc-500">Expires {when(visitor.expires_at)}</span></td><td><OisStatusBadge status={tone(s)} label={s} className="uppercase" /></td><td>{when(visitor.created_at)}</td><td><button type="button" onClick={() => void openVisitor(visitor)} className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-zinc-300 hover:text-white">Review</button></td></tr>; })}</tbody></table>
           {!filtered.length && !loading ? <p className="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No visitor access items match this view.</p> : null}

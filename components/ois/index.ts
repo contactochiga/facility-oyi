@@ -6,6 +6,8 @@ export { default as OisListItem } from "./OisListItem";
 export { default as OisComposer } from "./OisComposer";
 export { default as OisMetricCard } from "./OisMetricCard";
 export { default as OisOperationalStrip } from "./OisOperationalStrip";
+export { default as OisPageScaffold } from "./OisPageScaffold";
+export { default as OisPageToolbar } from "./OisPageToolbar";
 export { default as OisRegistryHeader } from "./OisRegistryHeader";
 export { default as OisRuntimeCard } from "./OisRuntimeCard";
 export type { OisComposerVariant } from "./OisComposer";

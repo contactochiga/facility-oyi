@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { OisMetricCard, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import {
   facilityService,
   type EstateStructureResponse,
@@ -72,31 +72,19 @@ export default function EstateStructurePage() {
         title="Estate Registry"
         subtitle="Homes, rooms, residents, invitations, and access posture."
         strip={[
-          { label: "Estate", value: data?.estate?.name || "Context pending" },
-          { label: "Homes", value: loading ? "Loading" : summary?.homes || 0 },
-          { label: "Invites", value: loading ? "Loading" : summary?.pending_invitations || 0 },
-          { label: "Access issues", value: loading ? "Loading" : summary?.resident_access_issues || 0 },
+          { label: "Estate", value: data?.estate?.name || "Context pending", detail: "Linked context", tone: "stable" },
+          { label: "Homes", value: loading ? "Loading" : summary?.homes || 0, detail: "Registered units", tone: "attention" },
+          { label: "Invites", value: loading ? "Loading" : summary?.pending_invitations || 0, detail: "Awaiting activation", tone: "warning" },
+          { label: "Access issues", value: loading ? "Loading" : summary?.resident_access_issues || 0, detail: "Expired or failed", tone: "warning" },
         ]}
-        rightSlot={
-          <Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
-        }
       />
+      <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search estate registry..." />
 
       {error ? (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           {error} <button type="button" onClick={() => void load()} className="ml-2 text-sky-200 hover:text-sky-100">Retry</button>
         </div>
       ) : null}
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <OisMetricCard label="Homes" value={value(summary?.homes)} hint="Total" accent="text-sky-300" />
-        <OisMetricCard label="Occupied" value={value(summary?.occupied_homes)} hint="Active members" accent="text-emerald-300" />
-        <OisMetricCard label="Vacant" value={value(summary?.vacant_homes)} hint="No active members" accent="text-amber-300" />
-        <OisMetricCard label="Invites" value={value(summary?.pending_invitations)} hint="Awaiting activation" accent="text-violet-300" />
-      </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="rounded-[var(--ois-radius-card)] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] p-5 shadow-[var(--ois-elevation-card)]">

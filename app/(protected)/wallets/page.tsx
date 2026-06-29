@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { OisMetricCard, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
@@ -126,16 +126,10 @@ export default function WalletsPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Financial Posture" subtitle="Estate balance, resident service payments, failed transactions, and financial attention queue" strip={[{ label: "Payments", value: rows.length }, { label: "Pending", value: pending.length }, { label: "Failed", value: failed.length }, { label: "Runtime", value: executionStats?.total || 0 }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
+      <Topbar title="Financial Posture" subtitle="Estate balance, resident service payments, failed transactions, and financial attention queue" strip={[{ label: "Healthy", value: pending.length || failed.length ? "Review" : "Stable", detail: "Financial posture", tone: pending.length || failed.length ? "warning" : "stable" }, { label: "Payments", value: rows.length, detail: "Visible transactions", tone: "attention" }, { label: "Attention", value: pending.length + failed.length, detail: "Pending or failed", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Runtime sync", tone: "info" }]} />
+      <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search transaction registry..." />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">{notice}</div> : null}
-
-      <section className="grid gap-3 md:grid-cols-4">
-        <OisMetricCard label="Estate balance" value={formatMoney(wallet.balance, wallet.currency)} hint="Estate overview source" accent="text-sky-300" />
-        <OisMetricCard label="Payment activity" value={rows.length} hint="Service payment signals" accent="text-emerald-300" />
-        <OisMetricCard label="Pending" value={pending.length} hint="Pending or processing" accent="text-amber-300" />
-        <OisMetricCard label="Failed" value={failed.length} hint="Requires operator review" accent="text-violet-300" />
-      </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <OisCard className="p-4">

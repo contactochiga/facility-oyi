@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { OisMetricCard, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
@@ -265,20 +265,9 @@ export default function MaintenancePage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Maintenance Continuity" subtitle="Maintenance queue, ownership, scheduling, resident communication, and lifecycle readiness" strip={[{ label: "Open", value: stats.open }, { label: "Attention", value: stats.unassigned + stats.escalated }, { label: "Health", value: stats.unassigned || stats.escalated ? "Review" : "Stable" }, { label: "Action", value: "Assign requests" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />Refresh</Button>} />
-      {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
-      {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
-
-      <section className="grid gap-3 md:grid-cols-4">
-        <OisMetricCard label="Open requests" value={stats.open} hint="Not completed or closed" accent="text-sky-300" />
-        <OisMetricCard label="Assigned" value={stats.assigned} hint="Current owner recorded" accent="text-emerald-300" />
-        <OisMetricCard label="Unassigned" value={stats.unassigned} hint="Needs operator assignment" accent="text-amber-300" />
-        <OisMetricCard label="Completed" value={stats.completed} hint="Completed, resolved, or closed" accent="text-violet-300" />
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <OisCard className="p-4">
-          <OisRegistryHeader title="Maintenance Queue" caption="Ownership, status, and resident continuity for every work order." />
+      <Topbar title="Maintenance Continuity" subtitle="Maintenance queue, ownership, scheduling, resident communication, and lifecycle readiness" strip={[{ label: "Healthy", value: stats.unassigned || stats.escalated ? "Review" : "Stable", detail: "Queue posture", tone: stats.unassigned || stats.escalated ? "warning" : "stable" }, { label: "Open", value: stats.open, detail: "Active requests", tone: "attention" }, { label: "Attention", value: stats.unassigned + stats.escalated, detail: "Unassigned or escalated", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Queue sync", tone: "info" }]} />
+      <OisPageToolbar
+        filterSlot={
           <div className="flex flex-wrap gap-2">
             {([
               ["active", "Active"],
@@ -291,6 +280,17 @@ export default function MaintenancePage() {
               <button key={key} type="button" onClick={() => setLane(key)} className={cn("rounded-full border px-3 py-2 text-xs transition", lane === key ? "border-sky-400/40 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white")}>{label}</button>
             ))}
           </div>
+        }
+        onRefresh={() => void load()}
+        refreshing={loading}
+        searchPlaceholder="Search maintenance queue..."
+      />
+      {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
+      {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
+
+      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <OisCard className="p-4">
+          <OisRegistryHeader title="Maintenance Queue" caption="Ownership, status, and resident continuity for every work order." />
           <div className="mt-4 hidden md:block">
             <DataTable data={filtered} columns={columns} title="Maintenance Queue" searchKey="title" />
           </div>

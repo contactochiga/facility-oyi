@@ -120,7 +120,7 @@
 .ois-shell-page {
   display: flex;
   flex-direction: column;
-  gap: var(--ois-space-4);
+  gap: var(--ois-space-3);
 }
 .ois-operational-strip {
   border: 1px solid var(--ois-border-default);
