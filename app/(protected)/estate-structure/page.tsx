@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
+import { OisMetricCard, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import {
   facilityService,
   type EstateStructureResponse,
@@ -32,32 +33,6 @@ function formatDate(value?: string | null) {
 
 function lifecycle(invite: HomeInviteRow) {
   return String(invite.lifecycle_status || invite.status || "pending").toLowerCase();
-}
-
-function Metric({
-  label,
-  value,
-  hint,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string | number;
-  hint: string;
-  tone?: "neutral" | "good" | "warn";
-}) {
-  const style =
-    tone === "good"
-      ? "border-emerald-500/20 bg-emerald-500/[0.07]"
-      : tone === "warn"
-      ? "border-amber-500/20 bg-amber-500/[0.07]"
-      : "border-white/10 bg-white/[0.035]";
-  return (
-    <div className={`rounded-2xl border p-4 ${style}`}>
-      <p className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</p>
-      <p className="mt-3 text-2xl font-semibold tracking-tight text-white">{value}</p>
-      <p className="mt-2 text-xs leading-5 text-zinc-500">{hint}</p>
-    </div>
-  );
 }
 
 export default function EstateStructurePage() {
@@ -117,25 +92,15 @@ export default function EstateStructurePage() {
       ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Homes" value={value(summary?.homes)} hint="Registered homes and units" />
-        <Metric label="Occupied" value={value(summary?.occupied_homes)} hint="Homes with active members" tone="good" />
-        <Metric label="Vacant" value={value(summary?.vacant_homes)} hint="Homes without active or invited members" />
-        <Metric label="Pending invitations" value={value(summary?.pending_invitations)} hint="Residents awaiting activation" tone={summary?.pending_invitations ? "warn" : "neutral"} />
-        <Metric label="Expired invitations" value={value(summary?.expired_invitations)} hint="Links requiring operator review" tone={summary?.expired_invitations ? "warn" : "neutral"} />
-        <Metric label="Active residents" value={value(summary?.active_residents)} hint="Distinct active residents" />
-        <Metric label="Rooms configured" value={value(summary?.rooms_configured)} hint="Spaces reflected in Consumer OS" />
-        <Metric label="Access issues" value={value(summary?.resident_access_issues)} hint="Expired links, failed deliveries, or suspensions" tone={summary?.resident_access_issues ? "warn" : "neutral"} />
+        <OisMetricCard label="Homes" value={value(summary?.homes)} hint="Total" accent="text-sky-300" />
+        <OisMetricCard label="Occupied" value={value(summary?.occupied_homes)} hint="Active members" accent="text-emerald-300" />
+        <OisMetricCard label="Vacant" value={value(summary?.vacant_homes)} hint="No active members" accent="text-amber-300" />
+        <OisMetricCard label="Invites" value={value(summary?.pending_invitations)} hint="Awaiting activation" accent="text-violet-300" />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold text-white">Invitation Attention Lane</h2>
-              <p className="mt-1 text-xs leading-5 text-zinc-500">Pending setup, expired links, delivery failures, and revoked access.</p>
-            </div>
-            <Clock3 className="h-4 w-4 text-amber-200" />
-          </div>
+        <div className="rounded-[var(--ois-radius-card)] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] p-5 shadow-[var(--ois-elevation-card)]">
+          <OisRegistryHeader title="Homes Registry" caption="Pending setup, expired links, delivery failures, and revoked access." action={<Clock3 className="h-4 w-4 text-amber-200" />} />
           <div className="mt-4 space-y-2">
             {attention.map((invite) => (
               <Link
@@ -162,8 +127,8 @@ export default function EstateStructurePage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-          <h2 className="text-sm font-semibold text-white">Registry Actions</h2>
+        <div className="rounded-[var(--ois-radius-card)] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] p-5 shadow-[var(--ois-elevation-card)]">
+          <OisRegistryHeader title="Registry Actions" />
           <div className="mt-4 grid gap-2">
             {[
               ["Add Home", "/homes?action=create", Home],
@@ -183,21 +148,14 @@ export default function EstateStructurePage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-white">Resident Access Posture</h2>
-            <p className="mt-1 text-xs leading-5 text-zinc-500">Membership signals derived from active estate homes.</p>
-          </div>
-          <UserCheck className="h-4 w-4 text-emerald-200" />
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Pending activation homes" value={value(summary?.pending_activation_homes)} hint="Homes awaiting first resident activation" />
-          <Metric label="Suspended residents" value={value(summary?.suspended_residents)} hint="Residents with paused home access" />
-          <Metric label="Homes without residents" value={value(summary?.homes_without_residents)} hint="Homes requiring resident assignment" />
-          <Metric label="Multiple members" value={value(summary?.homes_with_multiple_members)} hint="Homes with shared active access" />
-        </div>
-      </section>
+      <OisRuntimeCard
+        title="Runtime Insights"
+        items={[
+          { label: "Occupancy rate", value: summary?.homes ? `${Math.round(((summary?.occupied_homes || 0) / Math.max(summary.homes, 1)) * 100)}%` : "—", delta: "vs active registry" },
+          { label: "Access issues", value: value(summary?.resident_access_issues), delta: "expired or failed" },
+        ]}
+        chart={<div className="h-20 rounded-[var(--ois-radius-row)] bg-[linear-gradient(180deg,rgba(34,197,94,0.16),rgba(15,20,27,0.18))]" />}
+      />
     </div>
   );
 }

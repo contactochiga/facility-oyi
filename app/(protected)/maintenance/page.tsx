@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { OisMetricCard, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
@@ -13,7 +14,7 @@ import { maintenanceService, type MaintenanceItem, type MaintenanceStatus } from
 import VerificationBadge from "@/components/modules/VerificationBadge";
 import { facilityService, type EstateMembershipRow } from "@/services/facilityService";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, CalendarClock, CheckCircle, ChevronRight, Clock, MessageSquare, RefreshCw, UserCog, Wrench } from "lucide-react";
+import { ChevronRight, MessageSquare, RefreshCw } from "lucide-react";
 
 type Lane = "active" | "unassigned" | "scheduled" | "waiting" | "completed" | "all";
 
@@ -116,19 +117,6 @@ function requesterOf(item: MaintenanceItem) {
 
 function ownerOf(item: MaintenanceItem) {
   return item.assigned_operator || item.metadata?.assigned_operator || item.assigned_to || "No operator assigned";
-}
-
-function Metric({ label, value, hint, icon: Icon }: { label: string; value: string | number; hint: string; icon: typeof Wrench }) {
-  return (
-    <OisCard className="p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--ois-text-muted)]">{label}</div>
-        <Icon className="h-4 w-4 text-sky-200" />
-      </div>
-      <div className="mt-3 text-2xl font-semibold text-[var(--ois-text-primary)]">{value}</div>
-      <div className="mt-1 text-xs text-[var(--ois-text-secondary)]">{hint}</div>
-    </OisCard>
-  );
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -281,16 +269,16 @@ export default function MaintenancePage() {
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric label="Open requests" value={stats.open} hint="Not completed or closed" icon={Wrench} />
-        <Metric label="Assigned" value={stats.assigned} hint="Current owner recorded" icon={UserCog} />
-        <Metric label="Unassigned" value={stats.unassigned} hint="Needs operator assignment" icon={AlertTriangle} />
-        <Metric label="Scheduled today" value={stats.scheduledToday} hint="Visit schedule from backend fields" icon={CalendarClock} />
-        <Metric label="Completed" value={stats.completed} hint="Completed, resolved, or closed" icon={CheckCircle} />
+      <section className="grid gap-3 md:grid-cols-4">
+        <OisMetricCard label="Open requests" value={stats.open} hint="Not completed or closed" accent="text-sky-300" />
+        <OisMetricCard label="Assigned" value={stats.assigned} hint="Current owner recorded" accent="text-emerald-300" />
+        <OisMetricCard label="Unassigned" value={stats.unassigned} hint="Needs operator assignment" accent="text-amber-300" />
+        <OisMetricCard label="Completed" value={stats.completed} hint="Completed, resolved, or closed" accent="text-violet-300" />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <OisCard className="p-4">
+          <OisRegistryHeader title="Maintenance Queue" caption="Ownership, status, and resident continuity for every work order." />
           <div className="flex flex-wrap gap-2">
             {([
               ["active", "Active"],
@@ -327,6 +315,15 @@ export default function MaintenancePage() {
           </OisCard>
         </aside>
       </section>
+
+      <OisRuntimeCard
+        title="Runtime Insights"
+        items={[
+          { label: "Scheduled today", value: stats.scheduledToday, delta: "visit windows recorded" },
+          { label: "Waiting items", value: stats.waiting, delta: "resident or parts dependency" },
+          { label: "Escalated", value: stats.escalated, delta: "urgent or high priority" },
+        ]}
+      />
 
       <OisDrawer
         open={Boolean(selected)}

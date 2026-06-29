@@ -4,4 +4,8 @@ export type { OisStatus } from "./OisStatusBadge";
 export { default as OisDrawer } from "./OisDrawer";
 export { default as OisListItem } from "./OisListItem";
 export { default as OisComposer } from "./OisComposer";
+export { default as OisMetricCard } from "./OisMetricCard";
+export { default as OisOperationalStrip } from "./OisOperationalStrip";
+export { default as OisRegistryHeader } from "./OisRegistryHeader";
+export { default as OisRuntimeCard } from "./OisRuntimeCard";
 export type { OisComposerVariant } from "./OisComposer";

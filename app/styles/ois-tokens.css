@@ -1,27 +1,27 @@
 /* OIS v1 token foundation. Existing page styles remain the active visual system. */
 :root {
-  --ois-canvas: #02060b;
-  --ois-canvas-raised: #06101a;
-  --ois-canvas-overlay: rgba(2, 6, 11, 0.88);
+  --ois-canvas: #0b0f14;
+  --ois-canvas-raised: #0f141b;
+  --ois-canvas-overlay: rgba(11, 15, 20, 0.92);
 
-  --ois-surface: rgba(255, 255, 255, 0.035);
-  --ois-surface-raised: rgba(255, 255, 255, 0.052);
+  --ois-surface: #0f141b;
+  --ois-surface-raised: #151b24;
   --ois-surface-pressed: rgba(255, 255, 255, 0.075);
-  --ois-surface-evidence: rgba(0, 0, 0, 0.20);
+  --ois-surface-evidence: rgba(255, 255, 255, 0.02);
 
-  --ois-border-subtle: rgba(255, 255, 255, 0.08);
-  --ois-border-default: rgba(255, 255, 255, 0.10);
-  --ois-border-strong: rgba(255, 255, 255, 0.14);
+  --ois-border-subtle: rgba(31, 39, 51, 0.78);
+  --ois-border-default: #1f2733;
+  --ois-border-strong: rgba(156, 163, 175, 0.22);
 
   --ois-text-primary: rgba(255, 255, 255, 0.92);
   --ois-text-secondary: rgba(255, 255, 255, 0.70);
   --ois-text-muted: rgba(255, 255, 255, 0.46);
   --ois-text-faint: rgba(255, 255, 255, 0.32);
 
-  --ois-primary: #38bdf8;
-  --ois-primary-strong: #2563eb;
-  --ois-primary-soft: rgba(56, 189, 248, 0.12);
-  --ois-oyi-glow: rgba(74, 168, 255, 0.18);
+  --ois-primary: #2563eb;
+  --ois-primary-strong: #1d4ed8;
+  --ois-primary-soft: rgba(37, 99, 235, 0.14);
+  --ois-oyi-glow: rgba(37, 99, 235, 0.18);
 
   --ois-status-stable: #34d399;
   --ois-status-stable-surface: rgba(52, 211, 153, 0.10);
@@ -67,20 +67,20 @@
   --ois-space-10: 40px;
 
   --ois-radius-control: 12px;
-  --ois-radius-row: 16px;
-  --ois-radius-card: 20px;
-  --ois-radius-hero: 24px;
-  --ois-radius-nav: 28px;
+  --ois-radius-row: 12px;
+  --ois-radius-card: 12px;
+  --ois-radius-hero: 18px;
+  --ois-radius-nav: 20px;
   --ois-radius-pill: 999px;
 
-  --ois-elevation-card: 0 12px 38px rgba(0, 0, 0, 0.28);
-  --ois-elevation-raised: 0 16px 54px rgba(0, 0, 0, 0.36);
-  --ois-elevation-overlay: 0 24px 80px rgba(0, 0, 0, 0.55);
-  --ois-elevation-oyi: 0 16px 58px rgba(0, 0, 0, 0.42), 0 0 38px var(--ois-oyi-glow);
+  --ois-elevation-card: 0 8px 24px rgba(0, 0, 0, 0.24);
+  --ois-elevation-raised: 0 12px 30px rgba(0, 0, 0, 0.28);
+  --ois-elevation-overlay: 0 20px 56px rgba(0, 0, 0, 0.46);
+  --ois-elevation-oyi: 0 16px 48px rgba(0, 0, 0, 0.36), 0 0 24px var(--ois-oyi-glow);
 
-  --ois-font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ois-font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --ois-type-display: 2rem;
-  --ois-type-page-title: 1.75rem;
+  --ois-type-page-title: 1.625rem;
   --ois-type-section-title: 1.125rem;
   --ois-type-card-title: 0.875rem;
   --ois-type-body: 0.875rem;
@@ -117,6 +117,34 @@
 .ois-text-primary { color: var(--ois-text-primary); }
 .ois-text-secondary { color: var(--ois-text-secondary); }
 .ois-text-muted { color: var(--ois-text-muted); }
+.ois-shell-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ois-space-4);
+}
+.ois-operational-strip {
+  border: 1px solid var(--ois-border-default);
+  background: var(--ois-surface);
+  border-radius: var(--ois-radius-card);
+  box-shadow: var(--ois-elevation-card);
+}
+.ois-runtime-card {
+  border: 1px solid var(--ois-border-default);
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.05), rgba(15, 20, 27, 0.98));
+  border-radius: var(--ois-radius-card);
+  box-shadow: var(--ois-elevation-card);
+}
+.ois-registry-row {
+  border: 1px solid var(--ois-border-default);
+  background: var(--ois-surface);
+  border-radius: var(--ois-radius-row);
+  transition: background var(--ois-motion-standard) var(--ois-ease-standard), border-color var(--ois-motion-standard) var(--ois-ease-standard), transform var(--ois-motion-standard) var(--ois-ease-standard);
+}
+.ois-registry-row:hover {
+  background: #151824;
+  border-color: rgba(96, 165, 250, 0.22);
+  transform: translateY(-1px);
+}
 .ois-status-stable, .ois-status-attention, .ois-status-warning, .ois-status-critical, .ois-status-unavailable { border: 1px solid; border-radius: var(--ois-radius-pill); }
 .ois-status-stable { color: var(--ois-status-stable); background: var(--ois-status-stable-surface); border-color: var(--ois-status-stable-border); }
 .ois-status-attention { color: var(--ois-status-attention); background: var(--ois-status-attention-surface); border-color: var(--ois-status-attention-border); }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { OisMetricCard, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
@@ -14,7 +15,7 @@ import { walletsService } from "@/services/walletsService";
 import { formatMoney } from "@/lib/format";
 import { useSessionStore } from "@/store/useSessionStore";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, ChevronRight, Download, Eye, RefreshCw, Wallet } from "lucide-react";
+import { ChevronRight, Download, Eye, RefreshCw } from "lucide-react";
 
 type WalletActivityRow = {
   id?: string;
@@ -38,9 +39,6 @@ function lower(value: unknown) { return String(value || "").toLowerCase(); }
 function dateLabel(value?: string | null) { if (!value) return "Time unavailable"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Time unavailable" : d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 function statusTone(status?: string | null) { const value = lower(status); if (/completed|success|paid/.test(value)) return "completed"; if (/failed|rejected|reversed/.test(value)) return "failed"; if (/pending|processing|approval/.test(value)) return "pending"; return "unavailable"; }
 
-function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) {
-  return <OisCard className="p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-[var(--ois-text-muted)]">{label}</div><div className="mt-3 text-2xl font-semibold text-[var(--ois-text-primary)]">{value}</div><div className="mt-1 text-xs text-[var(--ois-text-secondary)]">{hint}</div></OisCard>;
-}
 function Detail({ label, value }: { label: string; value: React.ReactNode }) { return <OisCard variant="evidence" className="p-3"><div className="text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">{label}</div><div className="mt-1 break-words text-sm text-[var(--ois-text-primary)]">{value || "-"}</div></OisCard>; }
 
 export default function WalletsPage() {
@@ -133,20 +131,33 @@ export default function WalletsPage() {
       {notice ? <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">{notice}</div> : null}
 
       <section className="grid gap-3 md:grid-cols-4">
-        <Metric label="Estate balance" value={formatMoney(wallet.balance, wallet.currency)} hint="Estate overview source" />
-        <Metric label="Payment activity" value={rows.length} hint="Service payment signals" />
-        <Metric label="Pending" value={pending.length} hint="Pending or processing" />
-        <Metric label="Failed" value={failed.length} hint="Requires operator review" />
+        <OisMetricCard label="Estate balance" value={formatMoney(wallet.balance, wallet.currency)} hint="Estate overview source" accent="text-sky-300" />
+        <OisMetricCard label="Payment activity" value={rows.length} hint="Service payment signals" accent="text-emerald-300" />
+        <OisMetricCard label="Pending" value={pending.length} hint="Pending or processing" accent="text-amber-300" />
+        <OisMetricCard label="Failed" value={failed.length} hint="Requires operator review" accent="text-violet-300" />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <OisCard className="p-4"><div className="hidden md:block"><DataTable data={rows} columns={columns} title="Transaction Flow" searchKey="reference" /></div><div className="space-y-2 md:hidden">{rows.map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Wallet transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${row.home_name || row.user_name || "Estate payment"}`} meta={dateLabel(row.created_at)} status={statusTone(row.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => setSelected(row)} className="w-full text-left" />)}{!rows.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No transaction activity is available.</p> : null}</div></OisCard>
+        <OisCard className="p-4">
+          <OisRegistryHeader title="Transaction Registry" caption="Resident wallet activity and estate payment execution." />
+          <div className="mt-4 hidden md:block"><DataTable data={rows} columns={columns} title="Transaction Flow" searchKey="reference" /></div>
+          <div className="mt-4 space-y-2 md:hidden">{rows.map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Wallet transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${row.home_name || row.user_name || "Estate payment"}`} meta={dateLabel(row.created_at)} status={statusTone(row.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => setSelected(row)} className="w-full text-left" />)}{!rows.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No transaction activity is available.</p> : null}</div>
+        </OisCard>
         <aside className="space-y-4">
-          <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Financial Attention Queue</h2><div className="mt-3 space-y-2">{[...failed, ...pending].slice(0, 8).map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${dateLabel(row.created_at)}`} status={statusTone(row.status)} onClick={() => setSelected(row)} className="w-full text-left" />)}{![...failed, ...pending].length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No failed or pending financial items.</div> : null}</div></OisCard>
+          <OisCard className="p-4"><OisRegistryHeader title="Financial Attention Queue" caption="Items that need financial review." /><div className="mt-3 space-y-2">{[...failed, ...pending].slice(0, 8).map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${dateLabel(row.created_at)}`} status={statusTone(row.status)} onClick={() => setSelected(row)} className="w-full text-left" />)}{![...failed, ...pending].length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No failed or pending financial items.</div> : null}</div></OisCard>
           <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Operational exports</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Export Pending Backend Support. No local export is generated until a backend export contract exists.</p><Button variant="ghost" disabled className="mt-3 gap-2"><Download className="h-4 w-4" />Export pending</Button></OisCard>
           <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Access</h2><p className="mt-2 text-sm text-zinc-400">Read: wallets.read · Ownership: wallets.manage</p><p className="mt-2 text-xs text-zinc-500">Ownership available: {canManage ? "Yes" : "No"}</p></OisCard>
         </aside>
       </section>
+
+      <OisRuntimeCard
+        title="Runtime Insights"
+        items={[
+          { label: "Completed payments", value: completed.length, delta: "settled successfully" },
+          { label: "Attention items", value: pending.length + failed.length, delta: "pending or failed review" },
+          { label: "Execution history", value: executionStats?.total || 0, delta: "runtime records" },
+        ]}
+      />
 
       <OisDrawer open={Boolean(selected)} onClose={() => setSelected(null)} title={selected?.service_title || selected?.type || "Wallet transaction"} subtitle={selected ? `${selected.reference || selected.id || "Reference pending"} · ${dateLabel(selected.created_at)}` : undefined} width="md">
         {selected ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selected.source || selected.user_name || selected.user_email || "Resident wallet source"}</p><p className="mt-2 text-xs text-zinc-500">{selected.destination || "Estate service wallet"}</p></div><div className="flex flex-wrap gap-2"><OisStatusBadge status={statusTone(selected.status)} label={selected.status || "pending"} /><span className="text-lg font-semibold text-white">{formatMoney(Number(selected.amount || 0), selected.currency || wallet.currency)}</span></div></div></OisCard><OisCard className="p-4"><h3 className="text-sm font-medium text-white">Runtime trace</h3><div className="mt-3 space-y-2">{executionHistory.map((item) => <OisListItem key={item.executionId || item.signalId} title={item.action || "Payment execution"} description={`${item.origin || "system"} · ${item.provider || "backend"}`} meta={`${item.status || "recorded"} · ${dateLabel(item.completedAt || item.requestedAt)}`} />)}{!executionHistory.length ? <p className="rounded-xl border border-dashed border-white/10 p-3 text-sm text-zinc-500">No runtime execution history is available yet.</p> : null}</div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Detail label="Amount" value={formatMoney(Number(selected.amount || 0), selected.currency || wallet.currency)} /><Detail label="Source" value={selected.source || selected.user_name || selected.user_email || "Resident wallet source"} /><Detail label="Destination" value={selected.destination || "Estate service wallet"} /><Detail label="Reference" value={selected.reference || selected.id} /><Detail label="Status" value={<OisStatusBadge status={statusTone(selected.status)} label={selected.status || "pending"} />} /><Detail label="Timestamp" value={dateLabel(selected.created_at)} /><Detail label="Home" value={selected.home_name || selected.home_label || "Home pending"} /><Detail label="Action" value={/failed|pending|rejected/.test(lower(selected.status)) ? "Review with resident/service provider" : "No operator action required"} /></div></div> : null}

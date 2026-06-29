@@ -10,10 +10,11 @@ import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
+import { OisMetricCard, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
-import { ArrowLeft, Building2, ChevronRight, DoorOpen, Home, Pencil, Search, Users } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, DoorOpen, Pencil, Search, Users } from "lucide-react";
 
 type HomeRow = {
   id: string;
@@ -356,6 +357,13 @@ export default function HomesPage() {
         </div>
       </OisCard>
 
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <OisMetricCard label="Total" value={summary.total} hint="Homes" accent="text-sky-300" />
+        <OisMetricCard label="Occupied" value={summary.occupied} hint="Active residents" accent="text-emerald-300" />
+        <OisMetricCard label="Vacant" value={summary.vacant} hint="No residents" accent="text-amber-300" />
+        <OisMetricCard label="Invites" value={summary.pending} hint="Pending access" accent="text-violet-300" />
+      </section>
+
       <OisCard className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2">
           {[
@@ -375,6 +383,7 @@ export default function HomesPage() {
       </OisCard>
 
       <div className="space-y-2 md:hidden">
+        <OisRegistryHeader title="Homes Registry" caption={`Showing ${filteredHomes.length} of ${homes.length} homes`} />
         {filteredHomes.map((home) => (
           <OisListItem
             key={`${home.id}:mobile`}
@@ -456,9 +465,9 @@ export default function HomesPage() {
       )}
 
       {/* TABLE */}
-      <div className="hidden overflow-hidden rounded-2xl border border-white/10 md:block">
+      <div className="hidden overflow-hidden rounded-[var(--ois-radius-card)] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] shadow-[var(--ois-elevation-card)] md:block">
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-          <div className="text-sm font-medium">Homes ({filteredHomes.length})</div>
+          <div className="text-sm font-medium">Homes Registry</div>
           <div className="text-xs text-zinc-500">
             Open a home to review meters, rooms, and access
           </div>
@@ -610,6 +619,14 @@ export default function HomesPage() {
           </table>
         </div>
       </div>
+
+      <OisRuntimeCard
+        title="Runtime Insights"
+        items={[
+          { label: "Occupancy rate", value: summary.total ? `${Math.round((summary.occupied / Math.max(summary.total, 1)) * 100)}%` : "—", delta: "registered homes" },
+          { label: "Invite pressure", value: summary.pending, delta: "awaiting activation" },
+        ]}
+      />
 
       <OisDrawer
         open={Boolean(selectedMobileHome)}

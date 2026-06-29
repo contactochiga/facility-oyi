@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { OisMetricCard, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
@@ -34,7 +35,6 @@ function readiness(config: ServiceConfig) {
 function readinessTone(label: string) { if (label === "Available") return "stable"; if (label === "Maintenance mode") return "warning"; if (label === "Unavailable") return "unavailable"; return "pending"; }
 function dateLabel(value?: string | null) { if (!value) return "Time unavailable"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Time unavailable" : d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 
-function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) { return <OisCard className="p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-[var(--ois-text-muted)]">{label}</div><div className="mt-3 text-2xl font-semibold text-[var(--ois-text-primary)]">{value}</div><div className="mt-1 text-xs text-[var(--ois-text-secondary)]">{hint}</div></OisCard>; }
 function Field({ label, value }: { label: string; value: React.ReactNode }) { return <OisCard variant="evidence" className="p-3"><div className="text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">{label}</div><div className="mt-1 text-sm text-[var(--ois-text-primary)]">{value}</div></OisCard>; }
 
 export default function FacilityServicesPage() {
@@ -96,15 +96,15 @@ export default function FacilityServicesPage() {
       {configError ? <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">Readiness source: {configError}. Showing contract defaults as Pending readiness, not live controls.</div> : null}
 
       <section className="grid gap-3 md:grid-cols-4">
-        <Metric label="Service registry" value={configs.length} hint="From readiness endpoint or contract defaults" />
-        <Metric label="Enabled" value={enabled} hint="Resident-facing services active" />
-        <Metric label="Disabled" value={disabled} hint="Unavailable to residents" />
-        <Metric label="Pending readiness" value={pending} hint="Needs backend controls source" />
+        <OisMetricCard label="Service registry" value={configs.length} hint="From readiness endpoint or contract defaults" accent="text-sky-300" />
+        <OisMetricCard label="Enabled" value={enabled} hint="Resident-facing services active" accent="text-emerald-300" />
+        <OisMetricCard label="Disabled" value={disabled} hint="Unavailable to residents" accent="text-amber-300" />
+        <OisMetricCard label="Pending readiness" value={pending} hint="Needs backend controls source" accent="text-violet-300" />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <OisCard className="p-5">
-          <h2 className="text-sm font-semibold text-white">Service Registry</h2>
+          <OisRegistryHeader title="Service Registry" caption="Resident-facing services, readiness, and control state." />
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {configs.map((config) => {
               const ready = readiness(config);
@@ -120,7 +120,16 @@ export default function FacilityServicesPage() {
         </aside>
       </section>
 
-      <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Recent resident service activity</h2><div className="mt-4 space-y-2">{payments.slice(0, 10).map((payment, index) => <OisListItem key={payment.id || payment.reference || index} title={payment.service_title || payment.type || "Service payment"} description={`${payment.home_label || payment.home_name || "Home pending"} · ${payment.amount ? formatMoney(Number(payment.amount), "NGN") : "Amount pending"}`} meta={dateLabel(payment.created_at)} status={readinessTone(payment.status || "Pending readiness")} />)}{!payments.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident service activity has synced yet.</div> : null}</div></OisCard>
+      <OisCard className="p-5"><OisRegistryHeader title="Resident Service Activity" caption="Recent payment and readiness signals from service usage." /><div className="mt-4 space-y-2">{payments.slice(0, 10).map((payment, index) => <OisListItem key={payment.id || payment.reference || index} title={payment.service_title || payment.type || "Service payment"} description={`${payment.home_label || payment.home_name || "Home pending"} · ${payment.amount ? formatMoney(Number(payment.amount), "NGN") : "Amount pending"}`} meta={dateLabel(payment.created_at)} status={readinessTone(payment.status || "Pending readiness")} />)}{!payments.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident service activity has synced yet.</div> : null}</div></OisCard>
+
+      <OisRuntimeCard
+        title="Runtime Insights"
+        items={[
+          { label: "Resident-ready services", value: enabled, delta: "available for use" },
+          { label: "Pending readiness", value: pending, delta: "need backend configuration" },
+          { label: "Recent payments", value: payments.length, delta: "resident activity signals" },
+        ]}
+      />
 
       <OisDrawer open={Boolean(selected)} onClose={() => setSelected(null)} title={selected ? serviceTitle(selected) : "Service readiness"} subtitle={selected ? `Readiness · ${serviceKey(selected)}` : undefined} width="md">
         {selected ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selected.description || "No readiness description supplied."}</p><p className="mt-2 text-xs text-zinc-500">{selected.account_label || "Pending source"}</p></div><OisStatusBadge status={readinessTone(readiness(selected))} label={readiness(selected)} /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Field label="Service key" value={serviceKey(selected)} /><Field label="Readiness" value={<OisStatusBadge status={readinessTone(readiness(selected))} label={readiness(selected)} />} /><Field label="Account label" value={selected.account_label || "Pending source"} /><Field label="Account hint" value={selected.account_hint || "Pending source"} /><Field label="Unit cost" value={selected.unit_cost ? formatMoney(Number(selected.unit_cost), "NGN") : "Pending source"} /><Field label="Updated" value={dateLabel(selected.updated_at)} /></div><div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-zinc-400"><SlidersHorizontal className="mb-2 h-4 w-4 text-sky-200" />Readiness controls use <code>/services/config/:serviceKey</code>. If the operator lacks <code>settings.manage</code>, controls remain visible but fail closed through backend permissions.</div></div> : null}

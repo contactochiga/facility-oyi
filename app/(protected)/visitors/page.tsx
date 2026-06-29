@@ -8,6 +8,7 @@ import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
+import { OisMetricCard, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import { loadOyiCoreExecutionHistory, loadOyiCoreExecutionStatistics } from "@/services/oyiCoreRuntimeService";
 import { visitorService, type VisitorItem, type VisitorTimelineEvent } from "@/services/visitorService";
 
@@ -39,10 +40,6 @@ function tone(input: string) {
   if (["denied", "expired"].includes(input)) return "critical";
   if (input === "exited") return "completed";
   return "pending";
-}
-
-function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) {
-  return <OisCard className="p-4"><p className="text-[10px] uppercase tracking-[0.17em] text-[var(--ois-text-muted)]">{label}</p><p className="mt-3 text-2xl font-semibold text-[var(--ois-text-primary)]">{value}</p><p className="mt-2 text-xs text-[var(--ois-text-secondary)]">{hint}</p></OisCard>;
 }
 
 export default function VisitorsPage() {
@@ -155,18 +152,18 @@ export default function VisitorsPage() {
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric label="Visitor queue" value={loading ? "Loading" : items.length} hint={todayOnly ? "Today only" : "All visible visitors"} />
-        <Metric label="Pending" value={pending} hint="Awaiting gate review" />
-        <Metric label="Active / entered" value={active} hint="Approved or inside estate" />
-        <Metric label="Exited" value={exited} hint="Completed visits" />
-        <Metric label="Expired passes" value={expiredCount} hint="Access codes past expiry" />
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <OisMetricCard label="Total" value={loading ? "Loading" : items.length} hint={todayOnly ? "Today only" : "Visible visitors"} accent="text-sky-300" />
+        <OisMetricCard label="Active" value={active} hint="Approved or entered" accent="text-emerald-300" />
+        <OisMetricCard label="Pending" value={pending} hint="Awaiting review" accent="text-amber-300" />
+        <OisMetricCard label="Expired" value={expiredCount} hint="Access past expiry" accent="text-violet-300" />
       </section>
 
       <OisCard className="p-5">
+        <OisRegistryHeader title="Visitors Registry" caption="Queue, verification, and lifecycle activity" action={<div className="flex flex-wrap gap-2"><button type="button" onClick={() => setTodayOnly((v) => !v)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">{todayOnly ? "Today" : "All time"}</button><Button onClick={() => setVerifyOpen(true)} className="gap-2"><KeyRound className="h-4 w-4" /> Verify code</Button></div>} />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">{(["all", "pending", "approved", "entered", "exited", "denied"] as Filter[]).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`rounded-xl border px-3 py-2 text-xs uppercase ${filter === item ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{item}</button>)}</div>
-          <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setTodayOnly((v) => !v)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">{todayOnly ? "Today" : "All time"}</button><Button onClick={() => setVerifyOpen(true)} className="gap-2"><KeyRound className="h-4 w-4" /> Verify code</Button><Button variant="ghost" onClick={() => visitorService.exportReport({ today: todayOnly, format: "csv" })} className="gap-2"><Download className="h-4 w-4" /> Export</Button><Button variant="danger" onClick={() => setLockdownOpen(true)} className="gap-2"><ShieldAlert className="h-4 w-4" /> Lockdown</Button></div>
+          <div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => visitorService.exportReport({ today: todayOnly, format: "csv" })} className="gap-2"><Download className="h-4 w-4" /> Export</Button><Button variant="danger" onClick={() => setLockdownOpen(true)} className="gap-2"><ShieldAlert className="h-4 w-4" /> Lockdown</Button></div>
         </div>
         <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2"><Search className="h-4 w-4 text-zinc-500" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search visitor, phone, purpose, or code" className="w-full bg-transparent text-sm text-white outline-none" /></div>
         <div className="mt-4 hidden overflow-x-auto md:block">
@@ -175,6 +172,13 @@ export default function VisitorsPage() {
         </div>
         <div className="mt-4 space-y-2 md:hidden">{filtered.map((visitor) => { const s = expired(visitor) ? "expired" : status(visitor.status); return <OisListItem key={visitor.id} title={visitor.visitor_name} description={`${visitor.purpose || "Visitor"} · Expires ${when(visitor.expires_at)}`} meta={<><span className="font-mono text-[11px] text-[var(--ois-text-secondary)]">{visitor.access_code || "Code unavailable"}</span><span className="block">{when(visitor.created_at)}</span></>} status={tone(s)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => void openVisitor(visitor)} className="w-full text-left" />; })}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No visitor access items match this view.</p> : null}</div>
       </OisCard>
+      <OisRuntimeCard
+        title="Runtime Insights"
+        items={[
+          { label: "Approval rate", value: items.length ? `${Math.round((active / Math.max(items.length, 1)) * 100)}%` : "—", delta: "active lifecycle" },
+          { label: "Execution history", value: executionStats?.total || 0, delta: "runtime records" },
+        ]}
+      />
 
       {verifyOpen ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex justify-between gap-3"><h2 className="text-lg font-semibold text-white">Verify visitor access</h2><button type="button" onClick={() => setVerifyOpen(false)}><X className="h-4 w-4 text-zinc-400" /></button></header><input value={verifyCode} onChange={(e) => setVerifyCode(e.target.value)} placeholder="Access code" className="mt-5 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" /><footer className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => setVerifyOpen(false)}>Cancel</Button><Button onClick={() => void verify()} disabled={!verifyCode.trim()}>Verify</Button></footer></section></div> : null}
 
