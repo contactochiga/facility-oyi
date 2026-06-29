@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { MetricCard } from "@/components/MetricCard";
 import { facilityService, type EstateStructureResponse } from "@/services/facilityService";
 
 function tone(status?: string) {
@@ -54,6 +53,12 @@ export default function OccupancyPage() {
       <Topbar
         title="Occupancy"
         subtitle="Resident assignment posture derived from active home memberships."
+        strip={[
+          { label: "Homes", value: value(summary?.homes), detail: "Registered units", tone: "attention" },
+          { label: "Occupied", value: value(summary?.occupied_homes), detail: "Active members linked", tone: "stable" },
+          { label: "Attention", value: value((summary?.vacant_homes || 0) + (summary?.pending_activation_homes || 0) + (summary?.homes_without_residents || 0)), detail: "Vacant, pending, or unassigned", tone: "warning" },
+          { label: "Residents", value: value(summary?.active_residents), detail: "Active memberships", tone: "info" },
+        ]}
         rightSlot={
           <Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -63,17 +68,6 @@ export default function OccupancyPage() {
       />
 
       {error ? <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">{error}</div> : null}
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Homes" value={value(summary?.homes)} change="Registered residential units" trend="neutral" icon={Building2} iconColor="text-sky-300" />
-        <MetricCard title="Occupied Homes" value={value(summary?.occupied_homes)} change="Homes with active members" trend="neutral" icon={UserCheck} iconColor="text-emerald-300" />
-        <MetricCard title="Vacant Homes" value={value(summary?.vacant_homes)} change="Homes without resident access" trend="neutral" icon={Home} iconColor="text-zinc-300" />
-        <MetricCard title="Pending Activation" value={value(summary?.pending_activation_homes)} change="Homes waiting for resident setup" trend="neutral" icon={DoorOpen} iconColor="text-amber-300" />
-        <MetricCard title="Active Residents" value={value(summary?.active_residents)} change="Distinct active members" trend="neutral" icon={Users} iconColor="text-blue-300" />
-        <MetricCard title="Suspended Residents" value={value(summary?.suspended_residents)} change="Paused home memberships" trend="neutral" icon={UserX} iconColor="text-rose-300" />
-        <MetricCard title="No Resident" value={value(summary?.homes_without_residents)} change="Homes requiring assignment" trend="neutral" icon={AlertTriangle} iconColor="text-orange-300" />
-        <MetricCard title="Shared Homes" value={value(summary?.homes_with_multiple_members)} change="Homes with multiple active members" trend="neutral" icon={Users} iconColor="text-cyan-300" />
-      </section>
 
       <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
         <div>

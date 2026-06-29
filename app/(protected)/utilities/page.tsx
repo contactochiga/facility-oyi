@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { OisCard, OisListItem, OisPageToolbar, OisRegistryHeader } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { utilityService, type UtilitySummary, type UtilityDomain } from "@/services/utilityService";
@@ -99,33 +100,23 @@ export default function UtilitiesPage() {
     <div className="space-y-6">
       <Topbar title="Utility Intelligence" subtitle="Power, water, network, waste, and environmental utility posture." strip={[{ label: "Domains", value: summary?.domains?.length || 4 }, { label: "Attention", value: utilityEvents.length }, { label: "Health", value: utilityEvents.length ? "Review" : "Stable" }, { label: "Action", value: "Open utility lane" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</Button>} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
-
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {(summary?.domains || Object.keys(DOMAIN_META).map((key) => ({ key, state: "waiting", devices: 0, online: 0, openTickets: 0, alerts: 0 })) as any).map((domain: any) => {
-          const meta = DOMAIN_META[domain.key as UtilityDomain];
-          const Icon = meta.icon;
-          return (
-            <Link key={domain.key} href={meta.route} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-sky-400/30">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-white">{meta.title}</div>
-                  <div className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[11px] ${stateTone(domain.state)}`}>{stateLabel(domain.state)}</div>
-                </div>
-                <Icon className="h-5 w-5 text-sky-200" />
-              </div>
-              <p className="mt-4 text-sm leading-6 text-zinc-400">{meta.description}</p>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Devices</span><strong className="mt-1 block text-white">{domain.devices}</strong></div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Online</span><strong className="mt-1 block text-white">{domain.online}</strong></div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Events</span><strong className="mt-1 block text-white">{Number(domain.openTickets || 0) + Number(domain.alerts || 0)}</strong></div>
-              </div>
-            </Link>
-          );
-        })}
-      </section>
+      <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Utility intelligence is sourced from device, maintenance, and alert signals." />
 
       <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+        <OisCard className="p-5">
+          <OisRegistryHeader title="Utility Registry" caption="Operational domains, source state, device coverage, and linked event counts." />
+          <div className="mt-4 space-y-2">
+            {(summary?.domains || Object.keys(DOMAIN_META).map((key) => ({ key, state: "waiting", devices: 0, online: 0, openTickets: 0, alerts: 0 })) as any).map((domain: any) => {
+              const meta = DOMAIN_META[domain.key as UtilityDomain];
+              return (
+                <Link key={domain.key} href={meta.route} className="block">
+                  <OisListItem title={meta.title} description={meta.description} meta={`${domain.devices} devices · ${domain.online} online · ${Number(domain.openTickets || 0) + Number(domain.alerts || 0)} events`} status={domain.state === "live" ? "stable" : domain.state === "attention" ? "warning" : "pending"} />
+                </Link>
+              );
+            })}
+          </div>
+        </OisCard>
+        <OisCard className="p-5">
           <h2 className="text-sm font-semibold text-white">Utility Attention</h2>
           <p className="mt-1 text-xs text-zinc-500">Outages, degraded states and restored service events appear only when backed by maintenance or notification sources.</p>
           <div className="mt-4 space-y-2">
@@ -141,26 +132,26 @@ export default function UtilitiesPage() {
             ))}
             {!utilityEvents.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No utility alerts from live sources. Awaiting telemetry or resident maintenance reports.</div> : null}
           </div>
-        </div>
+        </OisCard>
+      </section>
 
-        <aside className="space-y-4">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+      <section className="grid gap-4 xl:grid-cols-2">
+        <OisCard className="p-5">
             <h2 className="text-sm font-semibold text-white">Infrastructure ownership</h2>
             <div className="mt-4 grid gap-2 text-sm">
               <div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Estate-wide infrastructure</span><strong className="block text-white">{ownership.estateWide}</strong></div>
               <div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Home-level infrastructure</span><strong className="block text-white">{ownership.homeLevel}</strong></div>
               <div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Shared infrastructure</span><strong className="block text-white">{ownership.shared}</strong></div>
             </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+        </OisCard>
+        <OisCard className="p-5">
             <h2 className="text-sm font-semibold text-white">Source integrity</h2>
             <div className="mt-3 space-y-2 text-sm text-zinc-400">
               <p><ShieldCheck className="mr-2 inline h-4 w-4 text-sky-200" />Live readings require telemetry.</p>
               <p>Missing sources show as Awaiting telemetry, not zero.</p>
               <p>Maintenance and alerts remain the current utility event sources.</p>
             </div>
-          </div>
-        </aside>
+        </OisCard>
       </section>
     </div>
   );

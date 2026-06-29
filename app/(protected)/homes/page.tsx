@@ -14,7 +14,7 @@ import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
-import { Building2, ChevronRight, DoorOpen, Pencil, Users } from "lucide-react";
+import { Building2, ChevronRight, Pencil, Users } from "lucide-react";
 
 type HomeRow = {
   id: string;
@@ -348,27 +348,10 @@ export default function HomesPage() {
             })}
           </div>
         }
-        bulkSlot={<Button variant="ghost" onClick={openCreate} disabled={!estateId}>Bulk Action</Button>}
+        bulkSlot={<Button onClick={openCreate} disabled={!estateId}>Add Home</Button>}
         onRefresh={load}
         refreshing={loading}
       />
-
-      <OisCard className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Estate Context</div>
-          <div className="text-sm text-zinc-100 mt-1">
-            {estateId ? "Linked to current estate operations context" : "No estate linked"}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={load} disabled={loading}>
-            {loading ? "Refreshing..." : "Refresh"}
-          </Button>
-          <Button onClick={openCreate} disabled={!estateId}>
-            Add Home
-          </Button>
-        </div>
-      </OisCard>
 
 
       <div className="space-y-2 md:hidden">
@@ -388,59 +371,6 @@ export default function HomesPage() {
         {!filteredHomes.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">{homes.length ? "No homes match this filter." : "No homes yet. Use Add Home to register the first unit."}</p> : null}
       </div>
 
-      <div className="hidden grid-cols-1 gap-4 md:grid xl:grid-cols-2">
-        {filteredHomes.map((home, index) => (
-          <OisCard key={`${home.id}:overview`} className={`p-5 ${index > 3 ? "xl:hidden" : ""}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-base font-semibold text-white truncate">{home.name}</div>
-                <div className="mt-1 text-xs text-zinc-500 truncate">
-                  {[home.block, home.unit].filter(Boolean).join(" / ") || "No block or unit assigned"}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => openEdit(home)}
-                className="rounded-xl border border-white/10 bg-white/5 p-2 text-zinc-200 hover:bg-white/10 transition"
-                aria-label={`Edit ${home.name}`}
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <Field label="Occupancy" value={<OisStatusBadge status={occupancyStatus(home.occupancy_status)} label={String(home.occupancy_status || "pending source").replace(/_/g, " ")} />} />
-              <Field label="Members" value={home.member_count ?? "Pending source"} />
-              <Field label="Rooms" value={home.room_count ?? "Pending source"} />
-              <Field label="Devices" value={home.device_count ?? "Pending source"} />
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Link
-                href={`/homes/${home.id}/rooms?estateId=${encodeURIComponent(estateId || "")}`}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-100 hover:bg-white/10 transition"
-              >
-                <Building2 className="h-4 w-4" />
-                Open Rooms
-              </Link>
-              <Link
-                href={`/homes/${home.id}/users?estateId=${encodeURIComponent(estateId || "")}`}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-100 hover:bg-white/10 transition"
-              >
-                <Users className="h-4 w-4" />
-                Open Access
-              </Link>
-              <Link href="/occupancy" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-100 hover:bg-white/10 transition">
-                View Occupancy
-              </Link>
-              <Button variant="ghost" onClick={() => toggleHome(home.id)}>
-                {openHomeId === home.id ? "Collapse" : "Open Overview"}
-              </Button>
-            </div>
-          </OisCard>
-        ))}
-      </div>
-
       {err && (
         <div className="glass border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-200">
           {err}
@@ -455,11 +385,8 @@ export default function HomesPage() {
 
       {/* TABLE */}
       <div className="hidden overflow-hidden rounded-[var(--ois-radius-card)] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] shadow-[var(--ois-elevation-card)] md:block">
-        <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-          <div className="text-sm font-medium">Homes Registry</div>
-          <div className="text-xs text-zinc-500">
-            Open a home to review meters, rooms, and access
-          </div>
+        <div className="border-b border-white/10 px-5 py-4">
+          <OisRegistryHeader title="Homes Registry" caption={`Showing ${filteredHomes.length} of ${homes.length} homes. Open a home to review meters, rooms, and access.`} />
         </div>
 
         <div className="overflow-x-auto">

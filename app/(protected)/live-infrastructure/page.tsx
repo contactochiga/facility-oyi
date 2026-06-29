@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Camera, ChevronRight, Cpu, Layers3, MapPinned, RadioTower, RefreshCw, ShieldAlert, Wrench, Zap } from "lucide-react";
+import { OisPageToolbar } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService, type InfrastructureOperations } from "@/services/facilityService";
@@ -29,16 +30,6 @@ function tone(value: string) {
   if (/online|available|healthy|source|configured|stable/.test(next)) return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
   if (/offline|error|failed|attention|unavailable/.test(next)) return "border-rose-500/20 bg-rose-500/10 text-rose-200";
   return "border-amber-500/20 bg-amber-500/10 text-amber-100";
-}
-
-function Metric({ label, value, hint, href }: { label: string; value: string | number; hint: string; href: string }) {
-  return (
-    <Link href={href} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 transition hover:border-sky-400/25 hover:bg-white/[0.055]">
-      <p className="text-[10px] uppercase tracking-[0.17em] text-zinc-500">{label}</p>
-      <p className="mt-3 text-2xl font-semibold tracking-tight text-white">{value}</p>
-      <p className="mt-2 text-xs leading-5 text-zinc-500">{hint}</p>
-    </Link>
-  );
 }
 
 function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
@@ -111,23 +102,11 @@ export default function LiveInfrastructureModule() {
   return (
     <div className="space-y-6">
       <Topbar title="Live Infrastructure" subtitle="Estate-scoped infrastructure posture, spatial routes, device registry, cameras, Edge, utilities, and maintenance attention." strip={[{ label: "Status", value: status === "error" ? "Degraded" : status === "ready" ? "Live" : "Loading" }, { label: "Attention", value: attention.length }, { label: "Health", value: attention.length ? "Review" : "Stable" }, { label: "Action", value: "Open infrastructure" }]} rightSlot={<Button variant="ghost" onClick={() => void load()} disabled={status === "loading"} className="gap-2"><RefreshCw className={`h-4 w-4 ${status === "loading" ? "animate-spin" : ""}`} />Refresh</Button>} />
-
-      <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_34%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-5">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Infrastructure command surface</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">{estateName}</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">This page routes operators into the Digital Twin, hardware registry, cameras, incidents, utilities, and maintenance using real source availability only.</p>
-        {error ? <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">{error}</p> : null}
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Digital Twin" value="Open" hint={sourceText(status, "Command center available; model source may still be pending", "Backend unavailable")} href="/digital-twin" />
-        <Metric label="Device attention" value={status === "ready" ? offlineDevices.length : sourceText(status, "0")} hint="Registry entries offline, unavailable, or in error" href="/hardware-devices" />
-        <Metric label="Camera attention" value={status === "ready" ? cameraAttention.length : sourceText(status, "0")} hint="Bound cameras with degraded or unavailable state" href="/cameras" />
-        <Metric label="Edge attention" value={status === "ready" ? edgeAttention.length : sourceText(status, "0")} hint="Heartbeat, sync, or node health issues" href="/hardware-devices?tab=edge" />
-      </section>
+      <OisPageToolbar onRefresh={() => void load()} refreshing={status === "loading"} searchPlaceholder="Live infrastructure routes operations into active Facility registries and work surfaces." />
+      {error ? <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">{error}</p> : null}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Panel title="Operational Routes" subtitle="No dead canvas modes. Each route opens a real Facility workflow.">
+        <Panel title={`Operational Routes${estateName ? ` · ${estateName}` : ""}`} subtitle="No dead canvas modes. Each route opens a real Facility workflow.">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {[
               ["Estate Command Center", "/digital-twin", MapPinned, "Digital Twin and spatial operations"],

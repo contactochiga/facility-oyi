@@ -49,10 +49,6 @@ function rtspFromDiscovery(camera: DiscoveredCamera) {
   return text(camera?.metadata?.raw?.rtsp || camera?.metadata?.rtsp, "");
 }
 
-function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) {
-  return <OisCard className="p-4"><p className="text-[10px] uppercase tracking-[0.17em] text-[var(--ois-text-muted)]">{label}</p><p className="mt-3 text-2xl font-semibold text-[var(--ois-text-primary)]">{value}</p><p className="mt-2 text-xs text-[var(--ois-text-secondary)]">{hint}</p></OisCard>;
-}
-
 function privacyLabel(scope?: string | null) {
   if (scope === "home") return "Home";
   if (scope === "office") return "Office";
@@ -278,18 +274,9 @@ export default function CamerasPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Camera Operations" subtitle="DVR import, camera inventory, stream health, playback, and event readiness." rightSlot={<div className="flex gap-2"><Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button><Button onClick={() => { resetImport(); setImportOpen(true); }} className="gap-2"><Plus className="h-4 w-4" /> Import DVR/NVR</Button></div>} />
+      <Topbar title="Camera Operations" subtitle="DVR import, camera inventory, stream health, playback, and event readiness." strip={[{ label: "DVRs", value: loading ? "Loading" : summary.dvrs, detail: "Registered sources", tone: "attention" }, { label: "Cameras", value: summary.cameras, detail: "Imported channels", tone: "attention" }, { label: "Attention", value: summary.offline_streams, detail: "Offline streams", tone: summary.offline_streams ? "warning" : "stable" }, { label: "AI", value: summary.ai_enabled_cameras, detail: "Profiles enabled", tone: "info" }]} rightSlot={<div className="flex gap-2"><Button variant="ghost" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</Button><Button onClick={() => { resetImport(); setImportOpen(true); }} className="gap-2"><Plus className="h-4 w-4" /> Import DVR/NVR</Button></div>} />
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <Metric label="DVRs" value={loading ? "Loading" : summary.dvrs} hint="Registered DVR/NVR sources" />
-        <Metric label="Cameras" value={summary.cameras} hint="Imported camera channels" />
-        <Metric label="Healthy streams" value={summary.healthy_streams} hint="Ready or online streams" />
-        <Metric label="Offline streams" value={summary.offline_streams} hint="Attention required" />
-        <Metric label="Edge nodes" value={summary.edge_nodes} hint="Runtime assignments" />
-        <Metric label="AI enabled" value={summary.ai_enabled_cameras} hint="Camera AI profiles" />
-      </section>
 
       <OisCard className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Camera Inventory</h2><p className="mt-1 text-xs text-zinc-500">DVR channels, standalone IP cameras, privacy scope, stream state, and Edge assignment.</p></div><Button variant="ghost" onClick={() => setScanOpen(true)} className="gap-2"><Search className="h-4 w-4" /> Import Camera</Button></div>

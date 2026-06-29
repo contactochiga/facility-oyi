@@ -22,8 +22,6 @@ import {
   UserX,
   X,
 } from "lucide-react";
-
-import { MetricCard } from "@/components/MetricCard";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -339,6 +337,12 @@ export default function HomeUsersPage() {
       <Topbar
         title="Members & Access"
         subtitle="Review residents, roles, and secure home invitations."
+        strip={[
+          { label: "Active", value: String(stats.active), detail: "Current home access", tone: "stable" },
+          { label: "Pending", value: String(stats.pending), detail: "Awaiting setup", tone: "warning" },
+          { label: "Paused", value: String(stats.disabled), detail: "Suspended access", tone: "warning" },
+          { label: "Owners", value: String(stats.owners), detail: "Home authority", tone: "info" },
+        ]}
         rightSlot={
           <Link
             href="/homes"
@@ -349,13 +353,6 @@ export default function HomeUsersPage() {
           </Link>
         }
       />
-
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <MetricCard title="Active" value={String(stats.active)} change="Current home access" trend="neutral" icon={UserCheck} iconColor="text-emerald-400" />
-        <MetricCard title="Pending" value={String(stats.pending)} change="Awaiting setup" trend="neutral" icon={UserPlus} iconColor="text-amber-400" />
-        <MetricCard title="Paused" value={String(stats.disabled)} change="Suspended access" trend="neutral" icon={UserX} iconColor="text-rose-400" />
-        <MetricCard title="Owners" value={String(stats.owners)} change="Home authority" trend="neutral" icon={ShieldCheck} iconColor="text-blue-400" />
-      </div>
 
       {error ? <div className="rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">{notice}</div> : null}

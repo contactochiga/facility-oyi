@@ -288,32 +288,30 @@ export default function MaintenancePage() {
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
+      <OisCard className="p-4">
+        <OisRegistryHeader title="Maintenance Queue" caption="Ownership, status, and resident continuity for every work order." />
+        <div className="mt-4 hidden md:block">
+          <DataTable data={filtered} columns={columns} title="Maintenance Queue" searchKey="title" />
+        </div>
+        <div className="mt-4 space-y-2 md:hidden">{filtered.map((item) => <OisListItem key={item.id} title={item.title || "Maintenance request"} description={`${locationOf(item)} · ${titleCase(item.priority || "medium")} priority`} meta={scheduledAt(item) ? `Visit ${dateLabel(scheduledAt(item))}` : ownerOf(item)} status={statusTone(item.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => open(item)} className="w-full text-left" />)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No maintenance items in this lane.</p> : null}</div>
+      </OisCard>
+
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <OisCard className="p-4">
-          <OisRegistryHeader title="Maintenance Queue" caption="Ownership, status, and resident continuity for every work order." />
-          <div className="mt-4 hidden md:block">
-            <DataTable data={filtered} columns={columns} title="Maintenance Queue" searchKey="title" />
+          <h2 className="text-sm font-semibold text-white">Attention lanes</h2>
+          <div className="mt-3 space-y-2 text-sm">
+            <Field label="Unassigned requests" value={stats.unassigned} />
+            <Field label="Waiting for resident" value={items.filter((item) => lower(item.status) === "waiting_for_resident").length} />
+            <Field label="Waiting for parts" value={items.filter((item) => lower(item.status) === "waiting_for_parts").length} />
+            <Field label="Escalated requests" value={stats.escalated} />
+            <Field label="SLA visibility" value="Awaiting SLA readiness" />
           </div>
-          <div className="mt-4 space-y-2 md:hidden">{filtered.map((item) => <OisListItem key={item.id} title={item.title || "Maintenance request"} description={`${locationOf(item)} · ${titleCase(item.priority || "medium")} priority`} meta={scheduledAt(item) ? `Visit ${dateLabel(scheduledAt(item))}` : ownerOf(item)} status={statusTone(item.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => open(item)} className="w-full text-left" />)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No maintenance items in this lane.</p> : null}</div>
         </OisCard>
-
-        <aside className="space-y-4">
-          <OisCard className="p-4">
-            <h2 className="text-sm font-semibold text-white">Attention lanes</h2>
-            <div className="mt-3 space-y-2 text-sm">
-              <Field label="Unassigned requests" value={stats.unassigned} />
-              <Field label="Waiting for resident" value={items.filter((item) => lower(item.status) === "waiting_for_resident").length} />
-              <Field label="Waiting for parts" value={items.filter((item) => lower(item.status) === "waiting_for_parts").length} />
-              <Field label="Escalated requests" value={stats.escalated} />
-              <Field label="SLA visibility" value="Awaiting SLA readiness" />
-            </div>
-          </OisCard>
-          <OisCard className="p-4">
-            <h2 className="text-sm font-semibold text-white">Resident Continuity</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">Resident-submitted maintenance requests appear here. Status changes notify the requester through the existing backend maintenance update route.</p>
-            <Link href="/overview" className="mt-3 inline-flex text-sm text-sky-200">Return to overview</Link>
-          </OisCard>
-        </aside>
+        <OisCard className="p-4">
+          <h2 className="text-sm font-semibold text-white">Resident Continuity</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Resident-submitted maintenance requests appear here. Status changes notify the requester through the existing backend maintenance update route.</p>
+          <Link href="/overview" className="mt-3 inline-flex text-sm text-sky-200">Return to overview</Link>
+        </OisCard>
       </section>
 
       <OisRuntimeCard

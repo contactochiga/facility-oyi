@@ -8,7 +8,7 @@ export default function Topbar({
   strip,
   showUser: _showUser = false,
   showNotifications: _showNotifications = true,
-  rightSlot: _rightSlot,
+  rightSlot,
 }: {
   title: string;
   subtitle?: string;
@@ -19,15 +19,18 @@ export default function Topbar({
 }) {
   return (
     <header className="space-y-3">
-      <div>
-        {subtitle ? (
-          <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--ois-text-secondary)]">
-            {subtitle}
-          </p>
-        ) : null}
-        <h1 className="mt-1 text-[var(--ois-type-page-title)] font-semibold tracking-[-0.04em] text-[var(--ois-text-primary)]">
-          {title}
-        </h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          {subtitle ? (
+            <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--ois-text-secondary)]">
+              {subtitle}
+            </p>
+          ) : null}
+          <h1 className="mt-1 text-[var(--ois-type-page-title)] font-semibold tracking-[-0.04em] text-[var(--ois-text-primary)]">
+            {title}
+          </h1>
+        </div>
+        {rightSlot ? <div className="flex shrink-0 items-center gap-2">{rightSlot}</div> : null}
       </div>
 
       {strip?.length ? (
