@@ -3,9 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowUp, Bot, ChevronRight, Copy, History, Mic, Plus, ThumbsUp, Volume2, X } from "lucide-react";
-import OisCard from "@/components/ois/OisCard";
 import OisListItem from "@/components/ois/OisListItem";
-import OisOperationalStrip from "@/components/ois/OisOperationalStrip";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useContextStore } from "@/store/useContextStore";
 import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
@@ -355,43 +353,35 @@ export default function FacilityIntelligenceModule() {
   const currentExecutions = Array.isArray(latestAssistant?.execution?.results) ? latestAssistant?.execution?.results : [];
   const currentSources = latestAssistant?.sources || [];
   const automationPlans = currentExecutions.filter((result: any) => /pending|confirm|approval|plan|queued/.test(String(result.status || result.type || "").toLowerCase()));
-  const healthLabel = busy ? "Running" : targetError ? "Review" : latestAssistant ? "Stable" : "Idle";
+  const estateLabel = context?.estate?.name || "Estate context unavailable";
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-2rem)] max-w-5xl flex-col overflow-hidden text-white xl:pb-5">
-      <header className="flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <button type="button" onClick={() => router.back()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-zinc-200 transition active:scale-95" aria-label="Back to Facility modules"><ArrowLeft className="h-4 w-4" /></button>
-          <div className="min-w-0">
-            <h1 className="truncate text-[18px] font-semibold tracking-[-0.04em] text-white">Operational Intelligence</h1>
-            <p className="mt-0.5 text-xs text-zinc-500">Ask, explain and act.</p>
+    <div className="mx-auto flex min-h-[100dvh] max-w-5xl flex-col overflow-hidden bg-zinc-950 text-white md:min-h-0 md:px-0 xl:pb-5">
+      <header className="sticky top-0 z-20 border-b border-white/[0.06] bg-zinc-950/94 px-3 pb-3 pt-[calc(10px+env(safe-area-inset-top))] backdrop-blur-xl sm:px-0 md:pt-0">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <button type="button" onClick={() => router.back()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-zinc-200 transition active:scale-95" aria-label="Back to Facility modules"><ArrowLeft className="h-4 w-4" /></button>
+            <div className="min-w-0">
+              <h1 className="truncate text-[18px] font-semibold tracking-[-0.04em] text-white">Operational Intelligence</h1>
+              <p className="mt-0.5 text-xs text-zinc-500">{estateLabel}</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button type="button" onClick={() => setHistoryOpen(true)} className="grid h-10 w-10 place-items-center rounded-full border border-sky-300/14 bg-sky-300/[0.055] text-sky-50/82 transition active:scale-95" aria-label="Recent conversations"><History className="h-4 w-4" /></button>
+            <button type="button" onClick={startNewChat} className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.09] bg-white/[0.045] text-white/78 transition active:scale-95" aria-label="New chat"><Plus className="h-4 w-4" /></button>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={() => setHistoryOpen(true)} className="grid h-10 w-10 place-items-center rounded-full border border-sky-300/14 bg-sky-300/[0.055] text-sky-50/82 transition active:scale-95" aria-label="Recent conversations"><History className="h-4 w-4" /></button>
-          <button type="button" onClick={startNewChat} className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.09] bg-white/[0.045] text-white/78 transition active:scale-95" aria-label="New chat"><Plus className="h-4 w-4" /></button>
-        </div>
       </header>
-      {targetError ? <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100">{targetError}</p> : null}
-      <OisOperationalStrip
-        items={[
-          { label: "Active context", value: latestAssistant ? "Loaded" : "Ready", detail: context?.estate?.name || "Facility context", tone: latestAssistant ? "stable" : "info" },
-          { label: "Recommendations", value: currentActions.length, detail: "Suggested actions", tone: currentActions.length ? "attention" : "info" },
-          { label: "Pending approvals", value: automationPlans.length, detail: "Automation and execution", tone: automationPlans.length ? "warning" : "stable" },
-          { label: "Recent executions", value: currentExecutions.length, detail: "Runtime records", tone: currentExecutions.length ? "attention" : "info" },
-          { label: "Health", value: healthLabel, detail: busy ? "Runtime evaluating" : "Conversation runtime", tone: healthLabel === "Review" ? "warning" : healthLabel === "Stable" ? "stable" : "info" },
-        ]}
-        className="mt-3"
-      />
+      {targetError ? <p className="mx-3 mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100 sm:mx-0">{targetError}</p> : null}
 
-      <section ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-4 pr-1" style={{ paddingBottom: `calc(${composerHeight + 18}px + env(safe-area-inset-bottom))`, scrollPaddingBottom: `calc(${composerHeight + 24}px + env(safe-area-inset-bottom))`, WebkitOverflowScrolling: "touch" }}>
-        <div className="space-y-4">
-          <OisCard className="p-4">
-            <div className="flex items-center justify-between gap-3">
+      <section ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-0" style={{ paddingBottom: `calc(${composerHeight + 18}px + env(safe-area-inset-bottom))`, scrollPaddingBottom: `calc(${composerHeight + 24}px + env(safe-area-inset-bottom))`, WebkitOverflowScrolling: "touch" }}>
+        <div className="space-y-5">
+          <div>
+            <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold text-white">Conversation</h2>
               <span className="text-xs text-zinc-500">{messages.length ? `${messages.length} messages` : "No conversation yet"}</span>
             </div>
-            {!messages.length ? <p className="mt-4 text-sm text-zinc-500">Start a conversation to load operational context.</p> : null}
+            {!messages.length ? <p className="rounded-[22px] border border-white/[0.07] bg-white/[0.03] p-4 text-sm text-zinc-500">Start a conversation to load operational context.</p> : null}
           {messages.map((message) => {
             const mine = message.role === "user";
             return (
@@ -414,45 +404,45 @@ export default function FacilityIntelligenceModule() {
               </div>
             );
           })}
-          </OisCard>
+          </div>
 
-          <OisCard className="p-4">
+          <div className="border-t border-white/[0.06] pt-4">
             <h2 className="text-sm font-semibold text-white">Current Situation</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-300">{latestAssistant?.content || "Ask Oyi about attention, infrastructure, ownership, or verification."}</p>
-          </OisCard>
+          </div>
 
-          <OisCard className="p-4">
+          <div className="border-t border-white/[0.06] pt-4">
             <h2 className="text-sm font-semibold text-white">Recommendations</h2>
             <div className="mt-3 space-y-2">
               {currentActions.length ? currentActions.slice(0, 6).map((action, index) => <OisListItem key={`${action.label || action.route}-${index}`} title={action.label || "Recommended action"} description={action.summary || action.route || "Open the suggested route."} meta={action.intent || action.reason || "Operational recommendation"} onClick={() => { if (!openTarget(action.target) && action.route) window.location.assign(String(action.route)); }} className="w-full text-left" />) : <p className="text-sm text-zinc-500">Recommendations will appear when Oyi has enough context.</p>}
             </div>
-          </OisCard>
+          </div>
 
-          <OisCard className="p-4">
+          <div className="border-t border-white/[0.06] pt-4">
             <h2 className="text-sm font-semibold text-white">Automation Plans</h2>
             <div className="mt-3 space-y-2">
               {automationPlans.length ? automationPlans.slice(0, 6).map((result: any, index: number) => <OisListItem key={`${result.executionId || result.id || index}-automation`} title={result.label || result.summary || "Automation plan"} description={result.error || result.summary || "Pending automation or approval path"} meta={result.provider || result.origin || "Runtime automation"} status={/pending|confirm|approval/.test(String(result.status || "").toLowerCase()) ? "pending" : "attention"} />) : <p className="text-sm text-zinc-500">Automation plans appear when Oyi prepares an executable path.</p>}
             </div>
-          </OisCard>
+          </div>
 
-          <OisCard className="p-4">
+          <div className="border-t border-white/[0.06] pt-4">
             <h2 className="text-sm font-semibold text-white">Recent Executions</h2>
             <div className="mt-3 space-y-2">
               {currentExecutions.length ? currentExecutions.slice(0, 6).map((result: any, index: number) => <OisListItem key={`${result.executionId || result.id || index}`} title={result.label || result.summary || result.status || "Execution"} description={result.error || result.summary || "Operational execution update"} meta={result.provider || result.origin || "Runtime execution"} status={/success|executed/.test(String(result.status || "").toLowerCase()) ? "completed" : /pending|confirm/.test(String(result.status || "").toLowerCase()) ? "pending" : /failed|error|denied/.test(String(result.status || "").toLowerCase()) ? "critical" : "attention"} />) : <p className="text-sm text-zinc-500">No recent execution records in this conversation.</p>}
             </div>
-          </OisCard>
+          </div>
 
-          <OisCard className="p-4">
+          <div className="border-t border-white/[0.06] pt-4">
             <h2 className="text-sm font-semibold text-white">Runtime Timeline</h2>
             <div className="mt-3 space-y-2">
               {currentSources.length ? currentSources.slice(0, 8).map((source: any, index: number) => <OisListItem key={`${source.title || source.name || index}`} title={source.title || source.name || source.source || "Runtime source"} description={source.summary || source.detail || source.description || "Supporting runtime evidence"} meta={source.timestamp || source.updated_at || source.created_at || "Timestamp unavailable"} status="stable" />) : currentCards.length ? currentCards.slice(0, 8).map((card: any, index: number) => <OisListItem key={`${card.title || card.type || index}`} title={card.title || "Operational insight"} description={card.summary || "Runtime detail"} meta={card.type || "runtime"} status="attention" />) : <p className="text-sm text-zinc-500">Runtime timeline appears when Oyi returns supporting evidence.</p>}
             </div>
-          </OisCard>
+          </div>
           <div ref={bottomRef} className="h-1" />
         </div>
       </section>
 
-      <form ref={composerRef} onSubmit={onSubmit} className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-5xl px-3 pb-[calc(10px+env(safe-area-inset-bottom))] xl:sticky xl:bottom-0 xl:px-0 xl:pb-0">
+      <form ref={composerRef} onSubmit={onSubmit} className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-5xl px-3 pb-[calc(10px+env(safe-area-inset-bottom))] md:px-5 xl:sticky xl:bottom-0 xl:px-0 xl:pb-0">
         <div className="rounded-[28px] border border-white/[0.08] bg-zinc-950/90 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => inputRef.current?.focus()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-400/12 text-sky-100">

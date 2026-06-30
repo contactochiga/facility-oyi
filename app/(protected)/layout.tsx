@@ -26,6 +26,7 @@ export default function ProtectedLayout({
   const { context, refresh: refreshContext, clear: clearContext } = useContextStore();
   const pathname = usePathname();
   const router = useRouter();
+  const fullScreenIntelligence = pathname === "/facility-intelligence";
 
   useEffect(() => {
     hydrate();
@@ -82,11 +83,11 @@ export default function ProtectedLayout({
 
         <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
           <FacilityShellProvider openMenu={() => undefined}>
-            <ShellTopbar />
-            <main key={context?.estate_id || (user as any)?.estate_id || "facility"} className={`flex-1 min-h-0 overflow-y-auto px-3 pb-[calc(104px+env(safe-area-inset-bottom))] pt-3 ${pathname === "/facility-intelligence" ? "md:pb-6" : ""} sm:px-5 sm:pb-6 sm:pt-5 xl:px-7 xl:pt-6`}>
+            {fullScreenIntelligence ? <div className="hidden md:block"><ShellTopbar /></div> : <ShellTopbar />}
+            <main key={context?.estate_id || (user as any)?.estate_id || "facility"} className={`flex-1 min-h-0 overflow-y-auto ${fullScreenIntelligence ? "px-0 pb-0 pt-0 md:px-5 md:pb-6 md:pt-5 xl:px-7 xl:pt-6" : "px-3 pb-[calc(104px+env(safe-area-inset-bottom))] pt-3 sm:px-5 sm:pb-6 sm:pt-5 xl:px-7 xl:pt-6"}`}>
               {children}
             </main>
-            {pathname !== "/facility-intelligence" ? <MobileModuleFooter /> : null}
+            {!fullScreenIntelligence ? <MobileModuleFooter /> : null}
             <FacilityAssistantSheet />
             <WorkflowDetailDrawerHost />
             <PredictionDetailDrawerHost />

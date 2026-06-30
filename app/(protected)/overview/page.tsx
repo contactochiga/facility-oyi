@@ -23,6 +23,8 @@ import OperatorQueue from "@/components/modules/OperatorQueue";
 import ShiftHandover from "@/components/modules/ShiftHandover";
 import FacilityIntelligenceExposure from "@/components/modules/FacilityIntelligenceExposure";
 import VerificationQueue from "@/components/modules/VerificationQueue";
+import OisOperationalStrip from "@/components/ois/OisOperationalStrip";
+import { useContextStore } from "@/store/useContextStore";
 
 type LoadStatus = "loading" | "ready" | "error" | "permission";
 type Source<T> = { status: LoadStatus; data: T; message?: string };
@@ -134,19 +136,6 @@ function SourceMessage({ value, empty }: { value: Source<unknown>; empty: string
   );
 }
 
-function MetricStrip({ items, className = "" }: { items: Array<{ label: string; value: string | number; valueClassName?: string }>; className?: string }) {
-  return (
-    <div className={`flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500 ${className}`.trim()}>
-      {items.map((item) => (
-        <span key={item.label}>
-          <b className={`mr-1 font-semibold text-white ${item.valueClassName || ""}`.trim()}>{item.value}</b>
-          {item.label}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 function isClosed(value?: string) {
   return ["closed", "completed", "resolved", "cancelled"].includes(String(value || "").toLowerCase());
 }
@@ -169,8 +158,9 @@ function greetingForHour(date = new Date()) {
 
 function OverviewPage() {
   const { user } = useSessionStore();
+  const { context, loading: contextLoading } = useContextStore();
   const [sources, setSources] = useState<OverviewSources>(emptySources);
-  const [estateName, setEstateName] = useState("Estate context");
+  const [estateName, setEstateName] = useState("");
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsEstate, setNeedsEstate] = useState(false);
@@ -200,7 +190,7 @@ function OverviewPage() {
     const activeEstate = memberships.find((item) => item.id === overviewEstateId) || memberships[0];
     const nextEstateId = overviewEstateId || activeEstate?.id || user?.estate_id || null;
 
-    setEstateName(activeEstate?.name || (user as any)?.estate_name || "Estate context");
+    setEstateName(activeEstate?.name || (user as any)?.estate_name || "");
     setNeedsEstate(!nextEstateId);
 
     if (!nextEstateId) {
@@ -330,9 +320,12 @@ function OverviewPage() {
     }
   }
 
-  const greeting = `${greetingForHour()}, ${estateName.toUpperCase()} 👋`;
+  const resolvedEstateName = String(context?.estate?.name || estateName || "").trim();
+  const greeting = resolvedEstateName ? `${greetingForHour()}, ${resolvedEstateName.toUpperCase()} 👋` : `${greetingForHour()} 👋`;
   const intelligenceBrief =
-    pendingVisitors.length
+    !resolvedEstateName && contextLoading
+      ? "Loading estate context..."
+      : pendingVisitors.length
       ? `${pendingVisitors.length} visitor access action${pendingVisitors.length === 1 ? "" : "s"} require review.`
       : attention.length
       ? `${attention.length} operational action${attention.length === 1 ? "" : "s"} require review.`
@@ -344,6 +337,8 @@ function OverviewPage() {
       ? `Highest priority: ${attention[0].title}.`
       : pendingVisitors[0]?.visitor_name
       ? `Highest priority: ${pendingVisitors[0].visitor_name} visitor access verification.`
+      : !resolvedEstateName && contextLoading
+      ? "Loading estate context..."
       : awarenessStatus === "loading"
       ? "Refreshing Oyi intelligence."
       : backendAwareness?.headline || displayedFacilityAwareness;
@@ -353,13 +348,6 @@ function OverviewPage() {
   const financePostureLabel = (sources.overview.data as any)?.wallet?.outstanding_dues ? "Due" : "Stable";
   return (
     <div className="space-y-3 overflow-x-hidden pb-6 sm:space-y-4 lg:space-y-5 sm:overflow-visible sm:pb-0">
-      <div className="flex items-center justify-between gap-3 sm:hidden">
-        <div className="min-w-0">
-          <h1 className="truncate text-[24px] font-semibold tracking-[-0.055em] text-white">Facility Overview</h1>
-          <p className="mt-1 text-[11px] text-zinc-500">Operational attention center</p>
-        </div>
-      </div>
-
       <div className="hidden sm:block">
         <Topbar title="Facility Overview" subtitle="Operational attention center" />
       </div>
@@ -381,13 +369,16 @@ function OverviewPage() {
             <p className="mt-1 max-w-3xl text-[12px] leading-5 text-zinc-500">{highestPriority}</p>
           </div>
         </div>
-        <MetricStrip className="mt-2.5" items={[
-          { label: "Attention", value: loading ? "—" : attention.length, valueClassName: "text-amber-100" },
-          { label: "Verification", value: loading ? "—" : verificationSummary.pending + verificationSummary.overdue + verificationSummary.failed, valueClassName: "text-sky-100" },
-          { label: "Escalated", value: loading ? "—" : workflowMetrics.escalated, valueClassName: "text-rose-100" },
-          { label: "Overdue", value: loading ? "—" : workflowMetrics.overdue, valueClassName: "text-amber-100" },
-        ]} />
       </section>
+
+      <OisOperationalStrip
+        items={[
+          { label: "Attention", value: loading ? "—" : attention.length, tone: "warning" },
+          { label: "Verification", value: loading ? "—" : verificationSummary.pending + verificationSummary.overdue + verificationSummary.failed, tone: "attention" },
+          { label: "Escalated", value: loading ? "—" : workflowMetrics.escalated, tone: "critical" },
+          { label: "Overdue", value: loading ? "—" : workflowMetrics.overdue, tone: "warning" },
+        ]}
+      />
 
       <div className="grid gap-3 xl:grid-cols-12 xl:items-stretch">
         <div className="xl:col-span-5">

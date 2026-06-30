@@ -15,8 +15,8 @@ export const facilityMobileModules: MobileModuleItem[] = [
   { key: "estate-structure", label: "Registry", href: "/estate-structure", icon: iconForModule("estate-structure"), activeRoutes: ["/estate-structure", "/homes", "/occupancy"] },
   { key: "hardware-devices", label: "Infra", href: "/hardware-devices", icon: iconForModule("hardware-devices"), activeRoutes: ["/hardware-devices", "/devices"] },
   { key: "security-access", label: "Security", href: "/security-access", icon: iconForModule("security-access"), activeRoutes: ["/security-access", "/security", "/visitors", "/cameras"] },
-  { key: "maintenance", label: "Continuity", href: "/maintenance", icon: iconForModule("maintenance"), activeRoutes: ["/maintenance", "/alerts"] },
-  { key: "community", label: "Signals", href: "/community", icon: iconForModule("community"), activeRoutes: ["/community", "/messages"] },
+  { key: "utilities", label: "Utility", href: "/utilities", icon: iconForModule("utilities"), activeRoutes: ["/utilities", "/environment", "/water", "/traffic"] },
+  { key: "community", label: "Community", href: "/community", icon: iconForModule("community"), activeRoutes: ["/community", "/messages", "/maintenance", "/alerts"] },
   { key: "wallets", label: "Financial", href: "/wallets", icon: iconForModule("wallets"), activeRoutes: ["/wallets", "/services"] },
   { key: "administration", label: "Profile", href: "/account", icon: iconForDomain("operatorAccount"), activeRoutes: ["/account"] },
 ];

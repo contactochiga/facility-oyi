@@ -79,7 +79,7 @@ function SuggestedActions({ actions, onSelect }: { actions?: Array<Record<string
 export default function FacilityAssistantSheet() {
   const { user } = useSessionStore();
   const { context } = useContextStore();
-  const { open, focusHint, closeAssistant } = useFacilityAssistantStore();
+  const { open, focusHint, source, closeAssistant } = useFacilityAssistantStore();
   const pathname = usePathname() || "/overview";
   const searchParams = useSearchParams();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -236,7 +236,7 @@ export default function FacilityAssistantSheet() {
     <div className="fixed inset-0 z-[120] md:hidden animate-in fade-in duration-200">
       <button type="button" aria-label="Close assistant" className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={closeAssistant} />
       <section
-        className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-18px-var(--sat))] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[28px] border border-white/[0.08] bg-[#070b12]/96 shadow-[0_-18px_60px_rgba(0,0,0,0.55)] animate-in slide-in-from-bottom-6 duration-200"
+        className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-18px-var(--ois-safe-top))] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[28px] border border-white/[0.08] bg-[#070b12]/96 shadow-[0_-18px_60px_rgba(0,0,0,0.55)] animate-in slide-in-from-bottom-6 duration-200"
         style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${composerInset}px)` }}
       >
         <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
@@ -246,7 +246,7 @@ export default function FacilityAssistantSheet() {
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-white">Operational Intelligence</p>
-              <p className="truncate text-[11px] text-zinc-500">{moduleContext.replace(/-/g, " ")} · anchored shell assistant</p>
+              <p className="truncate text-[11px] text-zinc-500">{moduleContext.replace(/-/g, " ")} · {source === "voice" ? "voice capture" : "anchored shell assistant"}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

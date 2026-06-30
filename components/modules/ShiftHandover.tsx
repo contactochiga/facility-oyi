@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, History, Save } from "lucide-react";
 import OisCard from "@/components/ois/OisCard";
 import OisListItem from "@/components/ois/OisListItem";
+import OisOperationalStrip from "@/components/ois/OisOperationalStrip";
 import { facilityService } from "@/services/facilityService";
 import { hasPermission } from "@/lib/oyiFoundation";
 import { useSessionStore } from "@/store/useSessionStore";
@@ -52,19 +53,15 @@ export default function ShiftHandover() {
         <p className="mt-3 rounded-lg border border-rose-500/20 bg-rose-500/10 p-2 text-xs text-rose-100">{error}</p>
       ) : null}
 
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500">
-        {[
-          ["Open", totals.open || 0, "text-white"],
-          ["Completed", totals.completed_today || 0, "text-emerald-200"],
-          ["Overdue", totals.overdue || 0, "text-amber-200"],
-          ["Unassigned", totals.unassigned || 0, "text-orange-200"],
-        ].map(([label, value, color]) => (
-          <span key={String(label)}>
-            <b className={`mr-1 font-semibold ${color}`}>{loading ? "—" : value}</b>
-            {label}
-          </span>
-        ))}
-      </div>
+      <OisOperationalStrip
+        className="mt-2.5"
+        items={[
+          { label: "Open", value: loading ? "—" : totals.open || 0, tone: "attention" },
+          { label: "Completed", value: loading ? "—" : totals.completed_today || 0, tone: "stable" },
+          { label: "Overdue", value: loading ? "—" : totals.overdue || 0, tone: "warning" },
+          { label: "Unassigned", value: loading ? "—" : totals.unassigned || 0, tone: "critical" },
+        ]}
+      />
 
       {priorityItems.length ? (
         <div className="mt-2.5 space-y-1">
