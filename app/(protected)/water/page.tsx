@@ -14,10 +14,6 @@ function isOpen(ticket: MaintenanceItem) { return !["completed", "closed", "reso
 function isWaterTicket(ticket: MaintenanceItem) { return /water|pump|tank|leak|flow|valve|meter|pipe/.test(JSON.stringify(ticket || {}).toLowerCase()); }
 function dateLabel(value?: string | null) { if (!value) return "Time unavailable"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Time unavailable" : d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 
-function Metric({ label, value, hint }: { label: string; value: string | number; hint: string }) {
-  return <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div><div className="mt-3 text-2xl font-semibold text-white">{value}</div><div className="mt-1 text-xs text-zinc-500">{hint}</div></div>;
-}
-
 export default function WaterPage() {
   const [devices, setDevices] = useState<FacilityDevice[]>([]);
   const [tickets, setTickets] = useState<MaintenanceItem[]>([]);
@@ -43,15 +39,17 @@ export default function WaterPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Water Operations" subtitle="Water devices and events" />
+      <Topbar
+        title="Water Operations"
+        subtitle="Water devices and events"
+        strip={[
+          { label: "Registry", value: waterDevices.length, detail: "Water infrastructure", tone: "attention" },
+          { label: "Online", value: online, detail: "Active devices", tone: "stable" },
+          { label: "Faults", value: offline, detail: "Offline or degraded", tone: offline ? "warning" : "stable" },
+          { label: "Open events", value: openWaterTickets.length, detail: "Maintenance queue", tone: openWaterTickets.length ? "warning" : "info" },
+        ]}
+      />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
-
-      <section className="grid gap-3 md:grid-cols-4">
-        <Metric label="Water devices" value={waterDevices.length} hint="Registry entries classified as water infrastructure" />
-        <Metric label="Online" value={online} hint="Reported online or active by registry" />
-        <Metric label="Offline / fault" value={offline} hint="Honest status from device registry" />
-        <Metric label="Open tickets" value={openWaterTickets.length} hint="Water-related maintenance requests" />
-      </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">

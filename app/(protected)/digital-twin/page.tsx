@@ -31,6 +31,7 @@ import { facilityService, type InfrastructureOperations } from "@/services/facil
 import cameraService, { type BoundCamera } from "@/services/cameraService";
 import { maintenanceService, type MaintenanceItem } from "@/services/maintenanceService";
 import { visitorService, type VisitorItem } from "@/services/visitorService";
+import { useContextStore } from "@/store/useContextStore";
 
 const LAYERS = [
   "estate",
@@ -112,17 +113,6 @@ function Status({ value }: { value: string }) {
   return <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em] ${tone(value)}`}>{value}</span>;
 }
 
-function Metric({ label, value, hint, href }: { label: string; value: string | number; hint: string; href?: string }) {
-  const body = (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 transition hover:border-sky-400/25">
-      <p className="text-[10px] uppercase tracking-[0.17em] text-zinc-500">{label}</p>
-      <p className="mt-3 text-2xl font-semibold tracking-tight text-white">{value}</p>
-      <p className="mt-2 text-xs leading-5 text-zinc-500">{hint}</p>
-    </div>
-  );
-  return href ? <Link href={href}>{body}</Link> : body;
-}
-
 function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:p-5">
@@ -167,6 +157,7 @@ function maintenanceOpen(item: MaintenanceItem) {
 }
 
 export default function DigitalTwinPage() {
+  const { context } = useContextStore();
   const [loading, setLoading] = useState(true);
   const [estateName, setEstateName] = useState("Estate Command Center");
   const [estateId, setEstateId] = useState<string | null>(null);
@@ -194,7 +185,7 @@ export default function DigitalTwinPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const estates = await loadSource(facilityService.myEstates(), { estates: [] });
-    const firstEstate = estates.data.estates?.[0] || null;
+    const firstEstate = estates.data.estates?.find((item: any) => String(item.id) === String(context?.estate_id || "")) || estates.data.estates?.[0] || null;
     const nextEstateId = firstEstate?.id ? String(firstEstate.id) : null;
     setEstateId(nextEstateId);
     setEstateName(firstEstate?.name || "Estate Command Center");
@@ -230,7 +221,7 @@ export default function DigitalTwinPage() {
     setNotifications(notificationState);
     setCameras(cameraState);
     setLoading(false);
-  }, []);
+  }, [context?.estate_id]);
 
   useEffect(() => {
     const initialLayer = new URLSearchParams(window.location.search).get("layer") || new URLSearchParams(window.location.search).get("mode");
@@ -326,7 +317,13 @@ export default function DigitalTwinPage() {
     <div className={focusMode ? "space-y-4" : "space-y-6"}>
       <Topbar
         title="Digital Twin"
-        subtitle="Spatial estate command center with honest model, infrastructure, device, camera, Edge, incident, and maintenance state."
+        subtitle="Spatial estate operations"
+        strip={[
+          { label: "Structures", value: estate.status === "ready" ? homes.length + rooms.length : sourceLabel(estate), detail: "Homes and rooms", tone: "attention" },
+          { label: "Device health", value: infra.status === "ready" ? `${offlineDevices.length} attention` : sourceLabel(infra), detail: "Registry posture", tone: offlineDevices.length ? "warning" : "stable" },
+          { label: "Camera health", value: cameras.status === "ready" ? `${cameraAttention.length} attention` : sourceLabel(cameras, "Pending source"), detail: "Bound streams", tone: cameraAttention.length ? "warning" : "stable" },
+          { label: "Edge health", value: infra.status === "ready" ? `${edgeAttention.length} attention` : sourceLabel(infra), detail: "Heartbeat posture", tone: edgeAttention.length ? "warning" : "stable" },
+        ]}
       />
 
       <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_34%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-5">
@@ -341,13 +338,6 @@ export default function DigitalTwinPage() {
             <Status value={infra.status === "ready" ? "Infrastructure source" : sourceLabel(infra, "Pending source")} />
           </div>
         </div>
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Estate structures" value={estate.status === "ready" ? homes.length + rooms.length : sourceLabel(estate)} hint="Homes, units, rooms and zones from estate structure" href="/estate-structure" />
-        <Metric label="Device health" value={infra.status === "ready" ? `${offlineDevices.length} attention` : sourceLabel(infra)} hint="Registry entries requiring operator review" href="/hardware-devices" />
-        <Metric label="Camera health" value={cameras.status === "ready" ? `${cameraAttention.length} attention` : sourceLabel(cameras, "No live source configured")} hint="Bound cameras and stream/health state" href="/cameras" />
-        <Metric label="Edge health" value={infra.status === "ready" ? `${edgeAttention.length} attention` : sourceLabel(infra)} hint="Heartbeat-backed Oyi Edge posture" href="/hardware-devices?tab=edge" />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)_340px]">

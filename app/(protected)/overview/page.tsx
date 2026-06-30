@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  Cpu,
   ShieldAlert,
   Users,
+  Wallet,
 } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
@@ -21,7 +23,6 @@ import OperatorQueue from "@/components/modules/OperatorQueue";
 import ShiftHandover from "@/components/modules/ShiftHandover";
 import FacilityIntelligenceExposure from "@/components/modules/FacilityIntelligenceExposure";
 import VerificationQueue from "@/components/modules/VerificationQueue";
-import UnifiedInfrastructurePosture from "@/components/modules/UnifiedInfrastructurePosture";
 
 type LoadStatus = "loading" | "ready" | "error" | "permission";
 type Source<T> = { status: LoadStatus; data: T; message?: string };
@@ -329,7 +330,7 @@ function OverviewPage() {
     }
   }
 
-  const greeting = `${greetingForHour()}, ${estateName.toUpperCase()}`;
+  const greeting = `${greetingForHour()}, ${estateName.toUpperCase()} 👋`;
   const intelligenceBrief =
     pendingVisitors.length
       ? `${pendingVisitors.length} visitor access action${pendingVisitors.length === 1 ? "" : "s"} require review.`
@@ -350,27 +351,12 @@ function OverviewPage() {
   const securityPostureLabel = attention.some((item) => item.domain === "Security") ? "Review" : "Stable";
   const infrastructurePostureLabel = offlineDevices.length ? `${offlineDevices.length} Attention` : "Stable";
   const financePostureLabel = (sources.overview.data as any)?.wallet?.outstanding_dues ? "Due" : "Stable";
-  const postureItems = [
-    { label: "People", value: peoplePostureLabel, href: "/messages", tone: communicationSource.data?.postureState === "attention" ? "attention" : communicationSource.data?.postureState === "stable" ? "stable" : communicationSource.data?.postureState === "limited" ? "warning" : "unavailable" },
-    { label: "Security", value: securityPostureLabel, href: "/alerts", tone: securityPostureLabel === "Review" ? "warning" : "stable" },
-    { label: "Infrastructure", value: infrastructurePostureLabel, href: "/live-infrastructure", tone: offlineDevices.length ? "warning" : "stable" },
-    { label: "Finance", value: financePostureLabel, href: "/wallets", tone: financePostureLabel === "Due" ? "warning" : "stable" },
-  ] as const;
-
   return (
     <div className="space-y-3 overflow-x-hidden pb-6 sm:space-y-4 lg:space-y-5 sm:overflow-visible sm:pb-0">
       <div className="flex items-center justify-between gap-3 sm:hidden">
         <div className="min-w-0">
           <h1 className="truncate text-[24px] font-semibold tracking-[-0.055em] text-white">Facility Overview</h1>
           <p className="mt-1 text-[11px] text-zinc-500">Operational attention center</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Link href="/messages" className="grid h-10 w-10 place-items-center rounded-[14px] border border-white/[0.06] bg-white/[0.03] text-sky-200" aria-label="Open messages">
-            <Users className="h-4 w-4" />
-          </Link>
-          <Link href="/alerts" className="grid h-10 w-10 place-items-center rounded-[14px] border border-white/[0.06] bg-white/[0.03] text-sky-200" aria-label="Open notifications">
-            <ShieldAlert className="h-4 w-4" />
-          </Link>
         </div>
       </div>
 
@@ -388,17 +374,11 @@ function OverviewPage() {
       ) : null}
 
       <section className="rounded-[18px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.024),rgba(255,255,255,0.01))] p-3 sm:p-3.5">
-        <div className="grid gap-2 xl:grid-cols-12 xl:items-center">
-          <div className="xl:col-span-8">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Operational briefing</p>
-            <h2 className="mt-1 text-[1.05rem] font-semibold tracking-[-0.035em] text-white sm:text-[1.28rem]">{greeting}</h2>
+        <div className="grid gap-2">
+          <div>
+            <h2 className="text-[1.05rem] font-semibold tracking-[-0.035em] text-white sm:text-[1.28rem]">{greeting}</h2>
             <p className="mt-2 max-w-3xl text-[13px] leading-5 text-zinc-200">{intelligenceBrief}</p>
             <p className="mt-1 max-w-3xl text-[12px] leading-5 text-zinc-500">{highestPriority}</p>
-          </div>
-          <div className="flex flex-wrap gap-2 xl:col-span-4 xl:justify-end">
-            <Link href="/facility-intelligence?focus=1" className="rounded-[14px] border border-sky-400/15 bg-sky-500/8 px-3 py-2 text-xs text-sky-100">Ask Oyi</Link>
-            <Link href="/facility-intelligence?module=workflows" className="rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-xs text-zinc-300">Open Queue</Link>
-            <Link href="/alerts" className="rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 text-xs text-zinc-300">Open Incidents</Link>
           </div>
         </div>
         <MetricStrip className="mt-2.5" items={[
@@ -408,19 +388,6 @@ function OverviewPage() {
           { label: "Overdue", value: loading ? "—" : workflowMetrics.overdue, valueClassName: "text-amber-100" },
         ]} />
       </section>
-
-      <Panel title="Operational Health" subtitle="Compact posture across people, security, infrastructure, and finance.">
-        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {postureItems.map((item) => (
-            <Link key={item.label} href={item.href} className="min-w-[158px] shrink-0 rounded-[14px] border border-white/[0.06] bg-black/10 px-3 py-2 transition hover:border-white/[0.11] hover:bg-white/[0.04] sm:min-w-0 sm:flex-1">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] text-zinc-500">{item.label}</span>
-                <OisStatusBadge status={item.tone} label={item.value} className="px-1.5 py-px text-[10px] opacity-80" />
-              </div>
-            </Link>
-          ))}
-        </div>
-      </Panel>
 
       <div className="grid gap-3 xl:grid-cols-12 xl:items-stretch">
         <div className="xl:col-span-5">
@@ -455,7 +422,26 @@ function OverviewPage() {
           <FacilityIntelligenceExposure onMetrics={setWorkflowMetrics} />
         </div>
         <div className="xl:col-span-5">
-          <UnifiedInfrastructurePosture />
+          <Panel title="Operational Posture" subtitle="People, security, infrastructure, and finance.">
+            <div className="space-y-1">
+              {[
+                { label: "People", value: peoplePostureLabel, tone: communicationSource.data?.postureState === "attention" ? "attention" : communicationSource.data?.postureState === "stable" ? "stable" : communicationSource.data?.postureState === "limited" ? "warning" : "unavailable", icon: <Users className="h-4 w-4 text-sky-200/75" /> },
+                { label: "Security", value: securityPostureLabel, tone: securityPostureLabel === "Review" ? "warning" : "stable", icon: <ShieldAlert className="h-4 w-4 text-sky-200/75" /> },
+                { label: "Infrastructure", value: infrastructurePostureLabel, tone: offlineDevices.length ? "warning" : "stable", icon: <Cpu className="h-4 w-4 text-sky-200/75" /> },
+                { label: "Finance", value: financePostureLabel, tone: financePostureLabel === "Due" ? "warning" : "stable", icon: <Wallet className="h-4 w-4 text-sky-200/75" /> },
+              ].map((item) => (
+                <OisListItem
+                  key={item.label}
+                  title={<span className="text-sm text-white">{item.label}</span>}
+                  description={<span className="text-[11px] text-zinc-500">Current posture</span>}
+                  meta={<span className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">{item.label}</span>}
+                  icon={item.icon}
+                  action={<OisStatusBadge status={item.tone as any} label={item.value} className="px-1.5 py-px text-[10px] opacity-85" />}
+                  className="gap-2"
+                />
+              ))}
+            </div>
+          </Panel>
         </div>
       </div>
 

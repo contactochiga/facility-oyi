@@ -46,9 +46,6 @@ export default function ShiftHandover() {
           <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-white">Shift Handover</h2>
           <p className="mt-1 text-[11px] leading-4 text-zinc-500">Live unresolved operations plus notes for the next shift.</p>
         </div>
-        <Link href="/facility-intelligence?module=handover" className="text-[11px] text-sky-200">
-          Ask Oyi
-        </Link>
       </div>
 
       {error ? (

@@ -21,14 +21,14 @@ export default function Topbar({
     <header className="space-y-2.5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          <h1 className="text-[var(--ois-type-page-title)] font-semibold tracking-[-0.04em] text-[var(--ois-text-primary)]">
+            {title}
+          </h1>
           {subtitle ? (
-            <p className="text-[12px] text-[var(--ois-text-secondary)]">
+            <p className="mt-0.5 text-[12px] text-[var(--ois-text-secondary)]">
               {subtitle}
             </p>
           ) : null}
-          <h1 className="mt-0.5 text-[var(--ois-type-page-title)] font-semibold tracking-[-0.04em] text-[var(--ois-text-primary)]">
-            {title}
-          </h1>
         </div>
         {rightSlot ? <div className="flex shrink-0 items-center gap-2">{rightSlot}</div> : null}
       </div>

@@ -1,11 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowUp, Bot, ChevronRight, Copy, History, Mic, Plus, ThumbsUp, Volume2, X } from "lucide-react";
 import OisCard from "@/components/ois/OisCard";
 import OisListItem from "@/components/ois/OisListItem";
+import OisOperationalStrip from "@/components/ois/OisOperationalStrip";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useContextStore } from "@/store/useContextStore";
 import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
@@ -354,6 +354,8 @@ export default function FacilityIntelligenceModule() {
   const currentActions = latestAssistant?.suggested_actions || [];
   const currentExecutions = Array.isArray(latestAssistant?.execution?.results) ? latestAssistant?.execution?.results : [];
   const currentSources = latestAssistant?.sources || [];
+  const automationPlans = currentExecutions.filter((result: any) => /pending|confirm|approval|plan|queued/.test(String(result.status || result.type || "").toLowerCase()));
+  const healthLabel = busy ? "Running" : targetError ? "Review" : latestAssistant ? "Stable" : "Idle";
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-2rem)] max-w-5xl flex-col overflow-hidden text-white xl:pb-5">
@@ -362,7 +364,7 @@ export default function FacilityIntelligenceModule() {
           <button type="button" onClick={() => router.back()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-zinc-200 transition active:scale-95" aria-label="Back to Facility modules"><ArrowLeft className="h-4 w-4" /></button>
           <div className="min-w-0">
             <h1 className="truncate text-[18px] font-semibold tracking-[-0.04em] text-white">Operational Intelligence</h1>
-            <p className="mt-0.5 text-xs text-zinc-500">Ask Oyi what needs attention across the facility.</p>
+            <p className="mt-0.5 text-xs text-zinc-500">Ask, explain and act.</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -371,14 +373,19 @@ export default function FacilityIntelligenceModule() {
         </div>
       </header>
       {targetError ? <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100">{targetError}</p> : null}
+      <OisOperationalStrip
+        items={[
+          { label: "Active context", value: latestAssistant ? "Loaded" : "Ready", detail: context?.estate?.name || "Facility context", tone: latestAssistant ? "stable" : "info" },
+          { label: "Recommendations", value: currentActions.length, detail: "Suggested actions", tone: currentActions.length ? "attention" : "info" },
+          { label: "Pending approvals", value: automationPlans.length, detail: "Automation and execution", tone: automationPlans.length ? "warning" : "stable" },
+          { label: "Recent executions", value: currentExecutions.length, detail: "Runtime records", tone: currentExecutions.length ? "attention" : "info" },
+          { label: "Health", value: healthLabel, detail: busy ? "Runtime evaluating" : "Conversation runtime", tone: healthLabel === "Review" ? "warning" : healthLabel === "Stable" ? "stable" : "info" },
+        ]}
+        className="mt-3"
+      />
 
       <section ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-4 pr-1" style={{ paddingBottom: `calc(${composerHeight + 18}px + env(safe-area-inset-bottom))`, scrollPaddingBottom: `calc(${composerHeight + 24}px + env(safe-area-inset-bottom))`, WebkitOverflowScrolling: "touch" }}>
         <div className="space-y-4">
-          <OisCard className="p-4">
-            <h2 className="text-sm font-semibold text-white">Current Situation</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">{latestAssistant?.content || "Ask Oyi about attention, infrastructure, ownership, or verification."}</p>
-          </OisCard>
-
           <OisCard className="p-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold text-white">Conversation</h2>
@@ -410,9 +417,21 @@ export default function FacilityIntelligenceModule() {
           </OisCard>
 
           <OisCard className="p-4">
+            <h2 className="text-sm font-semibold text-white">Current Situation</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">{latestAssistant?.content || "Ask Oyi about attention, infrastructure, ownership, or verification."}</p>
+          </OisCard>
+
+          <OisCard className="p-4">
             <h2 className="text-sm font-semibold text-white">Recommendations</h2>
             <div className="mt-3 space-y-2">
               {currentActions.length ? currentActions.slice(0, 6).map((action, index) => <OisListItem key={`${action.label || action.route}-${index}`} title={action.label || "Recommended action"} description={action.summary || action.route || "Open the suggested route."} meta={action.intent || action.reason || "Operational recommendation"} onClick={() => { if (!openTarget(action.target) && action.route) window.location.assign(String(action.route)); }} className="w-full text-left" />) : <p className="text-sm text-zinc-500">Recommendations will appear when Oyi has enough context.</p>}
+            </div>
+          </OisCard>
+
+          <OisCard className="p-4">
+            <h2 className="text-sm font-semibold text-white">Automation Plans</h2>
+            <div className="mt-3 space-y-2">
+              {automationPlans.length ? automationPlans.slice(0, 6).map((result: any, index: number) => <OisListItem key={`${result.executionId || result.id || index}-automation`} title={result.label || result.summary || "Automation plan"} description={result.error || result.summary || "Pending automation or approval path"} meta={result.provider || result.origin || "Runtime automation"} status={/pending|confirm|approval/.test(String(result.status || "").toLowerCase()) ? "pending" : "attention"} />) : <p className="text-sm text-zinc-500">Automation plans appear when Oyi prepares an executable path.</p>}
             </div>
           </OisCard>
 

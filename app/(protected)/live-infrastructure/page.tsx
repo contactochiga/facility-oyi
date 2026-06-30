@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import { facilityService, type InfrastructureOperations } from "@/services/facilityService";
 import cameraService, { type BoundCamera } from "@/services/cameraService";
 import { maintenanceService, type MaintenanceItem } from "@/services/maintenanceService";
+import { useContextStore } from "@/store/useContextStore";
 
 function text(value: any, fallback = "Unavailable") {
   const next = String(value ?? "").trim();
@@ -45,6 +46,7 @@ function openMaintenance(item: MaintenanceItem) {
 }
 
 export default function LiveInfrastructureModule() {
+  const { context } = useContextStore();
   const [infra, setInfra] = useState<InfrastructureOperations | null>(null);
   const [cameras, setCameras] = useState<BoundCamera[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([]);
@@ -57,7 +59,7 @@ export default function LiveInfrastructureModule() {
     setError(null);
     try {
       const estates = await facilityService.myEstates().catch(() => ({ estates: [] }));
-      const estate = estates.estates?.[0];
+      const estate = estates.estates?.find((item: any) => String(item.id) === String(context?.estate_id || "")) || estates.estates?.[0];
       setEstateName(estate?.name || "Live Infrastructure");
       const [operations, cams, requests] = await Promise.all([
         facilityService.infrastructureOperations(),
@@ -72,7 +74,7 @@ export default function LiveInfrastructureModule() {
       setError(requestError?.response?.data?.error || requestError?.message || "Backend unavailable");
       setStatus("error");
     }
-  }, []);
+  }, [context?.estate_id]);
 
   useEffect(() => {
     void load();
