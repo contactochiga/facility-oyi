@@ -21,7 +21,7 @@ export default function OisOperationalStrip({ items, className = "" }: { items: 
     <section className={`ois-operational-strip px-[var(--ois-space-3)] py-2.5 ${className}`.trim()}>
       <div className="flex gap-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((item) => (
-          <div key={`${item.label}:${item.value}`} className="min-w-[132px] flex-1 border-l border-white/5 px-2.5 first:border-l-0 first:pl-0 last:pr-0">
+          <div key={`${item.label}:${item.value}`} className="min-w-[128px] flex-1 border-l border-white/5 px-2.5 first:border-l-0 first:pl-0 last:pr-0">
             <div className={`flex items-center gap-1.5 whitespace-nowrap text-[13px] font-semibold leading-4 ${toneClass(item.tone)}`}>
               {item.icon ? <span className="shrink-0">{item.icon}</span> : null}
               <span className="truncate">{item.value}</span>

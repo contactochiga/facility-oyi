@@ -329,9 +329,8 @@ export default function DigitalTwinPage() {
       <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_34%),linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/80">Estate command center</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">{estateName}</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">No simulated maps or coordinates are rendered. The twin uses existing estate structure, registry, camera, maintenance, visitor, notification, and Edge sources.</p>
+            <h2 className="text-lg font-semibold tracking-tight text-white">{estateName}</h2>
+            <p className="mt-1 text-sm text-zinc-500">Twin context and model readiness.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Status value={twinStatus} />

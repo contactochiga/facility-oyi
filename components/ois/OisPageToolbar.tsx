@@ -1,4 +1,4 @@
-import { Search, SlidersHorizontal } from "lucide-react";
+import { RefreshCw, Search, SlidersHorizontal } from "lucide-react";
 import Button from "@/components/ui/Button";
 
 export default function OisPageToolbar({
@@ -23,7 +23,7 @@ export default function OisPageToolbar({
   return (
     <section className="rounded-[var(--ois-radius-card)] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] p-2.5">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-        <label className="flex h-10 flex-1 items-center gap-2 rounded-[10px] border border-[var(--ois-border-default)] bg-[rgba(255,255,255,0.02)] px-3 text-sm text-[var(--ois-text-secondary)]">
+        <label className="flex h-11 flex-1 items-center gap-2 rounded-[12px] border border-[var(--ois-border-default)] bg-[rgba(255,255,255,0.02)] px-3 text-sm text-[var(--ois-text-secondary)] transition focus-within:border-sky-400/35 focus-within:bg-white/[0.035]">
           <Search className="h-4 w-4 text-[var(--ois-text-muted)]" />
           <input
             value={searchValue}
@@ -35,9 +35,20 @@ export default function OisPageToolbar({
         </label>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          {filterSlot || <Button variant="ghost" className="h-10 gap-2 px-3"><SlidersHorizontal className="h-4 w-4" />Filters</Button>}
-          {sortSlot || <Button variant="ghost" className="h-10 px-3">Sort</Button>}
-          {bulkSlot || <Button variant="ghost" className="h-10 px-3">Bulk Action</Button>}
+          {filterSlot || <Button variant="ghost" className="h-11 gap-2 rounded-[12px] px-3"><SlidersHorizontal className="h-4 w-4" />Filters</Button>}
+          {sortSlot || <Button variant="ghost" className="h-11 rounded-[12px] px-3">Sort</Button>}
+          {bulkSlot || <Button variant="ghost" className="h-11 rounded-[12px] px-3">Bulk Action</Button>}
+          {onRefresh ? (
+            <Button
+              variant="ghost"
+              onClick={onRefresh}
+              disabled={refreshing}
+              className="h-11 w-11 rounded-[12px] px-0"
+              aria-label="Refresh registry"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            </Button>
+          ) : null}
         </div>
       </div>
     </section>

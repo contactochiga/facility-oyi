@@ -3,7 +3,9 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2, RefreshCw } from "lucide-react";
 import Button from "@/components/ui/Button";
+import OisListItem from "@/components/ois/OisListItem";
 import { notificationService, type AlertItem } from "@/services/notificationService";
 import { useContextStore } from "@/store/useContextStore";
 import { openWorkflowDrawer } from "@/components/modules/WorkflowDetailDrawer";
@@ -132,8 +134,8 @@ export default function NotificationsModal({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={load} disabled={loading}>
-                {loading ? "Refreshing..." : "Refresh"}
+              <Button variant="ghost" onClick={load} disabled={loading} className="h-9 w-9 rounded-[10px] px-0" aria-label="Refresh notifications">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -146,10 +148,14 @@ export default function NotificationsModal({
 
           <div className="max-h-[70vh] overflow-auto">
             {loading ? (
-              <div className="p-4 text-sm text-zinc-400">Loading…</div>
+              <div className="space-y-2 p-3">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="h-[72px] animate-pulse rounded-xl border border-white/10 bg-white/[0.03]" />
+                ))}
+              </div>
             ) : items.length === 0 ? (
               <div className="p-4 text-sm text-zinc-400">
-                No unread notifications.
+                No unread notifications. Realtime updates will appear here.
               </div>
             ) : (
               <div className="p-3 space-y-2">
@@ -160,30 +166,19 @@ export default function NotificationsModal({
                     onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openNotification(n); } }}
                     role="button"
                     tabIndex={0}
-                    className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+                    className="rounded-xl border border-white/10 bg-black/20 px-2 py-2"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-white truncate">
-                          {n.title || "Notification"}
-                        </div>
-                        <div className="text-xs text-zinc-500 mt-1">
-                          {when(n.created_at)}{" "}
-                          {n.status ? `• ${n.status}` : ""}
-                        </div>
-                      </div>
-
-                      {/* ✅ Only show if you want. If backend doesn't support, it just won't remove. */}
-                      <Button variant="ghost" onClick={(event) => { event.stopPropagation(); void markRead(n.id); }}>
+                    <div className="flex items-start gap-2">
+                      <OisListItem
+                        title={n.title || "Notification"}
+                        description={n.message || "Operational update"}
+                        meta={`${when(n.created_at)}${n.status ? ` · ${n.status}` : ""}`}
+                        className="w-full text-left"
+                      />
+                      <Button variant="ghost" onClick={(event) => { event.stopPropagation(); void markRead(n.id); }} className="mt-1 h-9 rounded-[10px] px-3">
                         Mark read
                       </Button>
                     </div>
-
-                    {n.message ? (
-                      <div className="text-sm text-zinc-300 mt-2 whitespace-pre-wrap">
-                        {n.message}
-                      </div>
-                    ) : null}
                   </div>
                 ))}
               </div>

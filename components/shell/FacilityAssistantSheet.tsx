@@ -233,10 +233,10 @@ export default function FacilityAssistantSheet() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] md:hidden">
+    <div className="fixed inset-0 z-[120] md:hidden animate-in fade-in duration-200">
       <button type="button" aria-label="Close assistant" className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={closeAssistant} />
       <section
-        className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-18px-var(--sat))] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[28px] border border-white/[0.08] bg-[#070b12]/96 shadow-[0_-18px_60px_rgba(0,0,0,0.55)]"
+        className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-18px-var(--sat))] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[28px] border border-white/[0.08] bg-[#070b12]/96 shadow-[0_-18px_60px_rgba(0,0,0,0.55)] animate-in slide-in-from-bottom-6 duration-200"
         style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${composerInset}px)` }}
       >
         <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
@@ -290,7 +290,7 @@ export default function FacilityAssistantSheet() {
               <div key={message.id} className={message.role === "user" ? "ml-10" : "mr-6"}>
                 <div className={`rounded-[22px] border px-3.5 py-3 text-sm ${message.role === "user" ? "border-sky-300/12 bg-sky-400/[0.08] text-sky-50" : "border-white/[0.07] bg-white/[0.035] text-zinc-100"}`}>
                   <p className="leading-6">{message.content}</p>
-                  {message.pending ? <p className="mt-1 text-[11px] text-zinc-500">Evaluating live context…</p> : null}
+                  {message.pending ? <div className="mt-2 h-1.5 w-20 rounded-full bg-sky-400/25"><div className="h-full w-10 animate-pulse rounded-full bg-sky-300/70" /></div> : null}
                   <AccountabilityStrip execution={message.execution} />
                   <SuggestedActions actions={message.suggested_actions} onSelect={(value) => void send(value)} />
                 </div>
