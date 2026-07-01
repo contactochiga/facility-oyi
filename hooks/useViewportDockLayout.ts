@@ -25,6 +25,13 @@ export function useViewportDockLayout({
     const observer = typeof ResizeObserver !== "undefined" && dockRef?.current ? new ResizeObserver(() => measure()) : null;
     const previousBodyOverflow = document.body.style.overflow;
     const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflowX = document.body.style.overflowX;
+    const previousHtmlOverflowX = document.documentElement.style.overflowX;
+    const previousBodyWidth = document.body.style.width;
+    const previousHtmlWidth = document.documentElement.style.width;
+    const previousViewportHeight = document.documentElement.style.getPropertyValue("--oyi-viewport-height");
+    const previousViewportWidth = document.documentElement.style.getPropertyValue("--oyi-viewport-width");
+    const previousKeyboardInset = document.documentElement.style.getPropertyValue("--oyi-keyboard-inset");
 
     function measure() {
       const nextDockHeight = Math.ceil(dockRef?.current?.getBoundingClientRect().height || 92);
@@ -33,9 +40,13 @@ export function useViewportDockLayout({
 
     function update() {
       const nextHeight = Math.round(viewport?.height || window.innerHeight);
+      const nextWidth = Math.round(viewport?.width || window.innerWidth);
       const nextInset = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
       setViewportHeight((current) => (current !== nextHeight ? nextHeight : current));
       setKeyboardInset((current) => (current !== nextInset ? nextInset : current));
+      document.documentElement.style.setProperty("--oyi-viewport-height", `${nextHeight}px`);
+      document.documentElement.style.setProperty("--oyi-viewport-width", `${nextWidth}px`);
+      document.documentElement.style.setProperty("--oyi-keyboard-inset", `${nextInset}px`);
       measure();
       onViewportChange?.();
     }
@@ -48,6 +59,11 @@ export function useViewportDockLayout({
     if (lockDocument) {
       document.body.style.overflow = "hidden";
       document.documentElement.style.overflow = "hidden";
+      document.body.style.overflowX = "hidden";
+      document.documentElement.style.overflowX = "hidden";
+      document.body.style.width = "100%";
+      document.documentElement.style.width = "100%";
+      document.body.dataset.oyiViewportLocked = "true";
     }
 
     update();
@@ -65,7 +81,18 @@ export function useViewportDockLayout({
       if (lockDocument) {
         document.body.style.overflow = previousBodyOverflow;
         document.documentElement.style.overflow = previousHtmlOverflow;
+        document.body.style.overflowX = previousBodyOverflowX;
+        document.documentElement.style.overflowX = previousHtmlOverflowX;
+        document.body.style.width = previousBodyWidth;
+        document.documentElement.style.width = previousHtmlWidth;
+        delete document.body.dataset.oyiViewportLocked;
       }
+      if (previousViewportHeight) document.documentElement.style.setProperty("--oyi-viewport-height", previousViewportHeight);
+      else document.documentElement.style.removeProperty("--oyi-viewport-height");
+      if (previousViewportWidth) document.documentElement.style.setProperty("--oyi-viewport-width", previousViewportWidth);
+      else document.documentElement.style.removeProperty("--oyi-viewport-width");
+      if (previousKeyboardInset) document.documentElement.style.setProperty("--oyi-keyboard-inset", previousKeyboardInset);
+      else document.documentElement.style.removeProperty("--oyi-keyboard-inset");
     };
   }, [active, dockRef, lockDocument, onViewportChange]);
 

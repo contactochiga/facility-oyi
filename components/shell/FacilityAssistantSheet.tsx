@@ -25,9 +25,10 @@ export default function FacilityAssistantSheet() {
   const composerRef = useRef<HTMLFormElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const spokenRef = useRef<string>("");
-  const { keyboardInset } = useViewportDockLayout({
+  const { viewportHeight, keyboardInset } = useViewportDockLayout({
     active: open,
     dockRef: composerRef,
+    lockDocument: true,
     onViewportChange: () => bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }),
   });
 
@@ -100,8 +101,8 @@ export default function FacilityAssistantSheet() {
     <div className="fixed inset-0 z-[120] md:hidden animate-in fade-in duration-200">
       <button type="button" aria-label="Close assistant" className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={closeAssistant} />
       <section
-        className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-18px-var(--ois-safe-top))] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[28px] border border-white/[0.08] bg-[#070b12]/96 shadow-[0_-18px_60px_rgba(0,0,0,0.55)] animate-in slide-in-from-bottom-6 duration-200"
-        style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${keyboardInset}px)` }}
+        className="absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-[520px] flex-col overflow-hidden rounded-t-[28px] border border-white/[0.08] bg-[#070b12]/96 shadow-[0_-18px_60px_rgba(0,0,0,0.55)] animate-in slide-in-from-bottom-6 duration-200"
+        style={{ maxHeight: viewportHeight ? `${Math.max(viewportHeight - 18, 320)}px` : "calc(var(--oyi-viewport-height) - 18px - var(--ois-safe-top))", paddingBottom: `calc(env(safe-area-inset-bottom) + ${keyboardInset}px)` }}
       >
         <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">

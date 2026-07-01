@@ -39,7 +39,7 @@ export default function FacilityIntelligenceModule() {
   const moduleContext = searchParams.get("module") || "facility-intelligence";
   const composerRef = useRef<HTMLFormElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const { viewportHeight, dockHeight } = useViewportDockLayout({
+  const { viewportHeight, dockHeight, keyboardInset } = useViewportDockLayout({
     active: true,
     dockRef: composerRef,
     lockDocument: true,
@@ -142,8 +142,8 @@ export default function FacilityIntelligenceModule() {
 
   return (
     <div
-      className="mx-auto flex max-w-5xl flex-col overflow-hidden bg-zinc-950 text-white md:h-full md:min-h-0 md:px-0 xl:pb-5"
-      style={{ height: viewportHeight ? `${viewportHeight}px` : "100dvh" }}
+      className="mx-auto flex w-full min-w-0 max-w-5xl flex-col overflow-hidden bg-zinc-950 text-white md:h-full md:min-h-0 md:px-0 xl:pb-5"
+      style={{ height: viewportHeight ? `${viewportHeight}px` : "var(--oyi-viewport-height)", maxWidth: "100vw" }}
     >
       <header className="sticky top-0 z-20 border-b border-white/[0.06] bg-zinc-950/94 px-3 pb-3 pt-[calc(10px+env(safe-area-inset-top))] backdrop-blur-xl sm:px-0 md:pt-0">
         <div className="flex items-center justify-between gap-3">
@@ -162,7 +162,7 @@ export default function FacilityIntelligenceModule() {
       </header>
       {targetError ? <p className="mx-3 mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100 sm:mx-0">{targetError}</p> : null}
 
-      <section className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-0" style={{ scrollPaddingBottom: `calc(${dockHeight + 24}px + env(safe-area-inset-bottom))`, WebkitOverflowScrolling: "touch" }}>
+      <section className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 sm:px-0" style={{ scrollPaddingBottom: `calc(${dockHeight + 24}px + env(safe-area-inset-bottom))`, WebkitOverflowScrolling: "touch" }}>
         <div className="space-y-4">
           <FacilityConversationFeed
             messages={messages}
@@ -177,7 +177,7 @@ export default function FacilityIntelligenceModule() {
         </div>
       </section>
 
-      <form ref={composerRef} onSubmit={(event) => { event.preventDefault(); void send(); }} className="z-30 mt-auto shrink-0 px-3 pb-[calc(10px+env(safe-area-inset-bottom))] md:px-0 md:pb-0">
+      <form ref={composerRef} onSubmit={(event) => { event.preventDefault(); void send(); }} className="z-30 mt-auto shrink-0 px-3 md:px-0 md:pb-0" style={{ paddingBottom: `calc(10px + env(safe-area-inset-bottom) + ${keyboardInset}px)` }}>
         <FacilityConversationComposer
           value={input}
           onChange={setInput}

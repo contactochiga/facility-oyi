@@ -88,7 +88,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
       aria-label="Facility mobile modules"
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(10px+env(safe-area-inset-bottom))] md:hidden"
     >
-      <div className="pointer-events-auto mx-auto w-[94vw] max-w-[430px] overflow-hidden rounded-[28px] border border-white/[0.08] bg-zinc-950/86 px-2.5 py-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
+      <div className="pointer-events-auto mx-auto w-full max-w-[430px] overflow-hidden rounded-[28px] border border-white/[0.08] bg-zinc-950/86 px-2.5 py-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
         <div className="overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
           <div
             className="flex w-[200%] transition-transform duration-300 ease-out"
@@ -145,7 +145,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
 
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
             {quickChatOpen ? (
-              <div className="min-w-0 w-[58%] max-w-[240px] flex-1">
+              <div className="min-w-0 max-w-[290px] flex-[1.2]">
                 <FacilityConversationComposer
                   value={quickChatValue}
                   onChange={setQuickChatValue}
@@ -153,6 +153,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
                   busy={busy}
                   placeholder="Ask Oyi..."
                   variant="footer"
+                  autoFocus
                   onClose={() => {
                     setQuickChatValue("");
                     setQuickChatOpen(false);
@@ -160,15 +161,24 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
                 />
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setQuickChatOpen(true)}
-                className="inline-flex h-9 min-w-[124px] items-center justify-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 text-[11px] text-white/84"
-                aria-label="Open quick chat"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>Ask Oyi</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setQuickChatOpen(true)}
+                  className="inline-flex h-9 min-w-[132px] items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] px-4 text-[11px] text-white/84"
+                  aria-label="Open quick chat"
+                >
+                  <span>Ask Oyi</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/facility-intelligence")}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.04] text-white/82"
+                  aria-label="Open Operational Intelligence"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                </button>
+              </>
             )}
           </div>
         </div>

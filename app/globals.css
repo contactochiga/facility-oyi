@@ -4,11 +4,43 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
-html, body { height: 100%; width: 100%; overflow-x: hidden; }
-body { position: relative; min-height: 100dvh; overscroll-behavior-y: none; }
+:root {
+  color-scheme: dark;
+  --oyi-viewport-height: 100dvh;
+  --oyi-viewport-width: 100vw;
+  --oyi-keyboard-inset: 0px;
+}
+
+html, body {
+  min-height: 100%;
+  height: 100%;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+body {
+  position: relative;
+  min-height: var(--oyi-viewport-height);
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+}
+
+body[data-oyi-viewport-locked="true"] {
+  overflow: hidden;
+}
+
+body > div:first-child {
+  min-height: var(--oyi-viewport-height);
+}
+
 * { -webkit-tap-highlight-color: transparent; }
+*, *::before, *::after { box-sizing: border-box; }
 input, textarea, select { max-width: 100%; }
+textarea { field-sizing: content; }
 
 @media (max-width: 768px) {
   input, textarea, select {
