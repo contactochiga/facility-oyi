@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowUp, Bot, ChevronRight, Copy, History, Mic, Plus, ThumbsUp, Volume2, X } from "lucide-react";
-import OisListItem from "@/components/ois/OisListItem";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useContextStore } from "@/store/useContextStore";
 import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
@@ -50,15 +49,6 @@ function messageFromThread(row: OyiThreadMessage): ChatMessage {
     execution: metadata.execution && typeof metadata.execution === "object" ? metadata.execution as Record<string, any> : undefined,
     display_mode: typeof metadata.display_mode === "string" ? metadata.display_mode as ChatMessage["display_mode"] : "conversation",
   };
-}
-
-function OyiOrb() {
-  return (
-    <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full border border-sky-200/22 bg-sky-400/12 shadow-[0_0_30px_rgba(56,189,248,0.24)]">
-      <span className="absolute inset-[-10px] rounded-full bg-sky-400/10 blur-xl" />
-      <span className="relative h-4 w-4 rounded-full bg-sky-200 shadow-[0_0_22px_rgba(125,211,252,0.95)]" />
-    </span>
-  );
 }
 
 function infrastructureSource(card: Record<string, any>, item: Record<string, any>): InfrastructureSource | null {
@@ -348,11 +338,6 @@ export default function FacilityIntelligenceModule() {
   }
 
   const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant" && !message.pending) || null;
-  const currentCards = latestAssistant?.cards || [];
-  const currentActions = latestAssistant?.suggested_actions || [];
-  const currentExecutions = Array.isArray(latestAssistant?.execution?.results) ? latestAssistant?.execution?.results : [];
-  const currentSources = latestAssistant?.sources || [];
-  const automationPlans = currentExecutions.filter((result: any) => /pending|confirm|approval|plan|queued/.test(String(result.status || result.type || "").toLowerCase()));
   const estateLabel = context?.estate?.name || "Estate context unavailable";
 
   return (
@@ -375,17 +360,12 @@ export default function FacilityIntelligenceModule() {
       {targetError ? <p className="mx-3 mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100 sm:mx-0">{targetError}</p> : null}
 
       <section ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-0" style={{ paddingBottom: `calc(${composerHeight + 18}px + env(safe-area-inset-bottom))`, scrollPaddingBottom: `calc(${composerHeight + 24}px + env(safe-area-inset-bottom))`, WebkitOverflowScrolling: "touch" }}>
-        <div className="space-y-5">
-          <div>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold text-white">Conversation</h2>
-              <span className="text-xs text-zinc-500">{messages.length ? `${messages.length} messages` : "No conversation yet"}</span>
-            </div>
-            {!messages.length ? <p className="rounded-[22px] border border-white/[0.07] bg-white/[0.03] p-4 text-sm text-zinc-500">Start a conversation to load operational context.</p> : null}
+        <div className="space-y-4">
+          {!messages.length ? <p className="rounded-[22px] border border-white/[0.07] bg-white/[0.03] p-4 text-sm text-zinc-500">Ask Oyi about attention, verification, ownership, or execution history.</p> : null}
           {messages.map((message) => {
             const mine = message.role === "user";
             return (
-              <div key={message.id} className={`mt-3 flex ${mine ? "justify-end" : "justify-start"}`}>
+              <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[94%] overflow-hidden rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_14px_40px_rgba(0,0,0,0.22)] sm:max-w-[88%] ${mine ? "bg-sky-400 text-slate-950" : "border border-white/[0.07] bg-white/[0.045] text-zinc-100"}`}>
                   <p className={`whitespace-pre-wrap break-words ${message.pending ? "animate-pulse text-zinc-400" : ""}`}>{message.content}</p>
                   {!mine && shouldRenderSupport(message.display_mode) ? <>
@@ -404,40 +384,6 @@ export default function FacilityIntelligenceModule() {
               </div>
             );
           })}
-          </div>
-
-          <div className="border-t border-white/[0.06] pt-4">
-            <h2 className="text-sm font-semibold text-white">Current Situation</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">{latestAssistant?.content || "Ask Oyi about attention, infrastructure, ownership, or verification."}</p>
-          </div>
-
-          <div className="border-t border-white/[0.06] pt-4">
-            <h2 className="text-sm font-semibold text-white">Recommendations</h2>
-            <div className="mt-3 space-y-2">
-              {currentActions.length ? currentActions.slice(0, 6).map((action, index) => <OisListItem key={`${action.label || action.route}-${index}`} title={action.label || "Recommended action"} description={action.summary || action.route || "Open the suggested route."} meta={action.intent || action.reason || "Operational recommendation"} onClick={() => { if (!openTarget(action.target) && action.route) window.location.assign(String(action.route)); }} className="w-full text-left" />) : <p className="text-sm text-zinc-500">Recommendations will appear when Oyi has enough context.</p>}
-            </div>
-          </div>
-
-          <div className="border-t border-white/[0.06] pt-4">
-            <h2 className="text-sm font-semibold text-white">Automation Plans</h2>
-            <div className="mt-3 space-y-2">
-              {automationPlans.length ? automationPlans.slice(0, 6).map((result: any, index: number) => <OisListItem key={`${result.executionId || result.id || index}-automation`} title={result.label || result.summary || "Automation plan"} description={result.error || result.summary || "Pending automation or approval path"} meta={result.provider || result.origin || "Runtime automation"} status={/pending|confirm|approval/.test(String(result.status || "").toLowerCase()) ? "pending" : "attention"} />) : <p className="text-sm text-zinc-500">Automation plans appear when Oyi prepares an executable path.</p>}
-            </div>
-          </div>
-
-          <div className="border-t border-white/[0.06] pt-4">
-            <h2 className="text-sm font-semibold text-white">Recent Executions</h2>
-            <div className="mt-3 space-y-2">
-              {currentExecutions.length ? currentExecutions.slice(0, 6).map((result: any, index: number) => <OisListItem key={`${result.executionId || result.id || index}`} title={result.label || result.summary || result.status || "Execution"} description={result.error || result.summary || "Operational execution update"} meta={result.provider || result.origin || "Runtime execution"} status={/success|executed/.test(String(result.status || "").toLowerCase()) ? "completed" : /pending|confirm/.test(String(result.status || "").toLowerCase()) ? "pending" : /failed|error|denied/.test(String(result.status || "").toLowerCase()) ? "critical" : "attention"} />) : <p className="text-sm text-zinc-500">No recent execution records in this conversation.</p>}
-            </div>
-          </div>
-
-          <div className="border-t border-white/[0.06] pt-4">
-            <h2 className="text-sm font-semibold text-white">Runtime Timeline</h2>
-            <div className="mt-3 space-y-2">
-              {currentSources.length ? currentSources.slice(0, 8).map((source: any, index: number) => <OisListItem key={`${source.title || source.name || index}`} title={source.title || source.name || source.source || "Runtime source"} description={source.summary || source.detail || source.description || "Supporting runtime evidence"} meta={source.timestamp || source.updated_at || source.created_at || "Timestamp unavailable"} status="stable" />) : currentCards.length ? currentCards.slice(0, 8).map((card: any, index: number) => <OisListItem key={`${card.title || card.type || index}`} title={card.title || "Operational insight"} description={card.summary || "Runtime detail"} meta={card.type || "runtime"} status="attention" />) : <p className="text-sm text-zinc-500">Runtime timeline appears when Oyi returns supporting evidence.</p>}
-            </div>
-          </div>
           <div ref={bottomRef} className="h-1" />
         </div>
       </section>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { Brain, Mic, Pause, SendHorizontal } from "lucide-react";
 import { facilityMobileModules, type MobileModuleItem } from "./mobileNavConfig";
 import { useSessionStore } from "@/store/useSessionStore";
@@ -42,6 +42,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
   const [pageIndex, setPageIndex] = useState(detectedPage);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
     setPageIndex(detectedPage);
@@ -74,7 +75,18 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
     return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
   }
 
-  const currentPage = pages[pageIndex] || [];
+  function onTouchStart(event: TouchEvent<HTMLDivElement>) {
+    touchStartX.current = event.touches[0]?.clientX ?? null;
+  }
+
+  function onTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    if (touchStartX.current == null) return;
+    const delta = (event.changedTouches[0]?.clientX ?? 0) - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(delta) < 24) return;
+    if (delta < 0 && pageIndex < 1) setPageIndex(1);
+    if (delta > 0 && pageIndex > 0) setPageIndex(0);
+  }
 
   return (
     <nav
@@ -82,31 +94,42 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(10px+env(safe-area-inset-bottom))] md:hidden"
     >
       <div className="pointer-events-auto mx-auto w-[94vw] max-w-[430px] overflow-hidden rounded-[28px] border border-white/[0.08] bg-zinc-950/86 px-2.5 py-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
-        <div className={cn("grid gap-1.5", currentPage.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
-          {currentPage.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(pathname, item);
-            return (
-              <Link
-                key={item.key}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative flex min-w-0 flex-col items-center justify-center rounded-[22px] px-1.5 py-1.5 text-center transition-all duration-300 active:scale-[0.98]",
-                  active
-                    ? "bg-[radial-gradient(circle_at_50%_12%,rgba(255,255,255,0.18),rgba(56,189,248,0.13)_42%,rgba(255,255,255,0.055)_100%)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_24px_rgba(56,189,248,0.18)]"
-                    : "text-white/48 hover:bg-white/[0.04] hover:text-white/78"
-                )}
-              >
-                <span className={cn("grid h-8 w-8 place-items-center rounded-[14px] transition-all duration-300", active ? "text-sky-100" : "text-white/56")}>
-                  <Icon size={17} />
-                </span>
-                <span className={cn("mt-0.5 block w-full truncate text-[10px] font-medium tracking-[-0.02em]", active ? "text-white" : "text-white/46")}>
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
+        <div className="overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+          <div
+            className="flex w-[200%] transition-transform duration-300 ease-out"
+            style={{ transform: `translateX(-${pageIndex * 50}%)` }}
+          >
+            {pages.map((pageItems, pageNumber) => (
+              <div key={pageNumber} className="w-1/2 shrink-0">
+                <div className={cn("grid gap-1.5", pageItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
+                  {pageItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(pathname, item);
+                    return (
+                      <Link
+                        key={item.key}
+                        href={item.href}
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                          "relative flex min-w-0 flex-col items-center justify-center rounded-[22px] px-1.5 py-1.5 text-center transition-all duration-300 active:scale-[0.98]",
+                          active
+                            ? "bg-[radial-gradient(circle_at_50%_12%,rgba(255,255,255,0.18),rgba(56,189,248,0.13)_42%,rgba(255,255,255,0.055)_100%)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_24px_rgba(56,189,248,0.18)]"
+                            : "text-white/48 hover:bg-white/[0.04] hover:text-white/78"
+                        )}
+                      >
+                        <span className={cn("grid h-8 w-8 place-items-center rounded-[14px] transition-all duration-300", active ? "text-sky-100" : "text-white/56")}>
+                          <Icon size={17} />
+                        </span>
+                        <span className={cn("mt-0.5 block w-full truncate text-[10px] font-medium tracking-[-0.02em]", active ? "text-white" : "text-white/46")}>
+                          {item.label}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="mt-2 flex items-center justify-between gap-2">

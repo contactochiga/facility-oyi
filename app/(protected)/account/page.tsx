@@ -1,15 +1,16 @@
-// app/(protected)/account/page.tsx
 "use client";
 
-import React, { Suspense, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { jwtDecode } from "jwt-decode";
 import OisCard from "@/components/ois/OisCard";
+import OisOperationalStrip from "@/components/ois/OisOperationalStrip";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { jwtDecode } from "jwt-decode";
 import { facilityService } from "@/services/facilityService";
 import { notificationService } from "@/services/notificationService";
+import { useSessionStore } from "@/store/useSessionStore";
 
 type Decoded = {
   id?: string;
@@ -24,7 +25,6 @@ type EstateItem = {
   name?: string | null;
   address?: string | null;
   type?: string | null;
-  created_at?: string | null;
   membership_role?: string | null;
   membership_status?: string | null;
 };
@@ -40,117 +40,62 @@ type SettingsState = {
 
 const SETTINGS_KEY = "oyi_facility_settings_v1";
 
-// --- tiny cookie helper ---
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
-  const m = document.cookie.match(
-    new RegExp(`(?:^|; )${name.replace(/[$()*+.?[\\\]^{|}-]/g, "\\$&")}=([^;]*)`)
-  );
-  return m ? decodeURIComponent(m[1]) : null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[$()*+.?[\\\]^{|}-]/g, "\\$&")}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
-function when(iso?: string | null) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString([], {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function normalizeRole(role?: string) {
+  const value = String(role || "").trim().toLowerCase();
+  if (!value || value === "resident") return "operator";
+  if (value === "estate_admin") return "owner";
+  return value;
 }
 
-function labelValue(label: string, value?: string | null) {
+function Section({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <OisCard variant="evidence" className="px-4 py-3">
-      <div className="text-[11px] text-[var(--ois-text-muted)]">{label}</div>
-      <div className="mt-1 break-all text-sm text-[var(--ois-text-primary)]">{value || "—"}</div>
+    <OisCard className="p-4 sm:p-5">
+      <h2 className="text-sm font-semibold text-white">{title}</h2>
+      <p className="mt-1 text-xs text-zinc-500">{subtitle}</p>
+      <div className="mt-4 space-y-3">{children}</div>
     </OisCard>
   );
 }
 
-function normalizeFacilityRole(role?: string) {
-  const r = String(role || "").trim().toLowerCase();
-
-  // UI policy: facility control plane operators are not "resident"
-  if (!r || r === "resident") return "operator";
-  if (r === "estate_admin") return "owner";
-  return r;
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+      <div className="text-[11px] text-zinc-500">{label}</div>
+      <div className="mt-1 text-sm text-white">{value}</div>
+    </div>
+  );
 }
 
-function SwitchRow({
-  title,
-  desc,
-  value,
-  onChange,
-  disabled,
-}: {
-  title: string;
-  desc?: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
+function Toggle({ title, detail, value, onChange, disabled }: { title: string; detail: string; value: boolean; onChange: (next: boolean) => void; disabled?: boolean }) {
   return (
-    <OisCard className="flex items-start justify-between gap-4 px-4 py-3">
+    <div className="flex items-start justify-between gap-4 rounded-xl border border-white/10 bg-black/20 px-3 py-3">
       <div className="min-w-0">
-        <div className="text-sm font-semibold text-white">{title}</div>
-        {desc ? <div className="text-xs text-zinc-400 mt-1 leading-relaxed">{desc}</div> : null}
+        <p className="text-sm text-white">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-zinc-500">{detail}</p>
       </div>
-
       <button
         type="button"
         disabled={disabled}
         onClick={() => onChange(!value)}
-        className={`shrink-0 w-12 h-7 rounded-full border transition ${
-          value ? "bg-emerald-500/20 border-emerald-500/30" : "bg-zinc-900/50 border-white/10"
-        } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-        aria-label={`toggle ${title}`}
-        >
-        <span
-          className={`block w-6 h-6 rounded-full transition translate-y-[1px] ${
-            value ? "translate-x-[22px] bg-emerald-300" : "translate-x-[2px] bg-zinc-300"
-          }`}
-        />
-        </button>
-    </OisCard>
-  );
-}
-
-/**
- * ✅ Next.js: useSearchParams must be inside Suspense
- */
-export default function AccountPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="space-y-7">
-          <Topbar title="Account" subtitle="Profile • Preferences • Permissions" />
-          <OisCard className="p-6">
-            <div className="text-sm text-zinc-400">Loading account…</div>
-          </OisCard>
-        </div>
-      }
-    >
-      <AccountInner />
-    </Suspense>
+        className={`h-7 w-12 shrink-0 rounded-full border transition ${value ? "border-emerald-400/30 bg-emerald-500/20" : "border-white/10 bg-zinc-900/60"} ${disabled ? "opacity-50" : ""}`}
+      >
+        <span className={`block h-6 w-6 rounded-full transition ${value ? "translate-x-[22px] bg-emerald-300" : "translate-x-[2px] bg-zinc-300"}`} />
+      </button>
+    </div>
   );
 }
 
 function AccountInner() {
   const router = useRouter();
-  const params = useSearchParams();
-  const tab = (params.get("tab") || "profile") as "profile" | "settings";
-
-  // ✅ Facility-only token (prevents consumer token leaking)
-  const token = useMemo(() => {
-    if (typeof window === "undefined") return null;
-    return getCookie("oyi_facility_token") || localStorage.getItem("oyi_facility_token");
-  }, []);
-
-  const decoded = useMemo<Decoded | null>(() => {
+  const { clear } = useSessionStore();
+  const token = useMemo(() => (typeof window === "undefined" ? null : getCookie("oyi_facility_token") || localStorage.getItem("oyi_facility_token")), []);
+  const decoded = useMemo(() => {
     if (!token) return null;
     try {
       return jwtDecode<Decoded>(token);
@@ -158,21 +103,12 @@ function AccountInner() {
       return null;
     }
   }, [token]);
+  const role = normalizeRole(decoded?.role);
+  const displayName = decoded?.username || decoded?.name || decoded?.email?.split("@")[0] || "Operator";
 
-  const displayName =
-    decoded?.username ||
-    decoded?.name ||
-    (decoded?.email ? decoded.email.split("@")[0] : null) ||
-    "Operator";
-
-  const displayEmail = decoded?.email || "—";
-  const userId = decoded?.id || "—";
-  const role = normalizeFacilityRole(decoded?.role);
-
-  const [loadingEstate, setLoadingEstate] = useState(false);
   const [estate, setEstate] = useState<EstateItem | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
+  const [loadingEstate, setLoadingEstate] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [settings, setSettings] = useState<SettingsState>({
     notificationsEnabled: true,
     emailAlerts: false,
@@ -182,245 +118,121 @@ function AccountInner() {
     communityAlerts: true,
   });
 
-  const [saving, setSaving] = useState(false);
-  const [testingNotif, setTestingNotif] = useState(false);
-
-  function setTab(next: "profile" | "settings") {
-    router.push(`/account?tab=${next}`);
-  }
-
   async function loadEstate() {
-    setErr(null);
     setLoadingEstate(true);
     try {
-      // ✅ FIX: backend route is /facility/estates
-      const res = await facilityService.myEstates();
-      const first = res?.estates?.[0] || null;
-      setEstate(first);
-    } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.message || "Failed to load site context";
-      setErr(String(msg));
+      const result = await facilityService.myEstates();
+      setEstate(result?.estates?.[0] || null);
+    } catch {
       setEstate(null);
     } finally {
       setLoadingEstate(false);
     }
   }
 
-  function loadSettingsLocal() {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = localStorage.getItem(SETTINGS_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      setSettings((prev) => ({ ...prev, ...parsed }));
-    } catch {
-      // ignore
-    }
-  }
-
-  async function saveSettings() {
-    setSaving(true);
-    try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-      }
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  /**
-   * ✅ Your backend likely DOES NOT have POST /notifications (hence 404).
-   * So for now, we "test" by checking unread notifications endpoint + showing result.
-   * Once you add POST /notifications on backend, we can switch this button to broadcast.
-   */
-  async function testNotification() {
-    setTestingNotif(true);
-    setErr(null);
-
-    try {
-      if (!settings.notificationsEnabled) {
-        setErr("Enable notifications first.");
-        return;
-      }
-
-      const unread = await notificationService.unread();
-      const count = unread?.length || 0;
-
-      setErr(
-        count > 0
-          ? `Notifications OK. You currently have ${count} unread. Open the bell to view.`
-          : `Notifications endpoint OK, but you have 0 unread. (To broadcast, add POST /notifications on backend.)`
-      );
-    } catch (e: any) {
-      const msg =
-        e?.response?.data?.error ||
-        e?.message ||
-        "Notification check failed (backend not reachable)";
-      setErr(String(msg));
-    } finally {
-      setTestingNotif(false);
-    }
-  }
-
   useEffect(() => {
-    loadSettingsLocal();
-    loadEstate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadEstate();
+    if (typeof window === "undefined") return;
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return;
+    try {
+      setSettings((current) => ({ ...current, ...JSON.parse(raw) }));
+    } catch {
+      // ignore malformed local preference snapshots
+    }
   }, []);
 
+  async function saveSettings() {
+    if (typeof window !== "undefined") window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    setMessage("Preferences saved on this device.");
+  }
+
+  async function testNotifications() {
+    try {
+      const unread = await notificationService.unread();
+      setMessage(unread?.length ? `Notifications active. ${unread.length} unread item(s) found.` : "Notifications endpoint is reachable. No unread items right now.");
+    } catch (err: any) {
+      setMessage(err?.message || "Notifications could not be checked.");
+    }
+  }
+
+  function signOut() {
+    clear();
+    router.replace("/login");
+  }
+
+  function deleteSession() {
+    if (typeof window !== "undefined") window.localStorage.removeItem(SETTINGS_KEY);
+    clear();
+    router.replace("/login");
+  }
+
   return (
-    <div className="space-y-7">
-      <Topbar title="Account" subtitle="Profile • Preferences • Permissions" showNotifications />
+    <div className="space-y-6">
+      <Topbar title="Operator Account" subtitle="Account, preferences and access" />
+      <OisOperationalStrip items={[{ label: "Role", value: role, tone: "stable" }, { label: "Estate", value: loadingEstate ? "Loading" : estate?.name || "Unavailable", tone: estate?.name ? "attention" : "warning" }, { label: "Notifications", value: settings.notificationsEnabled ? "On" : "Off", tone: settings.notificationsEnabled ? "stable" : "warning" }, { label: "Session", value: token ? "Active" : "Missing", tone: token ? "stable" : "critical" }]} />
+      {message ? <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-300">{message}</div> : null}
 
-      {/* TAB SWITCH */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-2">
-          <Button variant={tab === "profile" ? "primary" : "ghost"} onClick={() => setTab("profile")}>
-            Profile
-          </Button>
-          <Button variant={tab === "settings" ? "primary" : "ghost"} onClick={() => setTab("settings")}>
-            Preferences
-          </Button>
-        </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Section title="Account" subtitle="Current operator identity and estate scope.">
+          <Field label="Name" value={displayName} />
+          <Field label="Email" value={decoded?.email || "Unavailable"} />
+          <Field label="User ID" value={decoded?.id || "Unavailable"} />
+          <Field label="Estate" value={estate?.name || "Estate context unavailable"} />
+        </Section>
 
-        <div className="text-xs text-zinc-500">
-          {loadingEstate ? "Syncing site..." : estate?.id ? `Site: ${estate.id}` : "Site: —"}
-        </div>
+        <Section title="Preferences" subtitle="Local operator behavior and delivery settings.">
+          <Toggle title="Notifications" detail="Master switch for operator notifications." value={settings.notificationsEnabled} onChange={(next) => setSettings((current) => ({ ...current, notificationsEnabled: next }))} />
+          <Toggle title="Email alerts" detail="Receive important alerts by email when enabled." value={settings.emailAlerts} onChange={(next) => setSettings((current) => ({ ...current, emailAlerts: next }))} disabled={!settings.notificationsEnabled} />
+          <Toggle title="Push alerts" detail="Keep realtime push-style alerts available." value={settings.pushAlerts} onChange={(next) => setSettings((current) => ({ ...current, pushAlerts: next }))} disabled={!settings.notificationsEnabled} />
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => void saveSettings()}>Save preferences</Button>
+            <Button variant="ghost" onClick={() => void testNotifications()}>Check notifications</Button>
+          </div>
+        </Section>
+
+        <Section title="Permissions" subtitle="Operator role and current control posture.">
+          <Field label="Role" value={<OisStatusBadge status="stable" label={role} />} />
+          <Field label="Membership" value={estate?.membership_role || "Operator"} />
+          <Field label="Status" value={estate?.membership_status || "Active"} />
+          <Field label="Scope" value={estate?.id ? `Estate ${estate.id}` : "Scope unavailable"} />
+        </Section>
+
+        <Section title="Security" subtitle="Session and operator security posture.">
+          <Field label="Session token" value={token ? "Present" : "Unavailable"} />
+          <Field label="Authentication" value="JWT protected operator session" />
+          <Field label="Estate context" value={estate?.name || "Unavailable"} />
+          <Field label="Recovery" value="Password recovery depends on backend availability." />
+        </Section>
+
+        <Section title="Notifications" subtitle="Estate delivery preferences in this shell.">
+          <Toggle title="Maintenance alerts" detail="Send maintenance-related updates." value={settings.maintenanceAlerts} onChange={(next) => setSettings((current) => ({ ...current, maintenanceAlerts: next }))} disabled={!settings.notificationsEnabled} />
+          <Toggle title="Visitor alerts" detail="Notify on approvals and access changes." value={settings.visitorAlerts} onChange={(next) => setSettings((current) => ({ ...current, visitorAlerts: next }))} disabled={!settings.notificationsEnabled} />
+          <Toggle title="Community alerts" detail="Keep community notices and moderation visible." value={settings.communityAlerts} onChange={(next) => setSettings((current) => ({ ...current, communityAlerts: next }))} disabled={!settings.notificationsEnabled} />
+        </Section>
+
+        <Section title="About" subtitle="Facility OS product freeze release candidate.">
+          <Field label="Surface" value="Facility OS" />
+          <Field label="Mode" value="Native command center shell" />
+          <Field label="Environment" value="Operator control plane" />
+          <Field label="Build state" value="RC4 product freeze" />
+        </Section>
       </div>
 
-      {!!err && (
-        <div className="glass border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-200 rounded-2xl">
-          {err}
+      <Section title="Danger Zone" subtitle="End this session before handing over the device.">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="danger" onClick={signOut}>Sign out</Button>
+          <Button variant="ghost" onClick={deleteSession}>Delete session</Button>
         </div>
-      )}
-
-      {/* PROFILE TAB */}
-      {tab === "profile" && (
-        <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-2">
-          <OisCard className="p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-lg font-semibold text-white">Operator Profile</div>
-                <div className="text-sm text-zinc-400 mt-1">
-                  Who is currently running this control plane session.
-                </div>
-              </div>
-
-              <OisStatusBadge status="stable" label={role} />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
-              {labelValue("Name", displayName)}
-              {labelValue("Email", displayEmail)}
-              {labelValue("User ID", userId)}
-              {labelValue("Auth Token", token ? "Present" : "Missing")}
-            </div>
-
-            <div className="text-xs text-zinc-500 mt-4">If any of this looks wrong, logout and login again.</div>
-          </OisCard>
-
-          <OisCard className="p-6">
-            <div className="text-lg font-semibold text-white">Site Context</div>
-            <div className="text-sm text-zinc-400 mt-1">The facility site you’re currently operating.</div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
-              {labelValue("Site Name", estate?.name || "—")}
-              {labelValue("Site Type", estate?.type || "—")}
-              {labelValue("Address", estate?.address || "—")}
-              {labelValue("Created", when(estate?.created_at || null))}
-            </div>
-            <div className="text-xs text-zinc-500 mt-3">
-              This pulls from <span className="text-zinc-200">/facility/estates</span>.
-            </div>
-          </OisCard>
-        </div>
-      )}
-
-      {/* SETTINGS TAB */}
-      {tab === "settings" && (
-        <div className="grid gap-4 lg:gap-5 grid-cols-1 xl:grid-cols-2">
-          <OisCard className="p-6">
-            <div className="text-lg font-semibold text-white">Notification Preferences</div>
-            <div className="text-sm text-zinc-400 mt-1">What this operator account should send/receive.</div>
-
-            <div className="space-y-3 mt-5">
-              <SwitchRow
-                title="Enable notifications"
-                desc="Master switch for all notifications from facility control."
-                value={settings.notificationsEnabled}
-                onChange={(v) => setSettings((p) => ({ ...p, notificationsEnabled: v }))}
-              />
-              <SwitchRow
-                title="Push alerts"
-                desc="Show real-time alerts in the apps (recommended)."
-                value={settings.pushAlerts}
-                onChange={(v) => setSettings((p) => ({ ...p, pushAlerts: v }))}
-                disabled={!settings.notificationsEnabled}
-              />
-              <SwitchRow
-                title="Email alerts"
-                desc="Send important alerts to email (optional)."
-                value={settings.emailAlerts}
-                onChange={(v) => setSettings((p) => ({ ...p, emailAlerts: v }))}
-                disabled={!settings.notificationsEnabled}
-              />
-              <SwitchRow
-                title="Maintenance alerts"
-                desc="Notify residents when maintenance updates happen."
-                value={settings.maintenanceAlerts}
-                onChange={(v) => setSettings((p) => ({ ...p, maintenanceAlerts: v }))}
-                disabled={!settings.notificationsEnabled}
-              />
-              <SwitchRow
-                title="Visitor alerts"
-                desc="Notify residents of approvals/entry/exit events."
-                value={settings.visitorAlerts}
-                onChange={(v) => setSettings((p) => ({ ...p, visitorAlerts: v }))}
-                disabled={!settings.notificationsEnabled}
-              />
-              <SwitchRow
-                title="Community alerts"
-                desc="Push estate-wide updates to consumer accounts."
-                value={settings.communityAlerts}
-                onChange={(v) => setSettings((p) => ({ ...p, communityAlerts: v }))}
-                disabled={!settings.notificationsEnabled}
-              />
-            </div>
-
-            <div className="mt-5 flex gap-2 flex-wrap">
-              <Button onClick={saveSettings} disabled={saving}>
-                {saving ? "Saving..." : "Save Preferences"}
-              </Button>
-
-              <Button variant="ghost" onClick={testNotification} disabled={testingNotif}>
-                {testingNotif ? "Checking..." : "Send Test Notification"}
-              </Button>
-            </div>
-
-            <div className="text-xs text-zinc-500 mt-3">
-              Preferences are saved locally for now. Next step is persisting to DB + enabling broadcast.
-            </div>
-          </OisCard>
-
-          <OisCard className="p-6">
-            <div className="text-lg font-semibold text-white">Permissions</div>
-            <div className="text-sm text-zinc-400 mt-1">
-              Role-based access will govern what the operator can change.
-            </div>
-
-            <div className="mt-5 grid gap-3">
-              {labelValue("Current role", role)}
-              {labelValue("Scope", estate?.id ? `Estate: ${estate.id}` : "—")}
-              {labelValue("Policy", "RBAC (phase 2)")}
-            </div>
-
-            <div className="text-xs text-zinc-500 mt-4">
-              Next: wire a permissions matrix and lock sensitive actions.
-            </div>
-          </OisCard>
-        </div>
-      )}
+      </Section>
     </div>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense fallback={<div className="space-y-6"><Topbar title="Operator Account" subtitle="Preparing operator account." /></div>}>
+      <AccountInner />
+    </Suspense>
   );
 }

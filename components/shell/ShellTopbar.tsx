@@ -89,33 +89,35 @@ export default function ShellTopbar() {
             </span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => router.push("/messages")}
-            className="relative grid h-11 w-11 place-items-center rounded-[14px] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] text-[var(--ois-text-secondary)] transition hover:border-sky-400/20 hover:bg-[var(--ois-surface-raised)] hover:text-[var(--ois-text-primary)]"
-            aria-label="Messages"
-          >
-            <MessageSquare className="h-4 w-4" />
-            {messageCount > 0 ? (
-              <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-600 px-1 text-[10px] text-white">
-                {messageCount > 99 ? "99+" : messageCount}
-              </span>
-            ) : null}
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => router.push("/messages")}
+              className="relative grid h-11 w-11 place-items-center rounded-[14px] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] text-[var(--ois-text-secondary)] transition hover:border-sky-400/20 hover:bg-[var(--ois-surface-raised)] hover:text-[var(--ois-text-primary)]"
+              aria-label="Messages"
+            >
+              <MessageSquare className="h-4 w-4" />
+              {messageCount > 0 ? (
+                <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-600 px-1 text-[10px] text-white">
+                  {messageCount > 99 ? "99+" : messageCount}
+                </span>
+              ) : null}
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setOpenNotif(true)}
-            className="relative grid h-11 w-11 place-items-center rounded-[14px] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] text-[var(--ois-text-secondary)] transition hover:border-sky-400/20 hover:bg-[var(--ois-surface-raised)] hover:text-[var(--ois-text-primary)]"
-            aria-label="Notifications"
-          >
-            <Bell className="h-4 w-4" />
-            {unreadCount > 0 ? (
-              <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-blue-400/30 bg-blue-600 px-1 text-[10px] text-white">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            ) : null}
-          </button>
+            <button
+              type="button"
+              onClick={() => setOpenNotif(true)}
+              className="relative grid h-11 w-11 place-items-center rounded-[14px] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] text-[var(--ois-text-secondary)] transition hover:border-sky-400/20 hover:bg-[var(--ois-surface-raised)] hover:text-[var(--ois-text-primary)]"
+              aria-label="Notifications"
+            >
+              <Bell className="h-4 w-4" />
+              {unreadCount > 0 ? (
+                <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-blue-400/30 bg-blue-600 px-1 text-[10px] text-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              ) : null}
+            </button>
+          </div>
         </div>
       </header>
 
