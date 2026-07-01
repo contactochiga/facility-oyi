@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Mic, SendHorizontal, Square, X } from "lucide-react";
 import { useSpeechComposer } from "@/hooks/useSpeechComposer";
 
@@ -35,6 +36,32 @@ export default function FacilityConversationComposer({
   const voice = useSpeechComposer((text) => onChange(text));
   const compact = variant === "footer";
   const canSend = !disabled && !busy && Boolean(value.trim());
+
+  useEffect(() => {
+    return () => {
+      if (typeof document === "undefined") return;
+      if (document.body.dataset.oyiComposerFocused === "true") {
+        delete document.body.dataset.oyiComposerFocused;
+      }
+    };
+  }, []);
+
+  function setComposerFocusLock(locked: boolean) {
+    if (typeof document === "undefined") return;
+    if (locked) {
+      document.body.dataset.oyiComposerFocused = "true";
+      document.body.style.overflowX = "hidden";
+      document.documentElement.style.overflowX = "hidden";
+      document.body.style.maxWidth = "100vw";
+      document.documentElement.style.maxWidth = "100vw";
+      return;
+    }
+    delete document.body.dataset.oyiComposerFocused;
+    document.body.style.overflowX = "";
+    document.documentElement.style.overflowX = "";
+    document.body.style.maxWidth = "";
+    document.documentElement.style.maxWidth = "";
+  }
 
   return (
     <div className={`rounded-[24px] border border-white/[0.08] bg-white/[0.035] ${compact ? "px-2.5 py-2" : "px-3 py-2.5"} shadow-[0_10px_30px_rgba(0,0,0,0.22)]`}>
@@ -74,6 +101,14 @@ export default function FacilityConversationComposer({
             <textarea
               value={value}
               onChange={(event) => onChange(event.target.value)}
+              onFocus={() => {
+                if (compact) setComposerFocusLock(true);
+              }}
+              onBlur={() => {
+                if (compact) {
+                  window.setTimeout(() => setComposerFocusLock(false), 120);
+                }
+              }}
               rows={1}
               placeholder={placeholder}
               disabled={disabled}

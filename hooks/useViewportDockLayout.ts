@@ -32,6 +32,7 @@ export function useViewportDockLayout({
     const previousViewportHeight = document.documentElement.style.getPropertyValue("--oyi-viewport-height");
     const previousViewportWidth = document.documentElement.style.getPropertyValue("--oyi-viewport-width");
     const previousKeyboardInset = document.documentElement.style.getPropertyValue("--oyi-keyboard-inset");
+    const previousVisualBottom = document.documentElement.style.getPropertyValue("--oyi-visual-bottom");
 
     function measure() {
       const nextDockHeight = Math.ceil(dockRef?.current?.getBoundingClientRect().height || 92);
@@ -42,11 +43,13 @@ export function useViewportDockLayout({
       const nextHeight = Math.round(viewport?.height || window.innerHeight);
       const nextWidth = Math.round(viewport?.width || window.innerWidth);
       const nextInset = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+      const nextVisualBottom = viewport ? Math.max(0, window.innerHeight - (viewport.height + viewport.offsetTop)) : 0;
       setViewportHeight((current) => (current !== nextHeight ? nextHeight : current));
       setKeyboardInset((current) => (current !== nextInset ? nextInset : current));
       document.documentElement.style.setProperty("--oyi-viewport-height", `${nextHeight}px`);
       document.documentElement.style.setProperty("--oyi-viewport-width", `${nextWidth}px`);
       document.documentElement.style.setProperty("--oyi-keyboard-inset", `${nextInset}px`);
+      document.documentElement.style.setProperty("--oyi-visual-bottom", `${nextVisualBottom}px`);
       measure();
       onViewportChange?.();
     }
@@ -93,6 +96,8 @@ export function useViewportDockLayout({
       else document.documentElement.style.removeProperty("--oyi-viewport-width");
       if (previousKeyboardInset) document.documentElement.style.setProperty("--oyi-keyboard-inset", previousKeyboardInset);
       else document.documentElement.style.removeProperty("--oyi-keyboard-inset");
+      if (previousVisualBottom) document.documentElement.style.setProperty("--oyi-visual-bottom", previousVisualBottom);
+      else document.documentElement.style.removeProperty("--oyi-visual-bottom");
     };
   }, [active, dockRef, lockDocument, onViewportChange]);
 

@@ -9,6 +9,7 @@
   --oyi-viewport-height: 100dvh;
   --oyi-viewport-width: 100vw;
   --oyi-keyboard-inset: 0px;
+  --oyi-visual-bottom: 0px;
 }
 
 html, body {
@@ -18,6 +19,7 @@ html, body {
   max-width: 100vw;
   overflow-x: hidden;
   overscroll-behavior-x: none;
+  touch-action: pan-y;
 }
 
 body {
@@ -27,6 +29,7 @@ body {
   max-width: 100vw;
   overflow-x: hidden;
   overscroll-behavior-y: none;
+  touch-action: pan-y;
 }
 
 body[data-oyi-viewport-locked="true"] {
