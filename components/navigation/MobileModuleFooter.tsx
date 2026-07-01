@@ -87,9 +87,9 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
     <nav
       aria-label="Facility mobile modules"
       className="pointer-events-none fixed left-0 right-0 z-40 md:hidden"
-      style={{ bottom: "calc(var(--oyi-visual-bottom, 0px) + env(safe-area-inset-bottom))", width: "100%", maxWidth: "100vw" }}
+      style={{ bottom: "0px", width: "100%", maxWidth: "100vw", transform: "translate3d(0, calc(-1 * var(--oyi-visual-bottom, 0px)), 0)" }}
     >
-      <div className="pointer-events-auto mx-auto overflow-hidden rounded-[28px] border border-white/[0.08] bg-zinc-950/86 px-2.5 py-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl" style={{ width: "min(calc(100% - 24px), 430px)", maxWidth: "calc(100vw - 24px)", marginBottom: "10px" }}>
+      <div className="pointer-events-auto mx-auto overflow-hidden rounded-[28px] border border-white/[0.08] bg-zinc-950/86 px-2.5 py-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl" style={{ width: "min(calc(100% - 24px), 430px)", maxWidth: "calc(100vw - 24px)", marginBottom: "calc(10px + env(safe-area-inset-bottom))", transform: "translate3d(0, 0, 0)" }}>
         <div className="overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
           <div
             className="flex w-[200%] transition-transform duration-300 ease-out"

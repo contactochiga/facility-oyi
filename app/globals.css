@@ -9,7 +9,10 @@
   --oyi-viewport-height: 100dvh;
   --oyi-viewport-width: 100vw;
   --oyi-keyboard-inset: 0px;
+  --oyi-keyboard-height: 0px;
+  --oyi-visual-height: 100dvh;
   --oyi-visual-bottom: 0px;
+  -webkit-text-size-adjust: 100%;
 }
 
 html, body {
@@ -34,6 +37,11 @@ body {
 
 body[data-oyi-viewport-locked="true"] {
   overflow: hidden;
+}
+
+body.oyi-keyboard-open {
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body > div:first-child {

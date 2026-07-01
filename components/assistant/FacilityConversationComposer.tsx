@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Mic, SendHorizontal, Square, X } from "lucide-react";
 import { useSpeechComposer } from "@/hooks/useSpeechComposer";
 
@@ -36,6 +36,7 @@ export default function FacilityConversationComposer({
   const voice = useSpeechComposer((text) => onChange(text));
   const compact = variant === "footer";
   const canSend = !disabled && !busy && Boolean(value.trim());
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     return () => {
@@ -45,6 +46,14 @@ export default function FacilityConversationComposer({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!autoFocus || !inputRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      inputRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [autoFocus]);
 
   function setComposerFocusLock(locked: boolean) {
     if (typeof document === "undefined") return;
@@ -99,6 +108,7 @@ export default function FacilityConversationComposer({
               </button>
             ) : null}
             <textarea
+              ref={inputRef}
               value={value}
               onChange={(event) => onChange(event.target.value)}
               onFocus={() => {
@@ -112,8 +122,7 @@ export default function FacilityConversationComposer({
               rows={1}
               placeholder={placeholder}
               disabled={disabled}
-              autoFocus={autoFocus}
-              className={`max-h-28 min-h-[24px] min-w-0 flex-1 resize-none bg-transparent text-sm text-white outline-none placeholder:text-zinc-500 ${compact ? "leading-5" : "leading-6"}`}
+              className={`max-h-28 min-h-[24px] min-w-0 flex-1 resize-none bg-transparent text-white outline-none placeholder:text-zinc-500 ${compact ? "text-base leading-5" : "text-sm leading-6"}`}
             />
           </div>
           {voiceEnabled ? (

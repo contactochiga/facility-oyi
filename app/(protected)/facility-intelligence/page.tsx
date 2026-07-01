@@ -82,7 +82,7 @@ export default function FacilityIntelligenceModule() {
     if (searchParams.get("focus") !== "1") return;
     window.setTimeout(() => {
       const input = composerRef.current?.querySelector("textarea");
-      (input as HTMLTextAreaElement | null)?.focus();
+      (input as HTMLTextAreaElement | null)?.focus({ preventScroll: true });
     }, 80);
   }, [searchParams]);
 
@@ -92,7 +92,7 @@ export default function FacilityIntelligenceModule() {
     setHistoryOpen(false);
     window.setTimeout(() => {
       const input = composerRef.current?.querySelector("textarea");
-      (input as HTMLTextAreaElement | null)?.focus();
+      (input as HTMLTextAreaElement | null)?.focus({ preventScroll: true });
     }, 0);
   }
 
@@ -185,6 +185,7 @@ export default function FacilityIntelligenceModule() {
           busy={busy}
           placeholder="Ask Oyi about attention, verification, ownership, or execution history"
           variant="page"
+          autoFocus={searchParams.get("focus") === "1"}
         />
       </form>
       {historyOpen ? (
