@@ -331,7 +331,8 @@ export default function HomesPage() {
         ]}
       />
 
-      <OisPageToolbar
+      <div className="md:hidden">
+        <OisPageToolbar
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search homes, blocks, residents..."
@@ -351,7 +352,8 @@ export default function HomesPage() {
         bulkSlot={<Button onClick={openCreate} disabled={!estateId}>Add Home</Button>}
         onRefresh={load}
         refreshing={loading}
-      />
+        />
+      </div>
 
 
       <div className="space-y-2 md:hidden">
@@ -387,6 +389,29 @@ export default function HomesPage() {
       <div className="hidden overflow-hidden rounded-[var(--ois-radius-card)] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] shadow-[var(--ois-elevation-card)] md:block">
         <div className="border-b border-white/10 px-5 py-4">
           <OisRegistryHeader title="Homes Registry" caption={`Showing ${filteredHomes.length} of ${homes.length} homes. Open a home to review meters, rooms, and access.`} />
+        </div>
+        <div className="border-b border-white/10 px-5 py-4">
+          <OisPageToolbar
+            searchValue={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search homes, blocks, residents..."
+            filterSlot={
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ["All Homes", "/homes"],
+                  ["Buildings", "/homes?view=buildings"],
+                  ["Rooms", "/homes?view=rooms"],
+                  ["Access", "/homes?view=access"],
+                ].map(([label, href]) => {
+                  const active = href === "/homes" ? view === "all" : href.includes(`view=${view}`);
+                  return <Link key={href} href={href} className={`rounded-xl border px-3 py-2 text-xs transition ${active ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-black/15 text-zinc-400 hover:text-white"}`}>{label}</Link>;
+                })}
+              </div>
+            }
+            bulkSlot={<Button onClick={openCreate} disabled={!estateId}>Add Home</Button>}
+            onRefresh={load}
+            refreshing={loading}
+          />
         </div>
 
         <div className="overflow-x-auto">

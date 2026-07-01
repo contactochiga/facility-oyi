@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Camera, ChevronRight, Cpu, Layers3, MapPinned, RadioTower, ShieldAlert, Wrench, Zap } from "lucide-react";
-import { OisPageToolbar } from "@/components/ois";
+import { OisPageToolbar, OisRegistryPanel } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService, type InfrastructureOperations } from "@/services/facilityService";
@@ -104,11 +104,15 @@ export default function LiveInfrastructureModule() {
   return (
     <div className="space-y-6">
       <Topbar title="Live Infrastructure" subtitle="Realtime estate operations" strip={[{ label: "Status", value: status === "error" ? "Degraded" : status === "ready" ? "Live" : "Loading" }, { label: "Attention", value: attention.length }, { label: "Health", value: attention.length ? "Review" : "Stable" }, { label: "Action", value: "Open infrastructure" }]} />
-      <OisPageToolbar onRefresh={() => void load()} refreshing={status === "loading"} searchPlaceholder="Live infrastructure routes operations into active Facility registries and work surfaces." />
       {error ? <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">{error}</p> : null}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Panel title={`Operational Routes${estateName ? ` · ${estateName}` : ""}`} subtitle="No dead canvas modes. Each route opens a real Facility workflow.">
+        <OisRegistryPanel
+          title={`Operational Routes${estateName ? ` · ${estateName}` : ""}`}
+          caption="No dead canvas modes. Each route opens a real Facility workflow."
+          toolbar={<OisPageToolbar onRefresh={() => void load()} refreshing={status === "loading"} searchPlaceholder="Live infrastructure routes operations into active Facility registries and work surfaces." />}
+          className="p-5"
+        >
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {[
               ["Estate Command Center", "/digital-twin", MapPinned, "Digital Twin and spatial operations"],
@@ -130,7 +134,7 @@ export default function LiveInfrastructureModule() {
               </Link>
             ))}
           </div>
-        </Panel>
+        </OisRegistryPanel>
 
         <Panel title="Infrastructure Attention" subtitle="Real source items requiring operator review.">
           <div className="space-y-2">

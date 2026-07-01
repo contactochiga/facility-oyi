@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader, OisRegistryPanel, OisRuntimeCard } from "@/components/ois";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
@@ -266,35 +266,38 @@ export default function MaintenancePage() {
   return (
     <div className="space-y-6">
       <Topbar title="Maintenance Continuity" subtitle="Work orders and ownership" strip={[{ label: "Healthy", value: stats.unassigned || stats.escalated ? "Review" : "Stable", detail: "Queue posture", tone: stats.unassigned || stats.escalated ? "warning" : "stable" }, { label: "Open", value: stats.open, detail: "Active requests", tone: "attention" }, { label: "Attention", value: stats.unassigned + stats.escalated, detail: "Unassigned or escalated", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Queue sync", tone: "info" }]} />
-      <OisPageToolbar
-        filterSlot={
-          <div className="flex flex-wrap gap-2">
-            {([
-              ["active", "Active"],
-              ["unassigned", "Unassigned"],
-              ["scheduled", "Scheduled"],
-              ["waiting", "Waiting"],
-              ["completed", "Completed"],
-              ["all", "All"],
-            ] as Array<[Lane, string]>).map(([key, label]) => (
-              <button key={key} type="button" onClick={() => setLane(key)} className={cn("rounded-full border px-3 py-2 text-xs transition", lane === key ? "border-sky-400/40 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white")}>{label}</button>
-            ))}
-          </div>
-        }
-        onRefresh={() => void load()}
-        refreshing={loading}
-        searchPlaceholder="Search maintenance queue..."
-      />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
-      <OisCard className="p-4">
-        <OisRegistryHeader title="Maintenance Queue" caption={loading ? "Loading records" : `${filtered.length} records`} />
-        <div className="mt-4 hidden md:block">
+      <OisRegistryPanel
+        title="Maintenance Queue"
+        caption={loading ? "Loading records" : `${filtered.length} records`}
+        toolbar={<OisPageToolbar
+          filterSlot={
+            <div className="flex flex-wrap gap-2">
+              {([
+                ["active", "Active"],
+                ["unassigned", "Unassigned"],
+                ["scheduled", "Scheduled"],
+                ["waiting", "Waiting"],
+                ["completed", "Completed"],
+                ["all", "All"],
+              ] as Array<[Lane, string]>).map(([key, label]) => (
+                <button key={key} type="button" onClick={() => setLane(key)} className={cn("rounded-full border px-3 py-2 text-xs transition", lane === key ? "border-sky-400/40 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white")}>{label}</button>
+              ))}
+            </div>
+          }
+          onRefresh={() => void load()}
+          refreshing={loading}
+          searchPlaceholder="Search maintenance queue..."
+        />}
+        className="p-4"
+      >
+        <div className="hidden md:block">
           <DataTable data={filtered} columns={columns} title="Maintenance Queue" searchKey="title" />
         </div>
-        <div className="mt-4 space-y-2 md:hidden">{filtered.map((item) => <OisListItem key={item.id} title={item.title || "Maintenance request"} description={`${locationOf(item)} · ${titleCase(item.priority || "medium")} priority`} meta={scheduledAt(item) ? `Visit ${dateLabel(scheduledAt(item))}` : ownerOf(item)} status={statusTone(item.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => open(item)} className="w-full text-left" />)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No maintenance items in this lane.</p> : null}</div>
-      </OisCard>
+        <div className="space-y-2 md:hidden">{filtered.map((item) => <OisListItem key={item.id} title={item.title || "Maintenance request"} description={`${locationOf(item)} · ${titleCase(item.priority || "medium")} priority`} meta={scheduledAt(item) ? `Visit ${dateLabel(scheduledAt(item))}` : ownerOf(item)} status={statusTone(item.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => open(item)} className="w-full text-left" />)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No maintenance items in this lane.</p> : null}</div>
+      </OisRegistryPanel>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <OisCard className="p-4">

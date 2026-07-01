@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import { Brain, Mic, Pause, SendHorizontal } from "lucide-react";
+import { Brain, Mic, SendHorizontal } from "lucide-react";
 import { facilityMobileModules, type MobileModuleItem } from "./mobileNavConfig";
 import { useSessionStore } from "@/store/useSessionStore";
 import { FACILITY_MODULES, visibleModules } from "@/lib/moduleRegistry";
@@ -28,7 +28,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
   const pathname = usePathname() || "/overview";
   const router = useRouter();
   const { user } = useSessionStore();
-  const openVoiceAssistant = useFacilityAssistantStore((state) => state.openVoiceAssistant);
+  const openAssistant = useFacilityAssistantStore((state) => state.openAssistant);
   const visibleKeys = useMemo(() => new Set(visibleModules(user, FACILITY_MODULES).map((module) => module.key)), [user]);
   const visibleItems = useMemo(() => items.filter((item) => visibleKeys.has(item.key)), [items, visibleKeys]);
   const pages = useMemo(() => [
@@ -40,39 +40,20 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
     return PAGE_TWO_KEYS.includes(String(activeKey)) ? 1 : 0;
   }, [pathname, visibleItems]);
   const [pageIndex, setPageIndex] = useState(detectedPage);
-  const [recording, setRecording] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [quickChatOpen, setQuickChatOpen] = useState(false);
+  const [quickChatValue, setQuickChatValue] = useState("");
   const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
     setPageIndex(detectedPage);
   }, [detectedPage]);
 
-  useEffect(() => {
-    if (!recording) return;
-    const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
-    return () => window.clearInterval(timer);
-  }, [recording]);
-
-  function startRecording() {
-    setElapsed(0);
-    setRecording(true);
-  }
-
-  function stopRecording() {
-    setRecording(false);
-  }
-
-  function sendRecording() {
-    setRecording(false);
-    setElapsed(0);
-    openVoiceAssistant("Review the current operational situation from the operator voice note.");
-  }
-
-  function formatTimer(seconds: number) {
-    const minutes = Math.floor(seconds / 60);
-    const remainder = seconds % 60;
-    return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+  function submitQuickChat() {
+    const value = quickChatValue.trim();
+    if (!value) return;
+    openAssistant(value);
+    setQuickChatValue("");
+    setQuickChatOpen(false);
   }
 
   function onTouchStart(event: TouchEvent<HTMLDivElement>) {
@@ -148,57 +129,54 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
             ))}
           </div>
 
-          {recording ? (
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-              <div className="flex min-w-0 items-center gap-2 rounded-full border border-rose-300/14 bg-rose-400/[0.08] px-3 py-1.5 text-[11px] text-rose-50/88">
-                <span className="flex items-end gap-[2px]">
-                  {[10, 14, 8, 16].map((height, index) => (
-                    <span
-                      key={index}
-                      className="w-[3px] animate-pulse rounded-full bg-rose-200/85"
-                      style={{ height }}
-                    />
-                  ))}
-                </span>
-                <span className="tabular-nums">{formatTimer(elapsed)}</span>
+          <div className="flex min-w-0 items-center justify-end gap-2">
+            {quickChatOpen ? (
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <label className="flex h-10 min-w-0 flex-1 items-center rounded-full border border-sky-300/16 bg-sky-400/[0.08] px-3 text-sm text-white/84">
+                  <Mic className="mr-2 h-4 w-4 shrink-0 text-sky-100/84" />
+                  <input
+                    value={quickChatValue}
+                    onChange={(event) => setQuickChatValue(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        submitQuickChat();
+                      }
+                    }}
+                    placeholder="Ask Oyi..."
+                    className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/38"
+                    aria-label="Quick chat entry"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={submitQuickChat}
+                  disabled={!quickChatValue.trim()}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sky-300 text-slate-950 disabled:opacity-40"
+                  aria-label="Send quick chat"
+                >
+                  <SendHorizontal className="h-4 w-4" />
+                </button>
               </div>
+            ) : (
               <button
                 type="button"
-                onClick={stopRecording}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.045] text-white/84"
-                aria-label="Stop recording"
-              >
-                <Pause className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={sendRecording}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sky-300 text-slate-950"
-                aria-label="Send recording"
-              >
-                <SendHorizontal className="h-4 w-4" />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => startRecording()}
+                onClick={() => setQuickChatOpen(true)}
                 className="grid h-9 w-9 place-items-center rounded-full border border-white/[0.08] bg-white/[0.045] text-white/84"
-                aria-label="Start recording"
+                aria-label="Open quick chat"
               >
                 <Mic className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                onClick={() => router.push("/facility-intelligence")}
-                className="grid h-9 w-9 place-items-center rounded-full border border-sky-300/18 bg-sky-400/[0.10] text-sky-100 shadow-[0_0_20px_rgba(56,189,248,0.18)]"
-                aria-label="Open Operational Intelligence"
-              >
-                <Brain className="h-4 w-4" />
-              </button>
-            </div>
-          )}
+            )}
+            <button
+              type="button"
+              onClick={() => router.push("/facility-intelligence")}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-sky-300/18 bg-sky-400/[0.10] text-sky-100 shadow-[0_0_20px_rgba(56,189,248,0.18)]"
+              aria-label="Open Operational Intelligence"
+            >
+              <Brain className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     </nav>

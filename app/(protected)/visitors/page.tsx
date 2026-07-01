@@ -8,7 +8,7 @@ import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader, OisRegistryPanel, OisRuntimeCard } from "@/components/ois";
 import { loadOyiCoreExecutionHistory, loadOyiCoreExecutionStatistics } from "@/services/oyiCoreRuntimeService";
 import { visitorService, type VisitorItem, type VisitorTimelineEvent } from "@/services/visitorService";
 
@@ -149,21 +149,24 @@ export default function VisitorsPage() {
   return (
     <div className="space-y-6">
       <Topbar title="Visitor Access Registry" subtitle="Verification and access flow" strip={[{ label: "Healthy", value: pending || expiredCount ? "Review" : "Stable", detail: "Access posture", tone: pending || expiredCount ? "warning" : "stable" }, { label: "Visitors", value: items.length, detail: todayOnly ? "Today only" : "Visible queue", tone: "attention" }, { label: "Attention", value: pending + expiredCount, detail: "Pending or expired", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Runtime sync", tone: "info" }]} />
-      <OisPageToolbar
-        searchValue={query}
-        onSearchChange={setQuery}
-        searchPlaceholder="Search visitor, phone, purpose, or code..."
-        filterSlot={<div className="flex flex-wrap gap-2">{(["all", "pending", "approved", "entered", "exited", "denied"] as Filter[]).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`rounded-xl border px-3 py-2 text-xs uppercase ${filter === item ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{item}</button>)}</div>}
-        sortSlot={<button type="button" onClick={() => setTodayOnly((v) => !v)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">{todayOnly ? "Today" : "All time"}</button>}
-        bulkSlot={<Button variant="ghost" onClick={() => setVerifyOpen(true)} className="gap-2"><KeyRound className="h-4 w-4" />Verify code</Button>}
-        onRefresh={() => void load()}
-        refreshing={loading}
-      />
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
-      <OisCard className="p-5">
-        <OisRegistryHeader title="Visitors Registry" caption="Queue, verification, and lifecycle activity" />
+      <OisRegistryPanel
+        title="Visitors Registry"
+        caption="Queue, verification, and lifecycle activity"
+        toolbar={<OisPageToolbar
+          searchValue={query}
+          onSearchChange={setQuery}
+          searchPlaceholder="Search visitor, phone, purpose, or code..."
+          filterSlot={<div className="flex flex-wrap gap-2">{(["all", "pending", "approved", "entered", "exited", "denied"] as Filter[]).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`rounded-xl border px-3 py-2 text-xs uppercase ${filter === item ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{item}</button>)}</div>}
+          sortSlot={<button type="button" onClick={() => setTodayOnly((v) => !v)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">{todayOnly ? "Today" : "All time"}</button>}
+          bulkSlot={<Button variant="ghost" onClick={() => setVerifyOpen(true)} className="gap-2"><KeyRound className="h-4 w-4" />Verify code</Button>}
+          onRefresh={() => void load()}
+          refreshing={loading}
+        />}
+        className="p-5"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => visitorService.exportReport({ today: todayOnly, format: "csv" })} className="gap-2"><Download className="h-4 w-4" /> Export</Button><Button variant="danger" onClick={() => setLockdownOpen(true)} className="gap-2"><ShieldAlert className="h-4 w-4" /> Lockdown</Button></div>
         </div>
@@ -172,7 +175,7 @@ export default function VisitorsPage() {
           {!filtered.length && !loading ? <p className="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No visitor access items match this view.</p> : null}
         </div>
         <div className="mt-4 space-y-2 md:hidden">{filtered.map((visitor) => { const s = expired(visitor) ? "expired" : status(visitor.status); return <OisListItem key={visitor.id} title={visitor.visitor_name} description={`${visitor.purpose || "Visitor"} · Expires ${when(visitor.expires_at)}`} meta={<><span className="font-mono text-[11px] text-[var(--ois-text-secondary)]">{visitor.access_code || "Code unavailable"}</span><span className="block">{when(visitor.created_at)}</span></>} status={tone(s)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => void openVisitor(visitor)} className="w-full text-left" />; })}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No visitor access items match this view.</p> : null}</div>
-      </OisCard>
+      </OisRegistryPanel>
       <OisRuntimeCard
         title="Runtime Insights"
         items={[

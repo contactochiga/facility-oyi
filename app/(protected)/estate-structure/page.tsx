@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader, OisRegistryPanel, OisRuntimeCard } from "@/components/ois";
 import {
   facilityService,
   type EstateStructureResponse,
@@ -78,8 +78,6 @@ export default function EstateStructurePage() {
           { label: "Access issues", value: loading ? "Loading" : summary?.resident_access_issues || 0, detail: "Expired or failed", tone: "warning" },
         ]}
       />
-      <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search estate registry..." />
-
       {error ? (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           {error} <button type="button" onClick={() => void load()} className="ml-2 text-sky-200 hover:text-sky-100">Retry</button>
@@ -88,8 +86,14 @@ export default function EstateStructurePage() {
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="rounded-[var(--ois-radius-card)] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] p-5 shadow-[var(--ois-elevation-card)]">
-          <OisRegistryHeader title="Homes Registry" caption="Pending setup, expired links, delivery failures, and revoked access." action={<Clock3 className="h-4 w-4 text-amber-200" />} />
-          <div className="mt-4 space-y-2">
+          <OisRegistryPanel
+            title="Homes Registry"
+            caption="Pending setup, expired links, delivery failures, and revoked access."
+            action={<Clock3 className="h-4 w-4 text-amber-200" />}
+            toolbar={<OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search estate registry..." />}
+            className="border-0 bg-transparent p-0 shadow-none"
+          >
+            <div className="space-y-2">
             {attention.map((invite) => (
               <Link
                 key={invite.id}
@@ -112,7 +116,8 @@ export default function EstateStructurePage() {
               </p>
             ) : null}
             {loading ? <p className="text-sm text-zinc-500">Loading invitation posture…</p> : null}
-          </div>
+            </div>
+          </OisRegistryPanel>
         </div>
 
         <div className="rounded-[var(--ois-radius-card)] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] p-5 shadow-[var(--ois-elevation-card)]">

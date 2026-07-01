@@ -9,5 +9,6 @@ export { default as OisOperationalStrip } from "./OisOperationalStrip";
 export { default as OisPageScaffold } from "./OisPageScaffold";
 export { default as OisPageToolbar } from "./OisPageToolbar";
 export { default as OisRegistryHeader } from "./OisRegistryHeader";
+export { default as OisRegistryPanel } from "./OisRegistryPanel";
 export { default as OisRuntimeCard } from "./OisRuntimeCard";
 export type { OisComposerVariant } from "./OisComposer";

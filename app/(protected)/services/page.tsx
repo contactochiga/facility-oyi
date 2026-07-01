@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader, OisRegistryPanel, OisRuntimeCard } from "@/components/ois";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
@@ -91,21 +91,24 @@ export default function FacilityServicesPage() {
   return (
     <div className="space-y-6">
       <Topbar title="Service Readiness" subtitle="Resident service controls" strip={[{ label: "Healthy", value: disabled ? "Mixed" : "Stable", detail: "Readiness posture", tone: disabled ? "warning" : "stable" }, { label: "Enabled", value: enabled, detail: "Resident-facing", tone: "attention" }, { label: "Pending", value: pending, detail: "Needs configuration", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Registry sync", tone: "info" }]} />
-      <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search service readiness..." />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
       {configError ? <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">Readiness source: {configError}. Showing contract defaults as Pending readiness, not live controls.</div> : null}
 
       <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
-        <OisCard className="p-5">
-          <OisRegistryHeader title="Service Registry" caption="Resident-facing services, readiness, and control state." />
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <OisRegistryPanel
+          title="Service Registry"
+          caption="Resident-facing services, readiness, and control state."
+          toolbar={<OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search service readiness..." />}
+          className="p-5"
+        >
+          <div className="grid gap-3 md:grid-cols-2">
             {configs.map((config) => {
               const ready = readiness(config);
               return <OisCard key={serviceKey(config)} variant="evidence" className="p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-white">{serviceTitle(config)}</h3><p className="mt-1 text-xs leading-5 text-zinc-500">{config.description || "No readiness description supplied."}</p></div><OisStatusBadge status={readinessTone(ready)} label={ready} className="uppercase" /></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><Field label="Billing" value={config.billing_mode || "Pending source"} /><Field label="Suggested" value={config.suggested_amount ? formatMoney(Number(config.suggested_amount), "NGN") : "Pending source"} /></div><div className="mt-4 flex flex-wrap gap-2"><Button variant="ghost" onClick={() => setSelected(config)} className="gap-2"><Eye className="h-4 w-4" />Review</Button><Button variant={isEnabled(config) ? "secondary" : "primary"} onClick={() => void toggleService(config)} disabled={saving || Boolean(configError)} className="gap-2">{isEnabled(config) ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}{isEnabled(config) ? "Disable" : "Enable"}</Button></div></OisCard>;
             })}
           </div>
-        </OisCard>
+        </OisRegistryPanel>
 
         <aside className="space-y-4">
           <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Consumer impact preview</h2><div className="mt-4 space-y-2">{consumerImpact.map((item) => <OisListItem key={item.label} title={item.label} description={item.source} status={item.enabled ? "stable" : "unavailable"} />)}</div></OisCard>

@@ -49,24 +49,8 @@ export const authService = {
     const cleanEmail = String(email || "").trim().toLowerCase();
     try {
       const res = await API.post("/auth/password/forgot", { email: cleanEmail });
-      return { ok: true, mode: "reset_link" as const, ...res.data };
+      return { ok: true, mode: "otp" as const, ...res.data };
     } catch (err: any) {
-      const status = Number(err?.response?.status || 0);
-      if (status === 404 || status === 405) {
-        try {
-          await API.post("/auth/otp/send", { email: cleanEmail, purpose: "login" });
-          return { ok: true, mode: "otp" as const };
-        } catch (fallbackErr: any) {
-          return {
-            ok: false,
-            error:
-              fallbackErr?.response?.data?.message ||
-              fallbackErr?.response?.data?.error ||
-              fallbackErr?.message ||
-              "Unable to start password recovery",
-          };
-        }
-      }
       return {
         ok: false,
         error:
@@ -81,40 +65,20 @@ export const authService = {
   async completePasswordReset(email: string, code: string, password: string) {
     const cleanEmail = String(email || "").trim().toLowerCase();
     try {
-      const verifyRes = await API.post("/auth/otp/verify", {
+      const verifyRes = await API.post("/auth/password/verify-reset", {
         email: cleanEmail,
-        code,
-        purpose: "login",
+        otp: code,
       });
-      const otpToken = verifyRes.data?.otpToken;
-      if (!otpToken) {
-        return { ok: false, error: "Password recovery verification did not return an approval token." };
+      const resetToken = verifyRes.data?.resetToken;
+      if (!resetToken) {
+        return { ok: false, error: "Password recovery verification did not return a reset token." };
       }
-      try {
-        const res = await API.post("/auth/password/reset", {
-          email: cleanEmail,
-          password,
-          otpToken,
-        });
-        return { ok: true, ...res.data };
-      } catch (resetErr: any) {
-        const status = Number(resetErr?.response?.status || 0);
-        if (status === 404 || status === 405) {
-          return {
-            ok: false,
-            unsupported: true,
-            error: "Password reset is not enabled on the backend yet. The recovery code was verified, but no reset endpoint is available.",
-          };
-        }
-        return {
-          ok: false,
-          error:
-            resetErr?.response?.data?.message ||
-            resetErr?.response?.data?.error ||
-            resetErr?.message ||
-            "Unable to reset password",
-        };
-      }
+      const res = await API.post("/auth/password/reset", {
+        email: cleanEmail,
+        password,
+        resetToken,
+      });
+      return { ok: true, ...res.data };
     } catch (err: any) {
       return {
         ok: false,

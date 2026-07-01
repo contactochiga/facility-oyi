@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader, OisRegistryPanel, OisRuntimeCard } from "@/components/ois";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
@@ -127,16 +127,19 @@ export default function WalletsPage() {
   return (
     <div className="space-y-6">
       <Topbar title="Financial Posture" subtitle="Transactions and payment review" strip={[{ label: "Healthy", value: pending.length || failed.length ? "Review" : "Stable", detail: "Financial posture", tone: pending.length || failed.length ? "warning" : "stable" }, { label: "Payments", value: rows.length, detail: "Visible transactions", tone: "attention" }, { label: "Attention", value: pending.length + failed.length, detail: "Pending or failed", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Runtime sync", tone: "info" }]} />
-      <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search transaction registry..." />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">{notice}</div> : null}
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <OisCard className="p-4">
-          <OisRegistryHeader title="Transaction Registry" caption="Resident wallet activity and estate payment execution." />
-          <div className="mt-4 hidden md:block"><DataTable data={rows} columns={columns} title="Transaction Flow" searchKey="reference" /></div>
-          <div className="mt-4 space-y-2 md:hidden">{rows.map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Wallet transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${row.home_name || row.user_name || "Estate payment"}`} meta={dateLabel(row.created_at)} status={statusTone(row.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => setSelected(row)} className="w-full text-left" />)}{!rows.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No transaction activity is available.</p> : null}</div>
-        </OisCard>
+        <OisRegistryPanel
+          title="Transaction Registry"
+          caption="Resident wallet activity and estate payment execution."
+          toolbar={<OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search transaction registry..." />}
+          className="p-4"
+        >
+          <div className="hidden md:block"><DataTable data={rows} columns={columns} title="Transaction Flow" searchKey="reference" /></div>
+          <div className="space-y-2 md:hidden">{rows.map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Wallet transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${row.home_name || row.user_name || "Estate payment"}`} meta={dateLabel(row.created_at)} status={statusTone(row.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => setSelected(row)} className="w-full text-left" />)}{!rows.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No transaction activity is available.</p> : null}</div>
+        </OisRegistryPanel>
         <aside className="space-y-4">
           <OisCard className="p-4"><OisRegistryHeader title="Financial Attention Queue" caption="Items that need financial review." /><div className="mt-3 space-y-2">{[...failed, ...pending].slice(0, 8).map((row, index) => <OisListItem key={row.id || row.reference || index} title={row.service_title || row.type || "Transaction"} description={`${formatMoney(Number(row.amount || 0), row.currency || wallet.currency)} · ${dateLabel(row.created_at)}`} status={statusTone(row.status)} onClick={() => setSelected(row)} className="w-full text-left" />)}{![...failed, ...pending].length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No failed or pending financial items.</div> : null}</div></OisCard>
           <OisCard className="p-4"><h2 className="text-sm font-semibold text-white">Operational exports</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Export Pending Backend Support. No local export is generated until a backend export contract exists.</p><Button variant="ghost" disabled className="mt-3 gap-2"><Download className="h-4 w-4" />Export pending</Button></OisCard>

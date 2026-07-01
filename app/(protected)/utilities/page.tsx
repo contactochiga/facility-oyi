@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { OisCard, OisListItem, OisPageToolbar, OisRegistryHeader } from "@/components/ois";
+import { OisCard, OisListItem, OisPageToolbar, OisRegistryHeader, OisRegistryPanel } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { utilityService, type UtilitySummary, type UtilityDomain } from "@/services/utilityService";
@@ -100,12 +100,14 @@ export default function UtilitiesPage() {
     <div className="space-y-6">
       <Topbar title="Utility Intelligence" subtitle="Power, water, and network" strip={[{ label: "Domains", value: summary?.domains?.length || 4 }, { label: "Attention", value: utilityEvents.length }, { label: "Health", value: utilityEvents.length ? "Review" : "Stable" }, { label: "Action", value: "Open utility lane" }]} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
-      <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Utility intelligence is sourced from device, maintenance, and alert signals." />
-
       <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <OisCard className="p-5">
-          <OisRegistryHeader title="Utility Registry" caption={loading ? "Loading records" : `${(summary?.domains || []).length || 4} records`} />
-          <div className="mt-4 space-y-2">
+        <OisRegistryPanel
+          title="Utility Registry"
+          caption={loading ? "Loading records" : `${(summary?.domains || []).length || 4} records`}
+          toolbar={<OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Utility intelligence is sourced from device, maintenance, and alert signals." />}
+          className="p-5"
+        >
+          <div className="space-y-2">
             {(summary?.domains || Object.keys(DOMAIN_META).map((key) => ({ key, state: "waiting", devices: 0, online: 0, openTickets: 0, alerts: 0 })) as any).map((domain: any) => {
               const meta = DOMAIN_META[domain.key as UtilityDomain];
               return (
@@ -115,7 +117,7 @@ export default function UtilitiesPage() {
               );
             })}
           </div>
-        </OisCard>
+        </OisRegistryPanel>
         <OisCard className="p-5">
           <h2 className="text-sm font-semibold text-white">Utility Attention</h2>
           <p className="mt-1 text-xs text-zinc-500">Outages, degraded states and restored service events appear only when backed by maintenance or notification sources.</p>

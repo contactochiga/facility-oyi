@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { OisCard, OisListItem, OisPageToolbar, OisRegistryHeader } from "@/components/ois";
+import { OisCard, OisListItem, OisPageToolbar, OisRegistryHeader, OisRegistryPanel } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { deviceService, type FacilityDevice } from "@/services/deviceService";
@@ -43,18 +43,21 @@ export default function EnvironmentPage() {
     <div className="space-y-6">
       <Topbar title="Environmental Awareness" subtitle="Sensors and comfort signals" strip={[{ label: "Status", value: envDevices.length ? "Live" : "Pending" }, { label: "Attention", value: unavailable + openEnvTickets.length }, { label: "Health", value: unavailable || openEnvTickets.length ? "Review" : "Stable" }, { label: "Action", value: "Inspect sensors" }]} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
-      <OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Environmental awareness is sourced from sensor registry and maintenance signals." />
-
       <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
-        <OisCard className="p-5">
-          <OisRegistryHeader title="Environmental Registry" caption={loading ? "Loading records" : `${envDevices.length} records`} action={<Thermometer className="h-4 w-4 text-sky-200" />} />
-          <div className="mt-4 grid gap-2 md:grid-cols-2">
+        <OisRegistryPanel
+          title="Environmental Registry"
+          caption={loading ? "Loading records" : `${envDevices.length} records`}
+          action={<Thermometer className="h-4 w-4 text-sky-200" />}
+          toolbar={<OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Environmental awareness is sourced from sensor registry and maintenance signals." />}
+          className="p-5"
+        >
+          <div className="grid gap-2 md:grid-cols-2">
             {envDevices.map((device) => (
               <OisListItem key={device.id} title={device.name || "Unnamed sensor"} description={`${device.type || device.category || "Unknown type"} · ${device.room || "Estate/shared infrastructure"}`} meta={`${isOnline(device) ? "Online" : "Review required"} · ${dateLabel((device as any).last_seen_at || (device as any).updated_at)}`} status={isOnline(device) ? "stable" : /offline|error|unavailable|down/.test(lower(device.status)) ? "critical" : "pending"} />
             ))}
             {!envDevices.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500 md:col-span-2">No environmental sensors are registered yet. Awaiting telemetry source.</div> : null}
           </div>
-        </OisCard>
+        </OisRegistryPanel>
         <aside className="space-y-4">
           <OisCard className="p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Wrench className="h-4 w-4 text-amber-200" />Environmental Activity</h2>

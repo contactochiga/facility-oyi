@@ -183,10 +183,10 @@ export default function FacilityIntelligenceModule() {
   const [threadId, setThreadId] = useState<string | null>(null);
   const moduleContext = searchParams.get("module") || "facility-intelligence";
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  const scrollerRef = useRef<HTMLElement | null>(null);
   const composerRef = useRef<HTMLFormElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [composerHeight, setComposerHeight] = useState(92);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
   async function copyResponse(content: string) {
     try {
@@ -240,6 +240,10 @@ export default function FacilityIntelligenceModule() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     let frame = 0;
+    const updateViewport = () => {
+      const nextHeight = Math.round(window.visualViewport?.height || window.innerHeight);
+      setViewportHeight((current) => (current !== nextHeight ? nextHeight : current));
+    };
     const measure = () => {
       const next = Math.ceil(composerRef.current?.getBoundingClientRect().height || 92);
       setComposerHeight((current) => (Math.abs(current - next) > 2 ? next : current));
@@ -247,20 +251,36 @@ export default function FacilityIntelligenceModule() {
     const keepLatestVisible = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
+        updateViewport();
         measure();
         bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
       });
     };
+    const lockShellScroll = () => {
+      const previousBodyOverflow = document.body.style.overflow;
+      const previousHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = previousBodyOverflow;
+        document.documentElement.style.overflow = previousHtmlOverflow;
+      };
+    };
+    const restoreScrollLock = lockShellScroll();
+    updateViewport();
     measure();
     const observer = typeof ResizeObserver !== "undefined" && composerRef.current ? new ResizeObserver(measure) : null;
     if (observer && composerRef.current) observer.observe(composerRef.current);
     window.visualViewport?.addEventListener("resize", keepLatestVisible);
     window.visualViewport?.addEventListener("scroll", keepLatestVisible);
+    window.addEventListener("orientationchange", keepLatestVisible);
     return () => {
       window.cancelAnimationFrame(frame);
       observer?.disconnect();
       window.visualViewport?.removeEventListener("resize", keepLatestVisible);
       window.visualViewport?.removeEventListener("scroll", keepLatestVisible);
+      window.removeEventListener("orientationchange", keepLatestVisible);
+      restoreScrollLock();
     };
   }, []);
 
@@ -337,11 +357,13 @@ export default function FacilityIntelligenceModule() {
     void send();
   }
 
-  const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant" && !message.pending) || null;
   const estateLabel = context?.estate?.name || "Estate context unavailable";
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] max-w-5xl flex-col overflow-hidden bg-zinc-950 text-white md:min-h-0 md:px-0 xl:pb-5">
+    <div
+      className="mx-auto flex max-w-5xl flex-col overflow-hidden bg-zinc-950 text-white md:h-full md:min-h-0 md:px-0 xl:pb-5"
+      style={{ height: viewportHeight ? `${viewportHeight}px` : "100dvh" }}
+    >
       <header className="sticky top-0 z-20 border-b border-white/[0.06] bg-zinc-950/94 px-3 pb-3 pt-[calc(10px+env(safe-area-inset-top))] backdrop-blur-xl sm:px-0 md:pt-0">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -359,7 +381,7 @@ export default function FacilityIntelligenceModule() {
       </header>
       {targetError ? <p className="mx-3 mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100 sm:mx-0">{targetError}</p> : null}
 
-      <section ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-0" style={{ paddingBottom: `calc(${composerHeight + 18}px + env(safe-area-inset-bottom))`, scrollPaddingBottom: `calc(${composerHeight + 24}px + env(safe-area-inset-bottom))`, WebkitOverflowScrolling: "touch" }}>
+      <section className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-0" style={{ scrollPaddingBottom: `calc(${composerHeight + 24}px + env(safe-area-inset-bottom))`, WebkitOverflowScrolling: "touch" }}>
         <div className="space-y-4">
           {!messages.length ? <p className="rounded-[22px] border border-white/[0.07] bg-white/[0.03] p-4 text-sm text-zinc-500">Ask Oyi about attention, verification, ownership, or execution history.</p> : null}
           {messages.map((message) => {
@@ -388,7 +410,7 @@ export default function FacilityIntelligenceModule() {
         </div>
       </section>
 
-      <form ref={composerRef} onSubmit={onSubmit} className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-5xl px-3 pb-[calc(10px+env(safe-area-inset-bottom))] md:px-5 xl:sticky xl:bottom-0 xl:px-0 xl:pb-0">
+      <form ref={composerRef} onSubmit={onSubmit} className="z-30 mt-auto shrink-0 px-3 pb-[calc(10px+env(safe-area-inset-bottom))] md:px-0 md:pb-0">
         <div className="rounded-[28px] border border-white/[0.08] bg-zinc-950/90 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => inputRef.current?.focus()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-400/12 text-sky-100">
