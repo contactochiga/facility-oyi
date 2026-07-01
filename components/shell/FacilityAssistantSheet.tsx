@@ -2,56 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { History, Mic, Sparkles, Volume2, VolumeX } from "lucide-react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useContextStore } from "@/store/useContextStore";
 import { useFacilityAssistantStore } from "@/store/useFacilityAssistantStore";
 import { useFacilityConversationStore } from "@/store/useFacilityConversationStore";
 import FacilityConversationComposer from "@/components/assistant/FacilityConversationComposer";
-
-function AccountabilityStrip({ execution }: { execution?: Record<string, any> }) {
-  const results = Array.isArray(execution?.results) ? execution.results : [];
-  const first = results[0] || execution || {};
-  const rows = [
-    ["Origin", first.origin || first.executionSource || first.source],
-    ["Initiator", first.initiatorType || first.actorRole || first.actor],
-    ["Provider", first.provider],
-    ["Approval", first.approvedBy ? `Approved by ${first.approvedBy}` : first.approvalRequired ? "Required" : "Not required"],
-    ["Trust", typeof first.trustScore === "number" ? `${Math.round(first.trustScore * 100)}%` : null],
-  ].filter(([, value]) => value);
-
-  if (!rows.length) return null;
-  return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {rows.slice(0, 5).map(([label, value]) => (
-        <span key={label} className="rounded-full border border-white/[0.08] bg-white/[0.045] px-2.5 py-1 text-[10px] text-zinc-300">
-          <span className="text-zinc-500">{label}</span> {String(value)}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function SuggestedActions({ actions, onSelect }: { actions?: Array<Record<string, any>>; onSelect: (value: string) => void }) {
-  const rows = (actions || []).filter((action) => action?.label);
-  if (!rows.length) return null;
-  return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {rows.slice(0, 4).map((action, index) => (
-        <button
-          key={`${action.label}-${index}`}
-          type="button"
-          onClick={() => onSelect(String(action.prompt || action.label))}
-          className="rounded-full border border-sky-300/14 bg-sky-400/[0.08] px-2.5 py-1.5 text-[10px] text-sky-100"
-        >
-          {action.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+import FacilityConversationFeed from "@/components/assistant/FacilityConversationFeed";
+import { useViewportDockLayout } from "@/hooks/useViewportDockLayout";
 
 export default function FacilityAssistantSheet() {
+  const router = useRouter();
   const { user } = useSessionStore();
   const { context } = useContextStore();
   const { open, focusHint, source, closeAssistant } = useFacilityAssistantStore();
@@ -61,9 +22,14 @@ export default function FacilityAssistantSheet() {
   const [input, setInput] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [voiceReplyEnabled, setVoiceReplyEnabled] = useState(true);
-  const [composerInset, setComposerInset] = useState(0);
+  const composerRef = useRef<HTMLFormElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const spokenRef = useRef<string>("");
+  const { keyboardInset } = useViewportDockLayout({
+    active: open,
+    dockRef: composerRef,
+    onViewportChange: () => bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }),
+  });
 
   const starter = useMemo(() => (
     (user as any)?.estate_id ? `Summarize current operational attention for ${String((user as any)?.estate_name || "this estate")}.` : "Summarize current operational attention."
@@ -89,25 +55,6 @@ export default function FacilityAssistantSheet() {
       userId: (user as any)?.id || null,
     });
   }, [context, hydrate, open, user]);
-
-  useEffect(() => {
-    if (!open || typeof window === "undefined") return;
-    const updateInset = () => {
-      const viewport = window.visualViewport;
-      const heightLoss = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
-      setComposerInset(heightLoss);
-      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }));
-    };
-    updateInset();
-    window.visualViewport?.addEventListener("resize", updateInset);
-    window.visualViewport?.addEventListener("scroll", updateInset);
-    window.addEventListener("orientationchange", updateInset);
-    return () => {
-      window.visualViewport?.removeEventListener("resize", updateInset);
-      window.visualViewport?.removeEventListener("scroll", updateInset);
-      window.removeEventListener("orientationchange", updateInset);
-    };
-  }, [open]);
 
   useEffect(() => {
     if (!open || !voiceReplyEnabled || typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -136,6 +83,17 @@ export default function FacilityAssistantSheet() {
     });
   }
 
+  function handleConversationAction(action: Record<string, any>) {
+    if (action.route) {
+      closeAssistant();
+      router.push(String(action.route));
+      return;
+    }
+    if (action.prompt || action.label) {
+      void send(String(action.prompt || action.label));
+    }
+  }
+
   if (!open) return null;
 
   return (
@@ -143,7 +101,7 @@ export default function FacilityAssistantSheet() {
       <button type="button" aria-label="Close assistant" className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={closeAssistant} />
       <section
         className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-18px-var(--ois-safe-top))] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[28px] border border-white/[0.08] bg-[#070b12]/96 shadow-[0_-18px_60px_rgba(0,0,0,0.55)] animate-in slide-in-from-bottom-6 duration-200"
-        style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${composerInset}px)` }}
+        style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${keyboardInset}px)` }}
       >
         <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -191,22 +149,18 @@ export default function FacilityAssistantSheet() {
             </div>
           ) : null}
 
-          <div className="space-y-3">
-            {messages.map((message) => (
-              <div key={message.id} className={message.role === "user" ? "ml-10" : "mr-6"}>
-                <div className={`rounded-[22px] border px-3.5 py-3 text-sm ${message.role === "user" ? "border-sky-300/12 bg-sky-400/[0.08] text-sky-50" : "border-white/[0.07] bg-white/[0.035] text-zinc-100"}`}>
-                  <p className="leading-6">{message.content}</p>
-                  {message.pending ? <div className="mt-2 h-1.5 w-20 rounded-full bg-sky-400/25"><div className="h-full w-10 animate-pulse rounded-full bg-sky-300/70" /></div> : null}
-                  <AccountabilityStrip execution={message.execution} />
-                  <SuggestedActions actions={message.suggested_actions} onSelect={(value) => void send(value)} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <FacilityConversationFeed
+            messages={messages}
+            emptyMessage=""
+            onAction={handleConversationAction}
+            interactive={false}
+            compact
+          />
           <div ref={bottomRef} />
         </div>
 
         <form
+          ref={composerRef}
           data-facility-assistant-composer
           onSubmit={(event) => {
             event.preventDefault();

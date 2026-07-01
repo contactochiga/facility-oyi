@@ -16,7 +16,7 @@ import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
-import { OisRegistryHeader } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import {
@@ -240,12 +240,20 @@ export default function HardwareDevicesPage() {
 
       {tab === "registry" ? (
         <OisCard className="p-5">
-          <header className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <OisRegistryHeader title="Device Registry" caption={loading ? "Loading records" : `${filtered.length} records`} />
-            </div>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search registry" className="w-full max-w-xs rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40" />
+          <header>
+            <OisRegistryHeader title="Device Registry" caption={loading ? "Loading records" : `${filtered.length} records`} />
           </header>
+          <div className="mt-4">
+            <OisPageToolbar
+              searchValue={query}
+              onSearchChange={setQuery}
+              searchPlaceholder="Search device, provider, location, or registry ID..."
+              filterSlot={<div className="flex min-w-max flex-nowrap gap-2">{TABS.slice(0, 4).map(({ key, label }) => <button key={key} type="button" onClick={() => setTab(key)} className={`rounded-xl border px-3 py-2 text-xs transition ${tab === key ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white"}`}>{label}</button>)}</div>}
+              bulkSlot={<Button variant="ghost" onClick={() => setTab("assignments")} className="gap-2"><SlidersHorizontal className="h-4 w-4" />Ownership</Button>}
+              onRefresh={() => void load()}
+              refreshing={loading}
+            />
+          </div>
           <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[1100px] text-left text-xs">
               <thead className="text-[10px] uppercase tracking-[0.14em] text-zinc-600"><tr><th className="pb-3">Device</th><th>Type</th><th>Provider</th><th>Oyi ID</th><th>External ID</th><th>Location</th><th>Status</th><th>Last seen</th><th /></tr></thead>

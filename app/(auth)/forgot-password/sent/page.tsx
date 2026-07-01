@@ -17,7 +17,7 @@ function ForgotPasswordSentInner() {
       subtitle={mode === "otp" ? `A recovery code was sent to ${email}.` : `A recovery link was sent to ${email}.`}
     >
       <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-sm leading-6 text-zinc-400">
-        Continue to reset your password once you receive the message.
+        Continue after the recovery message arrives. If it doesn’t appear, check spam or retry from the recovery screen.
       </div>
       <Link href={`/reset-password?email=${encodeURIComponent(email)}&mode=${encodeURIComponent(mode)}`} className="block">
         <Button className="w-full">Continue</Button>

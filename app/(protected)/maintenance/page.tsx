@@ -274,7 +274,7 @@ export default function MaintenancePage() {
         caption={loading ? "Loading records" : `${filtered.length} records`}
         toolbar={<OisPageToolbar
           filterSlot={
-            <div className="flex flex-wrap gap-2">
+            <div className="flex min-w-max flex-nowrap gap-2">
               {([
                 ["active", "Active"],
                 ["unassigned", "Unassigned"],

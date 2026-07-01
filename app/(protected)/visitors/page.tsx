@@ -159,7 +159,7 @@ export default function VisitorsPage() {
           searchValue={query}
           onSearchChange={setQuery}
           searchPlaceholder="Search visitor, phone, purpose, or code..."
-          filterSlot={<div className="flex flex-wrap gap-2">{(["all", "pending", "approved", "entered", "exited", "denied"] as Filter[]).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`rounded-xl border px-3 py-2 text-xs uppercase ${filter === item ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{item}</button>)}</div>}
+          filterSlot={<div className="flex min-w-max flex-nowrap gap-2">{(["all", "pending", "approved", "entered", "exited", "denied"] as Filter[]).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`rounded-xl border px-3 py-2 text-xs uppercase ${filter === item ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{item}</button>)}</div>}
           sortSlot={<button type="button" onClick={() => setTodayOnly((v) => !v)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">{todayOnly ? "Today" : "All time"}</button>}
           bulkSlot={<Button variant="ghost" onClick={() => setVerifyOpen(true)} className="gap-2"><KeyRound className="h-4 w-4" />Verify code</Button>}
           onRefresh={() => void load()}

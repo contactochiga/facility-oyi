@@ -8,6 +8,7 @@ import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
+import FacilityConversationComposer from "@/components/assistant/FacilityConversationComposer";
 import messagesService, { type MessageLite, type ModerationReport, type ResidentLite, type ThreadLite } from "@/services/messagesService";
 import { hasPermission } from "@/lib/oyiFoundation";
 import { useSessionStore } from "@/store/useSessionStore";
@@ -190,7 +191,18 @@ export default function FacilityMessagesPage() {
               </div>
             </header>
             <div className="flex-1 space-y-2 overflow-auto py-4">{messages.map((message) => <OisListItem key={message.id} title={message.body} meta={`${message.sender_id || "sender"} · ${dateLabel(message.created_at)}${message.is_hidden ? " · hidden" : ""}`} />)}{!activeThread ? <div className="text-sm text-zinc-500">Pick a thread or start a resident conversation.</div> : !messages.length ? <div className="text-sm text-zinc-500">No messages in this thread.</div> : null}</div>
-            <div className="flex gap-2 border-t border-white/10 pt-3"><input value={compose} onChange={(e) => setCompose(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } }} disabled={!activeThread || !canWrite} placeholder={canWrite ? "Send message..." : "Permission required: community.write"} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none disabled:opacity-50" /><Button onClick={() => void send()} disabled={!activeThread || !compose.trim() || !canWrite} className="gap-2"><Send className="h-4 w-4" />Send</Button></div>
+            <div className="border-t border-white/10 pt-3">
+              <FacilityConversationComposer
+                value={compose}
+                onChange={setCompose}
+                onSubmit={() => void send()}
+                busy={false}
+                disabled={!activeThread || !canWrite}
+                placeholder={canWrite ? "Reply to this conversation..." : "Permission required: community.write"}
+                variant="sheet"
+                voiceEnabled={false}
+              />
+            </div>
           </OisCard>
 
           <OisCard as="aside" className={cn("p-4", showThreadList ? "block" : "hidden xl:block")}><h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Search className="h-4 w-4 text-sky-200" />Start conversation</h2><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search residents" className="mt-3 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none" /><div className="mt-3 max-h-[420px] space-y-2 overflow-auto">{filteredResidents.map((resident) => <OisListItem key={resident.id} title={nameOf(resident)} description={resident.role || "resident"} onClick={() => void startDirect(String(resident.id))} className={cn("w-full text-left", !canWrite ? "pointer-events-none opacity-50" : "")} />)}{!filteredResidents.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident signals available.</div> : null}</div></OisCard>

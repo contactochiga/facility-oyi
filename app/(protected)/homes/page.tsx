@@ -337,7 +337,7 @@ export default function HomesPage() {
         onSearchChange={setSearch}
         searchPlaceholder="Search homes, blocks, residents..."
         filterSlot={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-max flex-nowrap gap-2">
             {[
               ["All Homes", "/homes"],
               ["Buildings", "/homes?view=buildings"],
@@ -396,7 +396,7 @@ export default function HomesPage() {
             onSearchChange={setSearch}
             searchPlaceholder="Search homes, blocks, residents..."
             filterSlot={
-              <div className="flex flex-wrap gap-2">
+              <div className="flex min-w-max flex-nowrap gap-2">
                 {[
                   ["All Homes", "/homes"],
                   ["Buildings", "/homes?view=buildings"],
@@ -486,7 +486,7 @@ export default function HomesPage() {
                                     }}
                                     disabled={rLoading}
                                   >
-                                    {rLoading ? "Loading..." : "Reload Rooms"}
+                                    {rLoading ? "Refreshing rooms" : "Reload Rooms"}
                                   </Button>
 
                                   <a
@@ -577,7 +577,7 @@ export default function HomesPage() {
         width="md"
         footer={selectedMobileHome ? <div className="flex flex-wrap gap-2"><Link href={`/homes/${selectedMobileHome.id}/rooms?estateId=${encodeURIComponent(estateId || "")}`} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100"><Building2 className="h-4 w-4" />Open Rooms</Link><Link href={`/homes/${selectedMobileHome.id}/users?estateId=${encodeURIComponent(estateId || "")}`} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100"><Users className="h-4 w-4" />Open Access</Link><Button variant="ghost" onClick={() => { setMobileHomeId(null); openEdit(selectedMobileHome); }}><Pencil className="mr-2 h-4 w-4" />Edit Home</Button></div> : null}
       >
-        {selectedMobileHome ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-white">{selectedMobileHome.description || "No home description recorded."}</p><p className="mt-2 text-xs text-zinc-500">Pending invites {selectedMobileHome.pending_invite_count || 0} · Devices {selectedMobileHome.device_count ?? "Pending source"}</p></div><OisStatusBadge status={occupancyStatus(selectedMobileHome.occupancy_status)} label={String(selectedMobileHome.occupancy_status || "pending source").replace(/_/g, " ")} /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Field label="Members" value={selectedMobileHome.member_count ?? "Pending source"} /><Field label="Rooms" value={selectedMobileHome.room_count ?? "Pending source"} /><Field label="Electricity Meter" value={selectedMobileHome.electricity_meter} /><Field label="Water Meter" value={selectedMobileHome.water_meter} /><Field label="Internet ID" value={selectedMobileHome.internet_id} /><Field label="Gate Code" value={selectedMobileHome.gate_code} /></div><OisCard variant="evidence" className="p-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-white">Rooms</h3><Button variant="ghost" onClick={() => void loadRooms(selectedMobileHome.id)} disabled={roomsLoading[selectedMobileHome.id]}>{roomsLoading[selectedMobileHome.id] ? "Loading..." : "Reload"}</Button></div><div className="mt-3 space-y-2">{roomsLoading[selectedMobileHome.id] ? <p className="text-sm text-zinc-400">Loading rooms…</p> : (roomsByHome[selectedMobileHome.id] || []).length ? (roomsByHome[selectedMobileHome.id] || []).map((room) => <OisListItem key={room.id} title={room.name} description={`${room.type || "—"}${room.floor !== null && room.floor !== undefined ? ` • Floor ${room.floor}` : ""}`} meta={`${room.id.slice(0, 8)}…`} />) : <p className="text-sm text-zinc-400">No rooms yet.</p>}</div></OisCard></div> : null}
+        {selectedMobileHome ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-white">{selectedMobileHome.description || "No home description recorded."}</p><p className="mt-2 text-xs text-zinc-500">Pending invites {selectedMobileHome.pending_invite_count || 0} · Devices {selectedMobileHome.device_count ?? "Pending source"}</p></div><OisStatusBadge status={occupancyStatus(selectedMobileHome.occupancy_status)} label={String(selectedMobileHome.occupancy_status || "pending source").replace(/_/g, " ")} /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Field label="Members" value={selectedMobileHome.member_count ?? "Pending source"} /><Field label="Rooms" value={selectedMobileHome.room_count ?? "Pending source"} /><Field label="Electricity Meter" value={selectedMobileHome.electricity_meter} /><Field label="Water Meter" value={selectedMobileHome.water_meter} /><Field label="Internet ID" value={selectedMobileHome.internet_id} /><Field label="Gate Code" value={selectedMobileHome.gate_code} /></div><OisCard variant="evidence" className="p-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-white">Rooms</h3><Button variant="ghost" onClick={() => void loadRooms(selectedMobileHome.id)} disabled={roomsLoading[selectedMobileHome.id]}>{roomsLoading[selectedMobileHome.id] ? "Refreshing rooms" : "Reload"}</Button></div><div className="mt-3 space-y-2">{roomsLoading[selectedMobileHome.id] ? <p className="text-sm text-zinc-400">Refreshing rooms…</p> : (roomsByHome[selectedMobileHome.id] || []).length ? (roomsByHome[selectedMobileHome.id] || []).map((room) => <OisListItem key={room.id} title={room.name} description={`${room.type || "—"}${room.floor !== null && room.floor !== undefined ? ` • Floor ${room.floor}` : ""}`} meta={`${room.id.slice(0, 8)}…`} />) : <p className="text-sm text-zinc-400">No rooms yet.</p>}</div></OisCard></div> : null}
       </OisDrawer>
 
       {/* ADD HOME MODAL */}

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { authService } from "@/services/authService";
-import { AuthShell } from "@/components/auth/AuthShell";
+import { AuthLink, AuthShell } from "@/components/auth/AuthShell";
 
 function ForgotPasswordInner() {
   const router = useRouter();
@@ -34,6 +34,9 @@ function ForgotPasswordInner() {
       <Button className="w-full" onClick={() => void submit()} disabled={loading || !email.trim()}>
         {loading ? "Sending..." : "Send recovery email"}
       </Button>
+      <AuthLink href="/login" align="center">
+        Back to sign in
+      </AuthLink>
     </AuthShell>
   );
 }

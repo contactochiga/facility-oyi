@@ -14,17 +14,21 @@ export default function FacilityConversationComposer({
   onChange,
   onSubmit,
   busy,
+  disabled = false,
   placeholder,
   variant = "page",
   onClose,
+  voiceEnabled = true,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
   busy?: boolean;
+  disabled?: boolean;
   placeholder: string;
   variant?: "page" | "sheet" | "footer";
   onClose?: () => void;
+  voiceEnabled?: boolean;
 }) {
   const voice = useSpeechComposer((text) => onChange(text));
   const compact = variant === "footer";
@@ -60,23 +64,27 @@ export default function FacilityConversationComposer({
               onChange={(event) => onChange(event.target.value)}
               rows={1}
               placeholder={placeholder}
+              disabled={disabled}
               className={`max-h-28 min-h-[24px] min-w-0 flex-1 resize-none bg-transparent text-sm text-white outline-none placeholder:text-zinc-500 ${compact ? "leading-5" : "leading-6"}`}
             />
-            <button
-              type="button"
-              onClick={() => { voice.clearError(); voice.start(); }}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.045] text-white/78"
-              aria-label="Start voice input"
-            >
-              <Mic className="h-4 w-4" />
-            </button>
+            {voiceEnabled ? (
+              <button
+                type="button"
+                onClick={() => { voice.clearError(); voice.start(); }}
+                disabled={disabled}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.045] text-white/78"
+                aria-label="Start voice input"
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+            ) : null}
           </div>
           {onClose ? (
             <button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.03] text-zinc-400" aria-label="Close chat composer">
               <X className="h-4 w-4" />
             </button>
           ) : null}
-          <button type="button" disabled={busy || !value.trim()} onClick={onSubmit} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sky-300 text-slate-950 disabled:opacity-40" aria-label="Send chat message">
+          <button type="button" disabled={disabled || busy || !value.trim()} onClick={onSubmit} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sky-300 text-slate-950 disabled:opacity-40" aria-label="Send chat message">
             <SendHorizontal className="h-4 w-4" />
           </button>
         </div>

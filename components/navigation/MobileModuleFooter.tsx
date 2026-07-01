@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import { Brain, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { facilityMobileModules, type MobileModuleItem } from "./mobileNavConfig";
 import { useSessionStore } from "@/store/useSessionStore";
 import { FACILITY_MODULES, visibleModules } from "@/lib/moduleRegistry";
@@ -66,8 +66,8 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
       route: pathname,
       focusHint: value,
     });
-    setQuickChatValue("");
     setQuickChatOpen(false);
+    router.push("/facility-intelligence?focus=1");
   }
 
   function onTouchStart(event: TouchEvent<HTMLDivElement>) {
@@ -143,9 +143,9 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
             ))}
           </div>
 
-          <div className="flex min-w-0 items-center justify-end gap-2">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
             {quickChatOpen ? (
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 w-[58%] max-w-[240px] flex-1">
                 <FacilityConversationComposer
                   value={quickChatValue}
                   onChange={setQuickChatValue}
@@ -170,14 +170,6 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
                 <span>Ask Oyi</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => router.push("/facility-intelligence")}
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-sky-300/16 bg-sky-400/[0.08] text-sky-100"
-              aria-label="Open Operational Intelligence"
-            >
-              <Brain className="h-3.5 w-3.5" />
-            </button>
           </div>
         </div>
       </div>

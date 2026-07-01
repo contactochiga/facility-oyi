@@ -4,8 +4,9 @@
 @tailwind components;
 @tailwind utilities;
 
+:root { color-scheme: dark; }
 html, body { height: 100%; width: 100%; overflow-x: hidden; }
-body { position: relative; overscroll-behavior-y: none; }
+body { position: relative; min-height: 100dvh; overscroll-behavior-y: none; }
 * { -webkit-tap-highlight-color: transparent; }
 input, textarea, select { max-width: 100%; }
 

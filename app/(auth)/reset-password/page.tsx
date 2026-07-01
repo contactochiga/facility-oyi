@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { authService } from "@/services/authService";
-import { AuthShell } from "@/components/auth/AuthShell";
+import { AuthLink, AuthShell } from "@/components/auth/AuthShell";
 import OtpInput from "@/components/auth/OtpInput";
 
 function ResetPasswordInner() {
@@ -47,6 +47,9 @@ function ResetPasswordInner() {
       <Button className="w-full" onClick={() => void submit()} disabled={loading || code.replace(/\D/g, "").length !== 6 || !password || !confirmPassword}>
         {loading ? "Resetting..." : "Reset password"}
       </Button>
+      <AuthLink href={`/forgot-password?email=${encodeURIComponent(email)}`} align="center">
+        Back to recovery
+      </AuthLink>
     </AuthShell>
   );
 }

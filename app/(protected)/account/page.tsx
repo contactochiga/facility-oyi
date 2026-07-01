@@ -11,6 +11,7 @@ import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
 import { notificationService } from "@/services/notificationService";
 import { cleanupFacilityPushRegistration } from "@/services/pushRegistrationService";
+import { useContextStore } from "@/store/useContextStore";
 import { useSessionStore } from "@/store/useSessionStore";
 
 type Decoded = {
@@ -95,6 +96,7 @@ function Toggle({ title, detail, value, onChange, disabled }: { title: string; d
 function AccountInner() {
   const router = useRouter();
   const { clear } = useSessionStore();
+  const { context } = useContextStore();
   const token = useMemo(() => (typeof window === "undefined" ? null : getCookie("oyi_facility_token") || localStorage.getItem("oyi_facility_token")), []);
   const decoded = useMemo(() => {
     if (!token) return null;
@@ -118,6 +120,7 @@ function AccountInner() {
     visitorAlerts: true,
     communityAlerts: true,
   });
+  const activeEstateName = context?.estate?.name || estate?.name || (context ? "Estate context unavailable" : "Loading estate context...");
 
   async function loadEstate() {
     setLoadingEstate(true);
@@ -173,7 +176,7 @@ function AccountInner() {
   return (
     <div className="space-y-6">
       <Topbar title="Operator Account" subtitle="Account, preferences and access" />
-      <OisOperationalStrip items={[{ label: "Role", value: role, tone: "stable" }, { label: "Estate", value: loadingEstate ? "Loading" : estate?.name || "Unavailable", tone: estate?.name ? "attention" : "warning" }, { label: "Notifications", value: settings.notificationsEnabled ? "On" : "Off", tone: settings.notificationsEnabled ? "stable" : "warning" }, { label: "Session", value: token ? "Active" : "Missing", tone: token ? "stable" : "critical" }]} />
+      <OisOperationalStrip items={[{ label: "Role", value: role, tone: "stable" }, { label: "Estate", value: loadingEstate && !context?.estate?.name ? "Loading" : activeEstateName, tone: context?.estate?.name || estate?.name ? "attention" : "warning" }, { label: "Notifications", value: settings.notificationsEnabled ? "On" : "Off", tone: settings.notificationsEnabled ? "stable" : "warning" }, { label: "Session", value: token ? "Active" : "Missing", tone: token ? "stable" : "critical" }]} />
       {message ? <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-300">{message}</div> : null}
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -181,7 +184,7 @@ function AccountInner() {
           <Field label="Name" value={displayName} />
           <Field label="Email" value={decoded?.email || "Unavailable"} />
           <Field label="User ID" value={decoded?.id || "Unavailable"} />
-          <Field label="Estate" value={estate?.name || "Estate context unavailable"} />
+          <Field label="Estate" value={activeEstateName} />
         </Section>
 
         <Section title="Preferences" subtitle="Local operator behavior and delivery settings.">
@@ -204,7 +207,7 @@ function AccountInner() {
         <Section title="Security" subtitle="Session and operator security posture.">
           <Field label="Session token" value={token ? "Present" : "Unavailable"} />
           <Field label="Authentication" value="JWT protected operator session" />
-          <Field label="Estate context" value={estate?.name || "Unavailable"} />
+          <Field label="Estate context" value={activeEstateName} />
           <Field label="Recovery" value="Password recovery depends on backend availability." />
         </Section>
 

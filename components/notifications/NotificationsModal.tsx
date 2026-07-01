@@ -66,6 +66,7 @@ export default function NotificationsModal({
   async function openNotification(item: AlertItem) {
     const routing = item.routing;
     if (!routing?.target || routing.destination === "none") {
+      await markRead(item.id);
       setInfo("The original activity is no longer available.");
       return;
     }
@@ -104,6 +105,7 @@ export default function NotificationsModal({
     };
     const href = pageByTarget[target.target_type];
     if (!href) {
+      await markRead(item.id);
       setInfo("This notification can’t be opened because the related item is unavailable.");
       return;
     }
