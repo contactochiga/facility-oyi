@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
 import type { OisContext } from "@/store/useContextStore";
 
@@ -78,7 +79,7 @@ function messageFromThread(row: OyiThreadMessage): FacilityChatMessage {
   };
 }
 
-export const useFacilityConversationStore = create<ConversationState>((set, get) => ({
+export const useFacilityConversationStore = create<ConversationState>()(persist((set, get) => ({
   messages: [],
   threads: [],
   threadId: null,
@@ -88,7 +89,12 @@ export const useFacilityConversationStore = create<ConversationState>((set, get)
   error: null,
   async hydrate(args) {
     const key = `${args.userId || "anon"}:${args.context?.estate_id || args.estateId || "none"}:${args.context?.home_id || args.homeId || "none"}`;
-    if (!args.force && get().hydratedFor === key && (get().messages.length || get().loading)) return;
+    const state = get();
+    if (!args.force && state.hydratedFor === key && (state.messages.length || state.loading)) return;
+    if (!args.force && state.messages.some((message) => message.pending)) {
+      set({ hydratedFor: key });
+      return;
+    }
     set({ loading: true, error: null });
     try {
       const result = await oyiService.listThreads({
@@ -99,30 +105,38 @@ export const useFacilityConversationStore = create<ConversationState>((set, get)
       });
       const threads = result.threads || [];
       if (!threads.length) {
+        set((current) => ({
+          threads: current.threads,
+          threadId: current.threadId,
+          messages: current.messages.length ? current.messages : [initialAssistantMessage()],
+          hydratedFor: key,
+          loading: false,
+        }));
+        return;
+      }
+      const preferredThread = threads.find((row) => row.id === get().threadId) || threads[0];
+      if (!args.force && get().threadId === preferredThread.id && get().messages.length) {
         set({
-          threads: [],
-          threadId: null,
-          messages: [initialAssistantMessage()],
+          threads: threads.map((row) => ({ id: row.id, title: row.title, updated_at: row.updated_at })),
           hydratedFor: key,
           loading: false,
         });
         return;
       }
-      const latest = threads[0];
-      const thread = await oyiService.getThreadMessages(latest.id);
+      const thread = await oyiService.getThreadMessages(preferredThread.id);
       set({
         threads: threads.map((row) => ({ id: row.id, title: row.title, updated_at: row.updated_at })),
-        threadId: latest.id,
-        messages: (thread.messages || []).map(messageFromThread),
+        threadId: preferredThread.id,
+        messages: (thread.messages || []).length ? (thread.messages || []).map(messageFromThread) : (get().messages.length ? get().messages : [initialAssistantMessage()]),
         hydratedFor: key,
         loading: false,
       });
     } catch {
-      set({
-        messages: [initialAssistantMessage()],
+      set((current) => ({
+        messages: current.messages.length ? current.messages : [initialAssistantMessage()],
         hydratedFor: key,
         loading: false,
-      });
+      }));
     }
   },
   async restoreThread(nextThreadId) {
@@ -141,9 +155,11 @@ export const useFacilityConversationStore = create<ConversationState>((set, get)
     const message = String(args.message || "").trim();
     if (!message || get().busy) return null;
     const pendingId = id();
+    const key = `active:${args.context?.estate_id || args.estateId || "none"}:${args.context?.home_id || args.homeId || "none"}`;
     set((state) => ({
       busy: true,
       error: null,
+      hydratedFor: state.hydratedFor || key,
       messages: [
         ...state.messages,
         { id: id(), role: "user", content: message },
@@ -223,4 +239,13 @@ export const useFacilityConversationStore = create<ConversationState>((set, get)
   clearError() {
     set({ error: null });
   },
+}), {
+  name: "facility-oyi-conversation",
+  storage: createJSONStorage(() => sessionStorage),
+  partialize: (state) => ({
+    messages: state.messages,
+    threads: state.threads,
+    threadId: state.threadId,
+    hydratedFor: state.hydratedFor,
+  }),
 }));

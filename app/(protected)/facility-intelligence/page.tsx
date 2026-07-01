@@ -78,14 +78,6 @@ export default function FacilityIntelligenceModule() {
     return () => cancelAnimationFrame(frame);
   }, [messages, dockHeight]);
 
-  useEffect(() => {
-    if (searchParams.get("focus") !== "1") return;
-    window.setTimeout(() => {
-      const input = composerRef.current?.querySelector("textarea");
-      (input as HTMLTextAreaElement | null)?.focus({ preventScroll: true });
-    }, 80);
-  }, [searchParams]);
-
   function startNewChat() {
     resetConversation();
     setInput("");

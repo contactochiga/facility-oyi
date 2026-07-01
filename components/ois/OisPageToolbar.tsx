@@ -23,14 +23,14 @@ export default function OisPageToolbar({
   return (
     <section className="rounded-[var(--ois-radius-card)] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] p-2.5">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-        <label className="flex h-11 flex-1 items-center gap-2 rounded-[12px] border border-[var(--ois-border-default)] bg-[rgba(255,255,255,0.02)] px-3 text-sm text-[var(--ois-text-secondary)] transition focus-within:border-sky-400/35 focus-within:bg-white/[0.035]">
+        <label className="flex h-11 flex-1 items-center gap-2 rounded-[12px] border border-[var(--ois-border-default)] bg-[rgba(255,255,255,0.02)] px-3 text-base text-[var(--ois-text-secondary)] transition focus-within:border-sky-400/35 focus-within:bg-white/[0.035] md:text-sm">
           <Search className="h-4 w-4 text-[var(--ois-text-muted)]" />
           <input
             value={searchValue}
             onChange={(event) => onSearchChange?.(event.target.value)}
             placeholder={searchPlaceholder}
             disabled={!onSearchChange}
-            className="w-full bg-transparent text-sm text-[var(--ois-text-primary)] outline-none placeholder:text-[var(--ois-text-muted)] disabled:cursor-not-allowed"
+            className="w-full bg-transparent text-base text-[var(--ois-text-primary)] outline-none placeholder:text-[var(--ois-text-muted)] md:text-sm disabled:cursor-not-allowed"
           />
         </label>
 

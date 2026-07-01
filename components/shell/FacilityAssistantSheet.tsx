@@ -43,7 +43,7 @@ export default function FacilityAssistantSheet() {
     setInput(focusHint || "");
     window.setTimeout(() => {
       const input = document.querySelector("[data-facility-assistant-composer] textarea");
-      (input as HTMLTextAreaElement | null)?.focus();
+      (input as HTMLTextAreaElement | null)?.focus({ preventScroll: true });
     }, 40);
   }, [focusHint, open]);
 
@@ -176,6 +176,7 @@ export default function FacilityAssistantSheet() {
             busy={busy}
             placeholder="Ask Oyi about attention, ownership, verification, or execution history"
             variant="sheet"
+            autoFocus={open}
           />
         </form>
       </section>

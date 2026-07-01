@@ -36,7 +36,7 @@ export default function OtpInput({
           onChange={(event) => {
             const next = event.target.value.replace(/\D/g, "").slice(0, 1);
             setAt(index, next);
-            if (next && index < 5) refs.current[index + 1]?.focus();
+            if (next && index < 5) refs.current[index + 1]?.focus({ preventScroll: true });
           }}
           onKeyDown={(event) => {
             if (event.key === "Backspace") {
@@ -45,19 +45,19 @@ export default function OtpInput({
                 return;
               }
               if (index > 0) {
-                refs.current[index - 1]?.focus();
+                refs.current[index - 1]?.focus({ preventScroll: true });
                 setAt(index - 1, "");
               }
             }
-            if (event.key === "ArrowLeft" && index > 0) refs.current[index - 1]?.focus();
-            if (event.key === "ArrowRight" && index < 5) refs.current[index + 1]?.focus();
+            if (event.key === "ArrowLeft" && index > 0) refs.current[index - 1]?.focus({ preventScroll: true });
+            if (event.key === "ArrowRight" && index < 5) refs.current[index + 1]?.focus({ preventScroll: true });
           }}
           onPaste={(event) => {
             const text = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
             if (!text) return;
             event.preventDefault();
             onChange(text);
-            refs.current[Math.min(text.length - 1, 5)]?.focus();
+            refs.current[Math.min(text.length - 1, 5)]?.focus({ preventScroll: true });
           }}
         />
       ))}
