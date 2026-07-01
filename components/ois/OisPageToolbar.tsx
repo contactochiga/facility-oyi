@@ -34,21 +34,23 @@ export default function OisPageToolbar({
           />
         </label>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          {filterSlot || <Button variant="ghost" className="h-11 gap-2 rounded-[12px] px-3"><SlidersHorizontal className="h-4 w-4" />Filters</Button>}
-          {sortSlot || <Button variant="ghost" className="h-11 rounded-[12px] px-3">Sort</Button>}
-          {bulkSlot || <Button variant="ghost" className="h-11 rounded-[12px] px-3">Bulk Action</Button>}
-          {onRefresh ? (
-            <Button
-              variant="ghost"
-              onClick={onRefresh}
-              disabled={refreshing}
-              className="h-11 w-11 rounded-[12px] px-0"
-              aria-label="Refresh registry"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            </Button>
-          ) : null}
+        <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex min-w-max flex-nowrap items-center gap-1.5 sm:flex-wrap">
+            {filterSlot || <Button variant="ghost" className="h-11 gap-2 rounded-[12px] px-3"><SlidersHorizontal className="h-4 w-4" />Filters</Button>}
+            {sortSlot || <Button variant="ghost" className="h-11 rounded-[12px] px-3">Sort</Button>}
+            {bulkSlot || <Button variant="ghost" className="h-11 rounded-[12px] px-3">Bulk Action</Button>}
+            {onRefresh ? (
+              <Button
+                variant="ghost"
+                onClick={onRefresh}
+                disabled={refreshing}
+                className="h-11 w-11 rounded-[12px] px-0"
+                aria-label="Refresh registry"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     </section>

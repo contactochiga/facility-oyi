@@ -1,54 +1,21 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowUp, Bot, ChevronRight, Copy, History, Mic, Plus, ThumbsUp, Volume2, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, History, Plus, ThumbsUp, Volume2, X } from "lucide-react";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useContextStore } from "@/store/useContextStore";
-import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
 import { openWorkflowDrawer } from "@/components/modules/WorkflowDetailDrawer";
 import { openPredictionDrawer } from "@/components/modules/PredictionDetailDrawer";
 import { openInfrastructureDrawer } from "@/components/modules/InfrastructureDetailDrawer";
 import type { InfrastructureSource } from "@/services/infrastructurePostureService";
 import { resolveFacilityOyiTarget, type OyiTarget } from "@/services/oyiTargetRegistry";
-
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  pending?: boolean;
-  cards?: Array<Record<string, any>>;
-  sources?: Array<Record<string, any>>;
-  suggested_actions?: Array<Record<string, any>>;
-  intent?: string;
-  understood?: string;
-  execution?: Record<string, any>;
-  display_mode?: "conversation" | "list" | "detail" | "audit" | "report" | "awareness";
-};
+import FacilityConversationComposer from "@/components/assistant/FacilityConversationComposer";
+import { useFacilityConversationStore } from "@/store/useFacilityConversationStore";
 
 const SUPPORT_DISPLAY_MODES = new Set(["list", "detail", "audit", "report", "awareness"]);
 function shouldRenderSupport(displayMode?: string) {
   return SUPPORT_DISPLAY_MODES.has(String(displayMode || "conversation"));
-}
-
-function id() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function messageFromThread(row: OyiThreadMessage): ChatMessage {
-  const metadata = row.metadata || {};
-  return {
-    id: row.id,
-    role: row.role === "user" ? "user" : "assistant",
-    content: row.content || "",
-    cards: row.cards || [],
-    sources: row.sources || [],
-    suggested_actions: row.suggested_actions || [],
-    intent: typeof metadata.intent === "string" ? metadata.intent : undefined,
-    understood: typeof metadata.understood === "string" ? metadata.understood : undefined,
-    execution: metadata.execution && typeof metadata.execution === "object" ? metadata.execution as Record<string, any> : undefined,
-    display_mode: typeof metadata.display_mode === "string" ? metadata.display_mode as ChatMessage["display_mode"] : "conversation",
-  };
 }
 
 function infrastructureSource(card: Record<string, any>, item: Record<string, any>): InfrastructureSource | null {
@@ -137,29 +104,12 @@ function SuggestedActions({ actions, onTarget }: { actions?: Array<Record<string
   );
 }
 
-function awarenessCards(response: OyiChatResponse) {
-  if (!["list", "detail", "audit", "report", "awareness"].includes(String(response.display_mode || "conversation"))) return [];
-  const cards = Array.isArray(response.cards) ? response.cards : [];
-  const awareness = response.awareness;
-  if (!awareness?.headline) return cards;
-  const primaryCard = {
-    type: awareness.severity === "normal" ? "normal" : "attention",
-    title: awareness.headline,
-    summary: awareness.summary || awareness.body || awareness.recommended_action || "Oyi ranked this as the current operational state.",
-    items: awareness.recommended_action
-      ? [{ title: "Recommended action", status: awareness.recommended_action }]
-      : [],
-    score: awareness.awareness_score ?? awareness.score,
-  };
-  const remaining = cards.filter((card) => String(card?.title || "") !== awareness.headline);
-  return [primaryCard, ...remaining];
-}
-
 export default function FacilityIntelligenceModule() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useSessionStore();
   const { context } = useContextStore();
+  const { messages, threads, busy, hydrate, restoreThread, sendMessage, resetConversation } = useFacilityConversationStore();
   const [targetError, setTargetError] = useState<string | null>(null);
 
   function openTarget(target: OyiTarget | null | undefined) {
@@ -167,22 +117,15 @@ export default function FacilityIntelligenceModule() {
     if (!result.handled && result.error) setTargetError(result.error);
     return result.handled;
   }
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
   const [helpfulResponses, setHelpfulResponses] = useState<Record<string, boolean>>({});
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [threads, setThreads] = useState<Array<{ id: string; title?: string | null; updated_at?: string }>>([]);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return;
-    messages.filter((message) => message.role === "assistant" && !message.pending).forEach((message) => {
-      const support = shouldRenderSupport(message.display_mode);
-    });
+    messages.filter((message) => message.role === "assistant" && !message.pending).forEach(() => undefined);
   }, [messages]);
-  const [threadId, setThreadId] = useState<string | null>(null);
   const moduleContext = searchParams.get("module") || "facility-intelligence";
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const composerRef = useRef<HTMLFormElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [composerHeight, setComposerHeight] = useState(92);
@@ -207,30 +150,13 @@ export default function FacilityIntelligenceModule() {
   }
 
   useEffect(() => {
-    let cancelled = false;
-    async function hydrateLatestThread() {
-      if (!(user as any)?.id) return;
-      try {
-        const result = await oyiService.listThreads({ context, estate_id: context?.estate_id || (user as any)?.estate_id || null, limit: 24 });
-        if (cancelled) return;
-        const availableThreads = result.threads || [];
-        setThreads(availableThreads);
-        const thread = availableThreads[0];
-        if (!thread?.id || cancelled) return;
-        const res = await oyiService.getThreadMessages(thread.id);
-        if (cancelled) return;
-        const nextMessages = (res.messages || []).map(messageFromThread);
-        if (nextMessages.length) {
-          setThreadId(thread.id);
-          setMessages(nextMessages);
-        }
-      } catch {
-        // Keep the local starter prompt if backend history is unavailable.
-      }
-    }
-    void hydrateLatestThread();
-    return () => { cancelled = true; };
-  }, [(user as any)?.id, context]);
+    void hydrate({
+      context,
+      estateId: context?.estate_id || (user as any)?.estate_id || null,
+      homeId: context?.home_id || null,
+      userId: (user as any)?.id || null,
+    });
+  }, [context, hydrate, user]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }));
@@ -285,76 +211,38 @@ export default function FacilityIntelligenceModule() {
   }, []);
 
   useEffect(() => {
-    if (searchParams.get("focus") === "1") window.setTimeout(() => inputRef.current?.focus(), 80);
+    if (searchParams.get("focus") !== "1") return;
+    window.setTimeout(() => {
+      const input = composerRef.current?.querySelector("textarea");
+      (input as HTMLTextAreaElement | null)?.focus();
+    }, 80);
   }, [searchParams]);
 
-  async function restoreThread(nextThreadId: string) {
-    try {
-      const result = await oyiService.getThreadMessages(nextThreadId);
-      const restored = (result.messages || []).map(messageFromThread);
-      setThreadId(nextThreadId);
-      setMessages(restored);
-      setHistoryOpen(false);
-    } catch {
-      // Keep the active conversation when a historic thread cannot be loaded.
-    }
-  }
-
   function startNewChat() {
-    setThreadId(null);
-    setMessages([]);
+    resetConversation();
     setInput("");
     setHistoryOpen(false);
-    window.setTimeout(() => inputRef.current?.focus(), 0);
+    window.setTimeout(() => {
+      const input = composerRef.current?.querySelector("textarea");
+      (input as HTMLTextAreaElement | null)?.focus();
+    }, 0);
   }
 
   async function send(text?: string) {
     const message = (text || input).trim();
     if (!message || busy) return;
-    const pendingId = id();
-    const base: ChatMessage[] = [
-      ...messages,
-      { id: id(), role: "user", content: message },
-      { id: pendingId, role: "assistant", content: "Checking facility context…", pending: true },
-    ];
-    setMessages(base);
     setInput("");
-    setBusy(true);
-    try {
-      const response: OyiChatResponse = await oyiService.chat({
-        message,
-        estate_id: context?.estate_id || (user as any)?.estate_id || null,
-        module: moduleContext,
-        role: (user as any)?.role || null,
-        thread_id: threadId,
-        context,
-      });
-      if (response.thread_id) setThreadId(response.thread_id);
-      if (response.thread_id) {
-        setThreads((current) => [{ id: response.thread_id!, title: message.slice(0, 96), updated_at: new Date().toISOString() }, ...current.filter((thread) => thread.id !== response.thread_id)].slice(0, 24));
-      }
-      setMessages(base.map((item) => item.id === pendingId ? {
-        ...item,
-        pending: false,
-        content: response.message || "Oyi did not return a response.",
-        cards: awarenessCards(response),
-        sources: response.sources || [],
-        suggested_actions: response.suggested_actions || [],
-        intent: response.intent,
-        understood: response.understood,
-        execution: response.execution,
-        display_mode: response.display_mode || "conversation",
-      } : item));
-    } catch (error: any) {
-      setMessages(base.map((item) => item.id === pendingId ? { ...item, pending: false, content: error?.response?.data?.error || "Oyi Facility is unavailable right now." } : item));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    void send();
+    await sendMessage({
+      message,
+      context,
+      estateId: context?.estate_id || (user as any)?.estate_id || null,
+      homeId: context?.home_id || null,
+      role: (user as any)?.role || null,
+      module: moduleContext,
+      page: "/facility-intelligence",
+      route: "/facility-intelligence",
+      filters: Object.fromEntries(Array.from(searchParams.entries()).slice(0, 12)),
+    });
   }
 
   const estateLabel = context?.estate?.name || "Estate context unavailable";
@@ -410,34 +298,15 @@ export default function FacilityIntelligenceModule() {
         </div>
       </section>
 
-      <form ref={composerRef} onSubmit={onSubmit} className="z-30 mt-auto shrink-0 px-3 pb-[calc(10px+env(safe-area-inset-bottom))] md:px-0 md:pb-0">
-        <div className="rounded-[28px] border border-white/[0.08] bg-zinc-950/90 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => inputRef.current?.focus()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-400/12 text-sky-100">
-            <Bot className="h-5 w-5" />
-          </button>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void send();
-              }
-            }}
-            rows={1}
-            placeholder="Ask Operational Intelligence..."
-            className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1 py-2.5 text-sm leading-5 text-white outline-none placeholder:text-zinc-500"
-          />
-          <button type="button" onClick={() => inputRef.current?.focus()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-300">
-            <Mic className="h-4 w-4" />
-          </button>
-          <button type="submit" disabled={busy || !input.trim()} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-zinc-950 transition active:scale-95 disabled:opacity-40">
-            <ArrowUp className="h-4 w-4" />
-          </button>
-        </div>
-        </div>
+      <form ref={composerRef} onSubmit={(event) => { event.preventDefault(); void send(); }} className="z-30 mt-auto shrink-0 px-3 pb-[calc(10px+env(safe-area-inset-bottom))] md:px-0 md:pb-0">
+        <FacilityConversationComposer
+          value={input}
+          onChange={setInput}
+          onSubmit={() => void send()}
+          busy={busy}
+          placeholder="Ask Oyi about attention, verification, ownership, or execution history"
+          variant="page"
+        />
       </form>
       {historyOpen ? (
         <div className="fixed inset-0 z-40 flex items-end bg-black/60 p-3 backdrop-blur-sm xl:items-center xl:justify-center">

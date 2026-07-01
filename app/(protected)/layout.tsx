@@ -16,6 +16,7 @@ import { InfrastructureDetailDrawerHost } from "@/components/modules/Infrastruct
 import { useContextStore } from "@/store/useContextStore";
 import FacilityAssistantSheet from "@/components/shell/FacilityAssistantSheet";
 import ShellTopbar from "@/components/shell/ShellTopbar";
+import { cleanupFacilityPushRegistration, ensureFacilityPushRegistration } from "@/services/pushRegistrationService";
 
 export default function ProtectedLayout({
   children,
@@ -43,9 +44,11 @@ export default function ProtectedLayout({
   useEffect(() => {
     if (!hydrated || !token || !user || isExpired(user)) {
       clearContext();
+      void cleanupFacilityPushRegistration();
       return;
     }
     void refreshContext();
+    void ensureFacilityPushRegistration();
   }, [clearContext, hydrated, refreshContext, token, user]);
 
   useEffect(() => {

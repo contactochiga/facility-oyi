@@ -3,36 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { History, Mic, Sparkles, Volume2, VolumeX } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { oyiService, type OyiThreadMessage } from "@/services/oyiService";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useContextStore } from "@/store/useContextStore";
 import { useFacilityAssistantStore } from "@/store/useFacilityAssistantStore";
-
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  pending?: boolean;
-  execution?: Record<string, any>;
-  cards?: Array<Record<string, any>>;
-  suggested_actions?: Array<Record<string, any>>;
-};
-
-function id() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function messageFromThread(row: OyiThreadMessage): ChatMessage {
-  const metadata = row.metadata || {};
-  return {
-    id: row.id,
-    role: row.role === "user" ? "user" : "assistant",
-    content: row.content || "",
-    cards: row.cards || [],
-    suggested_actions: row.suggested_actions || [],
-    execution: metadata.execution && typeof metadata.execution === "object" ? metadata.execution as Record<string, any> : undefined,
-  };
-}
+import { useFacilityConversationStore } from "@/store/useFacilityConversationStore";
+import FacilityConversationComposer from "@/components/assistant/FacilityConversationComposer";
 
 function AccountabilityStrip({ execution }: { execution?: Record<string, any> }) {
   const results = Array.isArray(execution?.results) ? execution.results : [];
@@ -80,18 +55,14 @@ export default function FacilityAssistantSheet() {
   const { user } = useSessionStore();
   const { context } = useContextStore();
   const { open, focusHint, source, closeAssistant } = useFacilityAssistantStore();
+  const { messages, threads, busy, hydrate, restoreThread, sendMessage } = useFacilityConversationStore();
   const pathname = usePathname() || "/overview";
   const searchParams = useSearchParams();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [threads, setThreads] = useState<Array<{ id: string; title?: string | null; updated_at?: string }>>([]);
-  const [threadId, setThreadId] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [voiceReplyEnabled, setVoiceReplyEnabled] = useState(true);
   const [composerInset, setComposerInset] = useState(0);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const spokenRef = useRef<string>("");
 
   const starter = useMemo(() => (
@@ -103,43 +74,21 @@ export default function FacilityAssistantSheet() {
   useEffect(() => {
     if (!open) return;
     setInput(focusHint || "");
-    inputRef.current?.focus();
+    window.setTimeout(() => {
+      const input = document.querySelector("[data-facility-assistant-composer] textarea");
+      (input as HTMLTextAreaElement | null)?.focus();
+    }, 40);
   }, [focusHint, open]);
 
   useEffect(() => {
-    if (!open || !(user as any)?.id) return;
-    let cancelled = false;
-    async function loadThreads() {
-      try {
-        const result = await oyiService.listThreads({
-          context,
-          estate_id: context?.estate_id || (user as any)?.estate_id || null,
-          home_id: context?.home_id || null,
-          limit: 16,
-        });
-        if (cancelled) return;
-        const nextThreads = result.threads || [];
-        setThreads(nextThreads);
-        const latest = nextThreads[0];
-        if (!latest?.id) {
-          setMessages([{ id: id(), role: "assistant", content: "Operational intelligence is ready. Ask Oyi about attention, verification, ownership, or continuity." }]);
-          return;
-        }
-        const thread = await oyiService.getThreadMessages(latest.id);
-        if (cancelled) return;
-        setThreadId(latest.id);
-        setMessages((thread.messages || []).map(messageFromThread));
-      } catch {
-        if (!cancelled) {
-          setMessages([{ id: id(), role: "assistant", content: "Operational intelligence is ready. Ask Oyi about attention, verification, ownership, or continuity." }]);
-        }
-      }
-    }
-    void loadThreads();
-    return () => {
-      cancelled = true;
-    };
-  }, [context, open, user]);
+    if (!open) return;
+    void hydrate({
+      context,
+      estateId: context?.estate_id || (user as any)?.estate_id || null,
+      homeId: context?.home_id || null,
+      userId: (user as any)?.id || null,
+    });
+  }, [context, hydrate, open, user]);
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
@@ -169,65 +118,22 @@ export default function FacilityAssistantSheet() {
     window.speechSynthesis.speak(new SpeechSynthesisUtterance(latest.content));
   }, [messages, open, voiceReplyEnabled]);
 
-  async function restoreThread(nextThreadId: string) {
-    const result = await oyiService.getThreadMessages(nextThreadId);
-    setThreadId(nextThreadId);
-    setMessages((result.messages || []).map(messageFromThread));
-    setHistoryOpen(false);
-  }
-
   async function send(text?: string) {
     const message = String(text ?? input).trim();
     if (!message || busy) return;
-    const pendingId = id();
-    const nextBase = [
-      ...messages,
-      { id: id(), role: "user" as const, content: message },
-      { id: pendingId, role: "assistant" as const, content: "Reviewing live operational context…", pending: true },
-    ];
-    setMessages(nextBase);
     setInput("");
-    setBusy(true);
-    try {
-      const response = await oyiService.chat({
-        message,
-        estate_id: context?.estate_id || (user as any)?.estate_id || null,
-        home_id: context?.home_id || null,
-        module: moduleContext,
-        role: user?.role || null,
-        thread_id: threadId,
-        context,
-        page: pathname,
-        route: pathname,
-        filters: pageFilters,
-        runtime_context: {
-          focus_hint: focusHint || null,
-          page: pathname,
-          module: moduleContext,
-          estate_name: context?.estate?.name || (user as any)?.estate_name || null,
-          home_id: context?.home_id || null,
-          filters: pageFilters,
-        },
-      });
-      if (response.thread_id) setThreadId(response.thread_id);
-      const reply = String(response.reply || response.message || "Operational review completed.");
-      setMessages((current) => current.map((item) => item.id === pendingId ? {
-        ...item,
-        pending: false,
-        content: reply,
-        execution: response.execution,
-        cards: Array.isArray(response.cards) ? response.cards : [],
-        suggested_actions: Array.isArray(response.suggested_actions) ? response.suggested_actions : [],
-      } : item));
-    } catch {
-      setMessages((current) => current.map((item) => item.id === pendingId ? {
-        ...item,
-        pending: false,
-        content: "Oyi could not reach the operational runtime right now.",
-      } : item));
-    } finally {
-      setBusy(false);
-    }
+    await sendMessage({
+      message,
+      context,
+      estateId: context?.estate_id || (user as any)?.estate_id || null,
+      homeId: context?.home_id || null,
+      role: user?.role || null,
+      module: moduleContext,
+      page: pathname,
+      route: pathname,
+      filters: pageFilters,
+      focusHint: focusHint || null,
+    });
   }
 
   if (!open) return null;
@@ -262,9 +168,9 @@ export default function FacilityAssistantSheet() {
         {historyOpen ? (
           <div className="border-b border-white/[0.06] px-4 py-3">
             <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">Recent conversations</p>
-            <div className="mt-2 space-y-2">
+          <div className="mt-2 space-y-2">
               {threads.length ? threads.map((thread) => (
-                <button key={thread.id} type="button" onClick={() => void restoreThread(thread.id)} className="block w-full rounded-2xl border border-white/[0.07] bg-white/[0.035] px-3 py-3 text-left text-sm text-zinc-200">
+                <button key={thread.id} type="button" onClick={() => { void restoreThread(thread.id); setHistoryOpen(false); }} className="block w-full rounded-2xl border border-white/[0.07] bg-white/[0.035] px-3 py-3 text-left text-sm text-zinc-200">
                   <span className="block truncate">{thread.title || "Operational conversation"}</span>
                   <span className="mt-1 block text-[11px] text-zinc-500">{thread.updated_at ? new Date(thread.updated_at).toLocaleString() : ""}</span>
                 </button>
@@ -301,25 +207,21 @@ export default function FacilityAssistantSheet() {
         </div>
 
         <form
+          data-facility-assistant-composer
           onSubmit={(event) => {
             event.preventDefault();
             void send();
           }}
           className="border-t border-white/[0.06] px-4 pb-3 pt-3"
         >
-          <div className="flex items-end gap-2 rounded-[24px] border border-white/[0.08] bg-white/[0.035] px-3 py-2">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              rows={1}
-              placeholder="Ask Oyi about attention, ownership, verification, or execution history"
-              className="max-h-28 min-h-[24px] flex-1 resize-none bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"
-            />
-            <button type="submit" disabled={busy || !input.trim()} className="rounded-full bg-sky-400 px-3 py-2 text-xs font-medium text-slate-950 disabled:opacity-40">
-              {busy ? "Thinking" : "Send"}
-            </button>
-          </div>
+          <FacilityConversationComposer
+            value={input}
+            onChange={setInput}
+            onSubmit={() => void send()}
+            busy={busy}
+            placeholder="Ask Oyi about attention, ownership, verification, or execution history"
+            variant="sheet"
+          />
         </form>
       </section>
     </div>

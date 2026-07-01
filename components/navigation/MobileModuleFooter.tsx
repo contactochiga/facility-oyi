@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import { Brain, Mic, SendHorizontal } from "lucide-react";
+import { Brain, Sparkles } from "lucide-react";
 import { facilityMobileModules, type MobileModuleItem } from "./mobileNavConfig";
 import { useSessionStore } from "@/store/useSessionStore";
 import { FACILITY_MODULES, visibleModules } from "@/lib/moduleRegistry";
-import { useFacilityAssistantStore } from "@/store/useFacilityAssistantStore";
+import { useContextStore } from "@/store/useContextStore";
+import { useFacilityConversationStore } from "@/store/useFacilityConversationStore";
+import FacilityConversationComposer from "@/components/assistant/FacilityConversationComposer";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -28,7 +30,8 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
   const pathname = usePathname() || "/overview";
   const router = useRouter();
   const { user } = useSessionStore();
-  const openAssistant = useFacilityAssistantStore((state) => state.openAssistant);
+  const { context } = useContextStore();
+  const { busy, sendMessage } = useFacilityConversationStore();
   const visibleKeys = useMemo(() => new Set(visibleModules(user, FACILITY_MODULES).map((module) => module.key)), [user]);
   const visibleItems = useMemo(() => items.filter((item) => visibleKeys.has(item.key)), [items, visibleKeys]);
   const pages = useMemo(() => [
@@ -48,10 +51,21 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
     setPageIndex(detectedPage);
   }, [detectedPage]);
 
-  function submitQuickChat() {
+  async function submitQuickChat() {
     const value = quickChatValue.trim();
     if (!value) return;
-    openAssistant(value);
+    setQuickChatValue("");
+    await sendMessage({
+      message: value,
+      context,
+      estateId: context?.estate_id || (user as any)?.estate_id || null,
+      homeId: context?.home_id || null,
+      role: user?.role || null,
+      module: pathname.replace(/^\//, "").split("/")[0] || "overview",
+      page: pathname,
+      route: pathname,
+      focusHint: value,
+    });
     setQuickChatValue("");
     setQuickChatOpen(false);
   }
@@ -131,50 +145,38 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
 
           <div className="flex min-w-0 items-center justify-end gap-2">
             {quickChatOpen ? (
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <label className="flex h-10 min-w-0 flex-1 items-center rounded-full border border-sky-300/16 bg-sky-400/[0.08] px-3 text-sm text-white/84">
-                  <Mic className="mr-2 h-4 w-4 shrink-0 text-sky-100/84" />
-                  <input
-                    value={quickChatValue}
-                    onChange={(event) => setQuickChatValue(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        submitQuickChat();
-                      }
-                    }}
-                    placeholder="Ask Oyi..."
-                    className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/38"
-                    aria-label="Quick chat entry"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={submitQuickChat}
-                  disabled={!quickChatValue.trim()}
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sky-300 text-slate-950 disabled:opacity-40"
-                  aria-label="Send quick chat"
-                >
-                  <SendHorizontal className="h-4 w-4" />
-                </button>
+              <div className="min-w-0 flex-1">
+                <FacilityConversationComposer
+                  value={quickChatValue}
+                  onChange={setQuickChatValue}
+                  onSubmit={() => void submitQuickChat()}
+                  busy={busy}
+                  placeholder="Ask Oyi..."
+                  variant="footer"
+                  onClose={() => {
+                    setQuickChatValue("");
+                    setQuickChatOpen(false);
+                  }}
+                />
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => setQuickChatOpen(true)}
-                className="grid h-9 w-9 place-items-center rounded-full border border-white/[0.08] bg-white/[0.045] text-white/84"
+                className="inline-flex h-9 min-w-[124px] items-center justify-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 text-[11px] text-white/84"
                 aria-label="Open quick chat"
               >
-                <Mic className="h-4 w-4" />
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Ask Oyi</span>
               </button>
             )}
             <button
               type="button"
               onClick={() => router.push("/facility-intelligence")}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-sky-300/18 bg-sky-400/[0.10] text-sky-100 shadow-[0_0_20px_rgba(56,189,248,0.18)]"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-sky-300/16 bg-sky-400/[0.08] text-sky-100"
               aria-label="Open Operational Intelligence"
             >
-              <Brain className="h-4 w-4" />
+              <Brain className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>

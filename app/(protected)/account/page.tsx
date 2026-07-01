@@ -10,6 +10,7 @@ import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
 import { notificationService } from "@/services/notificationService";
+import { cleanupFacilityPushRegistration } from "@/services/pushRegistrationService";
 import { useSessionStore } from "@/store/useSessionStore";
 
 type Decoded = {
@@ -156,13 +157,15 @@ function AccountInner() {
     }
   }
 
-  function signOut() {
+  async function signOut() {
+    await cleanupFacilityPushRegistration();
     clear();
     router.replace("/login");
   }
 
-  function deleteSession() {
+  async function deleteSession() {
     if (typeof window !== "undefined") window.localStorage.removeItem(SETTINGS_KEY);
+    await cleanupFacilityPushRegistration();
     clear();
     router.replace("/login");
   }
@@ -211,18 +214,18 @@ function AccountInner() {
           <Toggle title="Community alerts" detail="Keep community notices and moderation visible." value={settings.communityAlerts} onChange={(next) => setSettings((current) => ({ ...current, communityAlerts: next }))} disabled={!settings.notificationsEnabled} />
         </Section>
 
-        <Section title="About" subtitle="Facility OS product freeze release candidate.">
+        <Section title="About" subtitle="Facility OS native release candidate.">
           <Field label="Surface" value="Facility OS" />
           <Field label="Mode" value="Native command center shell" />
           <Field label="Environment" value="Operator control plane" />
-          <Field label="Build state" value="RC4 product freeze" />
+          <Field label="Build state" value="RC5 native polish" />
         </Section>
       </div>
 
       <Section title="Danger Zone" subtitle="End this session before handing over the device.">
         <div className="flex flex-wrap gap-2">
-          <Button variant="danger" onClick={signOut}>Sign out</Button>
-          <Button variant="ghost" onClick={deleteSession}>Delete session</Button>
+          <Button variant="danger" onClick={() => void signOut()}>Sign out</Button>
+          <Button variant="ghost" onClick={() => void deleteSession()}>Delete session</Button>
         </div>
       </Section>
     </div>

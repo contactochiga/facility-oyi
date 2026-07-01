@@ -37,10 +37,12 @@ export default function NotificationsModal({
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<AlertItem[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     setErr(null);
+    setInfo(null);
     try {
       const res = await notificationService.unread();
       setItems(res || []);
@@ -64,7 +66,7 @@ export default function NotificationsModal({
   async function openNotification(item: AlertItem) {
     const routing = item.routing;
     if (!routing?.target || routing.destination === "none") {
-      setErr("This notification does not have an available source destination.");
+      setInfo("The original activity is no longer available.");
       return;
     }
     if (item.estate_id && context?.estate_id && item.estate_id !== context.estate_id) {
@@ -72,7 +74,7 @@ export default function NotificationsModal({
       if (!switchContext) return;
       const result = await selectEstate(item.estate_id);
       if (!result.ok) {
-        setErr("That facility context is no longer available under your current role.");
+        setInfo("This notification can’t be opened because the related item is unavailable.");
         return;
       }
     }
@@ -102,9 +104,10 @@ export default function NotificationsModal({
     };
     const href = pageByTarget[target.target_type];
     if (!href) {
-      setErr("This notification source is unavailable in Facility OS.");
+      setInfo("This notification can’t be opened because the related item is unavailable.");
       return;
     }
+    await markRead(item.id);
     router.push(href);
     onClose();
   }
@@ -145,6 +148,11 @@ export default function NotificationsModal({
               {err}
             </div>
           )}
+          {info ? (
+            <div className="mx-4 mt-4 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-300">
+              {info}
+            </div>
+          ) : null}
 
           <div className="max-h-[70vh] overflow-auto">
             {loading ? (
@@ -166,17 +174,17 @@ export default function NotificationsModal({
                     onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openNotification(n); } }}
                     role="button"
                     tabIndex={0}
-                    className="rounded-xl border border-white/10 bg-black/20 px-2 py-2"
+                    className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 transition hover:border-sky-400/20"
                   >
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-3">
                       <OisListItem
                         title={n.title || "Notification"}
                         description={n.message || "Operational update"}
                         meta={`${when(n.created_at)}${n.status ? ` · ${n.status}` : ""}`}
                         className="w-full text-left"
                       />
-                      <Button variant="ghost" onClick={(event) => { event.stopPropagation(); void markRead(n.id); }} className="mt-1 h-9 rounded-[10px] px-3">
-                        Mark read
+                      <Button variant="ghost" onClick={(event) => { event.stopPropagation(); void markRead(n.id); }} className="mt-1 h-8 shrink-0 rounded-[10px] px-2.5 text-[11px]">
+                        Read
                       </Button>
                     </div>
                   </div>

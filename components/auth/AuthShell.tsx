@@ -20,7 +20,7 @@ export function AuthShell({
   footer?: ReactNode;
 }) {
   return (
-    <div className="min-h-[100dvh] bg-zinc-950 text-white">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-zinc-950 text-white">
       <div className="absolute inset-0 bg-[radial-gradient(900px_560px_at_50%_-10%,rgba(56,189,248,0.18),transparent_58%),radial-gradient(760px_520px_at_100%_20%,rgba(37,99,235,0.12),transparent_52%),linear-gradient(180deg,#09090b_0%,#0a0d13_100%)]" />
       <div className="absolute inset-0 opacity-[0.16] [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:34px_34px]" />
 

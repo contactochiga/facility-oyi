@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
@@ -39,6 +40,7 @@ export default function FacilityMessagesPage() {
   const [selectedReport, setSelectedReport] = useState<ModerationReport | null>(null);
   const [moderationNote, setModerationNote] = useState("");
   const [workflowState, setWorkflowState] = useState<ActionState>("open");
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
   const canRead = hasPermission(user, "community.read");
   const canWrite = hasPermission(user, "community.write");
@@ -69,6 +71,9 @@ export default function FacilityMessagesPage() {
 
   useEffect(() => { void load(); }, []);
   useEffect(() => { void loadMessages(activeThread); }, [activeThread?.id]);
+  useEffect(() => {
+    if (!activeThread) setMobileDetailOpen(false);
+  }, [activeThread]);
 
   async function startDirect(peerId: string) {
     if (!canWrite) { setError("Permission required: community.write."); return; }
@@ -113,6 +118,8 @@ export default function FacilityMessagesPage() {
   const operatorThreads = threads.filter((thread) => /operator|staff|manager|facility|security|admin/.test(String(thread.peer?.role || "").toLowerCase()));
   const visibleThreads = tab === "resident_threads" ? residentThreads : tab === "operator_threads" ? operatorThreads : threads;
   const escalated = reports.filter((report) => /escalated|high|urgent|abuse|threat/.test(`${report.reason || ""} ${report.status || ""}`.toLowerCase()));
+  const showThreadList = !mobileDetailOpen;
+  const showThreadDetail = mobileDetailOpen || tab === "reports" || tab === "escalations";
 
   if (!canRead) {
     return <div className="space-y-6"><Topbar title="Communication Operations" subtitle="Messaging access required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
@@ -124,22 +131,69 @@ export default function FacilityMessagesPage() {
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
-      <div className="flex flex-wrap gap-2">{(["inbox", "resident_threads", "operator_threads", "reports", "escalations"] as Tab[]).map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={cn("rounded-full border px-3 py-2 text-xs capitalize", tab === item ? "border-sky-400/40 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white")}>{item.replace(/_/g, " ")}</button>)}</div>
+      <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-w-max gap-2 pb-1">
+          {(["inbox", "resident_threads", "operator_threads", "reports", "escalations"] as Tab[]).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => {
+                setTab(item);
+                if (item === "reports" || item === "escalations") setMobileDetailOpen(false);
+              }}
+              className={cn("shrink-0 rounded-full border px-3 py-2 text-xs capitalize", tab === item ? "border-sky-400/40 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white")}
+            >
+              {item.replace(/_/g, " ")}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {tab === "reports" || tab === "escalations" ? <ReportsPanel reports={tab === "escalations" ? escalated : reports} canModerate={canModerate} onOpen={(report) => setSelectedReport(report)} /> : (
         <section className="grid gap-4 xl:grid-cols-[320px_1fr_340px]">
-          <OisCard as="aside" className="p-3">
+          <OisCard as="aside" className={cn("p-3", showThreadList ? "block" : "hidden xl:block")}>
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><MessageSquare className="h-4 w-4 text-sky-200" />Resident Threads</h2>
-            <div className="mt-3 space-y-2">{visibleThreads.map((thread) => <OisListItem key={thread.id} title={nameOf(thread.peer)} description={thread.last_message?.body || "No messages yet"} meta={dateLabel(thread.last_message_at)} status={Number(thread.unread_count || 0) > 0 ? "attention" : undefined} onClick={() => setActiveThread(thread)} className={cn("w-full text-left", activeThread?.id === thread.id ? "border-[var(--ois-primary)]/35 bg-[var(--ois-primary-soft)]" : "")} />)}{!visibleThreads.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No threads in this lane.</div> : null}</div>
+            <div className="mt-3 space-y-2">
+              {visibleThreads.map((thread) => (
+                <OisListItem
+                  key={thread.id}
+                  title={nameOf(thread.peer)}
+                  description={thread.last_message?.body || "No messages yet"}
+                  meta={dateLabel(thread.last_message_at)}
+                  status={Number(thread.unread_count || 0) > 0 ? "attention" : undefined}
+                  onClick={() => {
+                    setActiveThread(thread);
+                    setMobileDetailOpen(true);
+                  }}
+                  className={cn("w-full text-left", activeThread?.id === thread.id ? "border-[var(--ois-primary)]/35 bg-[var(--ois-primary-soft)]" : "")}
+                />
+              ))}
+              {!visibleThreads.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No threads in this lane.</div> : null}
+            </div>
           </OisCard>
 
-          <OisCard as="main" className="flex min-h-[560px] flex-col p-4">
-            <header className="border-b border-white/10 pb-3"><h2 className="text-sm font-semibold text-white">{activeThread ? nameOf(activeThread.peer) : "Conversation"}</h2><p className="mt-1 text-xs text-zinc-500">Resident communication timeline</p></header>
+          <OisCard as="main" className={cn("flex min-h-[560px] flex-col p-4", showThreadDetail ? "block" : "hidden xl:flex")}>
+            <header className="border-b border-white/10 pb-3">
+              <div className="flex items-center gap-3 xl:block">
+                <button
+                  type="button"
+                  onClick={() => setMobileDetailOpen(false)}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-200 xl:hidden"
+                  aria-label="Back to thread list"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <div>
+                  <h2 className="text-sm font-semibold text-white">{activeThread ? nameOf(activeThread.peer) : "Conversation"}</h2>
+                  <p className="mt-1 text-xs text-zinc-500">Resident communication timeline</p>
+                </div>
+              </div>
+            </header>
             <div className="flex-1 space-y-2 overflow-auto py-4">{messages.map((message) => <OisListItem key={message.id} title={message.body} meta={`${message.sender_id || "sender"} · ${dateLabel(message.created_at)}${message.is_hidden ? " · hidden" : ""}`} />)}{!activeThread ? <div className="text-sm text-zinc-500">Pick a thread or start a resident conversation.</div> : !messages.length ? <div className="text-sm text-zinc-500">No messages in this thread.</div> : null}</div>
             <div className="flex gap-2 border-t border-white/10 pt-3"><input value={compose} onChange={(e) => setCompose(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } }} disabled={!activeThread || !canWrite} placeholder={canWrite ? "Send message..." : "Permission required: community.write"} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none disabled:opacity-50" /><Button onClick={() => void send()} disabled={!activeThread || !compose.trim() || !canWrite} className="gap-2"><Send className="h-4 w-4" />Send</Button></div>
           </OisCard>
 
-          <OisCard as="aside" className="p-4"><h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Search className="h-4 w-4 text-sky-200" />Start conversation</h2><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search residents" className="mt-3 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none" /><div className="mt-3 max-h-[420px] space-y-2 overflow-auto">{filteredResidents.map((resident) => <OisListItem key={resident.id} title={nameOf(resident)} description={resident.role || "resident"} onClick={() => void startDirect(String(resident.id))} className={cn("w-full text-left", !canWrite ? "pointer-events-none opacity-50" : "")} />)}{!filteredResidents.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident signals available.</div> : null}</div></OisCard>
+          <OisCard as="aside" className={cn("p-4", showThreadList ? "block" : "hidden xl:block")}><h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Search className="h-4 w-4 text-sky-200" />Start conversation</h2><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search residents" className="mt-3 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none" /><div className="mt-3 max-h-[420px] space-y-2 overflow-auto">{filteredResidents.map((resident) => <OisListItem key={resident.id} title={nameOf(resident)} description={resident.role || "resident"} onClick={() => void startDirect(String(resident.id))} className={cn("w-full text-left", !canWrite ? "pointer-events-none opacity-50" : "")} />)}{!filteredResidents.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident signals available.</div> : null}</div></OisCard>
         </section>
       )}
 

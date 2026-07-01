@@ -21,6 +21,8 @@
   },
   "dependencies": {
     "@capacitor/core": "^6.1.0",
+    "@capacitor/device": "^6.0.3",
+    "@capacitor/push-notifications": "^6.0.5",
     "@heroicons/react": "^2.1.5",
     "@tanstack/react-table": "^8.20.5",
     "@vercel/analytics": "^1.5.0",

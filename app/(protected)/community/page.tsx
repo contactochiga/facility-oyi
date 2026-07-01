@@ -43,6 +43,7 @@ export default function CommunityPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [compose, setCompose] = useState<ComposeState>(EMPTY_COMPOSE);
+  const [composeExpanded, setComposeExpanded] = useState(false);
   const [editTarget, setEditTarget] = useState<CommunityPost | null>(null);
   const [moderationTarget, setModerationTarget] = useState<CommunityPost | ModerationReport | null>(null);
   const [moderationNote, setModerationNote] = useState("");
@@ -79,6 +80,7 @@ export default function CommunityPage() {
 
   function openCompose(post?: CommunityPost) {
     setEditTarget(post || null);
+    setComposeExpanded(true);
     setCompose(post ? { title: post.title || "", content: bodyOf(post), category: post.category || "notice", status: post.status || "active", scheduled_at: post.scheduled_at || "", audienceType: post.audience_type || "all_estate", pinned: Boolean(post.is_pinned) } : EMPTY_COMPOSE);
   }
 
@@ -92,7 +94,7 @@ export default function CommunityPage() {
       if (editTarget) await communityService.updatePost(String(editTarget.id), payload);
       else await communityService.createPost({ estateId: id, ...payload });
       setNotice(editTarget ? "Announcement updated." : "Announcement created.");
-      setEditTarget(null); setCompose(EMPTY_COMPOSE);
+      setEditTarget(null); setCompose(EMPTY_COMPOSE); setComposeExpanded(false);
       await load();
     } catch (err: any) { setError(err?.message || "Failed to save announcement"); }
     finally { setSaving(false); }
@@ -167,26 +169,49 @@ export default function CommunityPage() {
       </div>
 
       <OisCard className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-white">Announcement composer</h2>
-            <p className="mt-1 text-xs text-zinc-500">Write and publish the next estate update.</p>
+        {!composeExpanded ? (
+          <button
+            type="button"
+            onClick={() => setComposeExpanded(true)}
+            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition hover:bg-white/[0.045]"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white">Announcement title</p>
+              <p className="mt-1 truncate text-xs text-zinc-500">Write announcement...</p>
+            </div>
+            <span className="rounded-full border border-sky-300/14 bg-sky-400/[0.08] px-3 py-1 text-[11px] text-sky-100">Compose</span>
+          </button>
+        ) : (
+          <div className="grid gap-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-white">{editTarget ? "Edit announcement" : "Announcement composer"}</h2>
+                <p className="mt-1 text-xs text-zinc-500">Write and publish the next estate update.</p>
+              </div>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setEditTarget(null);
+                  setCompose(EMPTY_COMPOSE);
+                  setComposeExpanded(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+            <input value={compose.title} onChange={(e) => setCompose((c) => ({ ...c, title: e.target.value }))} placeholder="Announcement title" className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" />
+            <textarea value={compose.content} onChange={(e) => setCompose((c) => ({ ...c, content: e.target.value }))} placeholder="Write announcement..." rows={4} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" />
+            <div className="grid gap-2 sm:grid-cols-3">
+              <select value={compose.status} onChange={(e) => setCompose((c) => ({ ...c, status: e.target.value }))} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white"><option value="draft">Draft</option><option value="active">Published</option><option value="scheduled">Scheduled</option><option value="archived">Archived</option></select>
+              <select value={compose.audienceType} onChange={(e) => setCompose((c) => ({ ...c, audienceType: e.target.value }))} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white"><option value="all_estate">Entire Estate</option><option value="home">Specific Homes</option><option value="resident_group">Resident Groups</option></select>
+              <input type="datetime-local" value={compose.scheduled_at} onChange={(e) => setCompose((c) => ({ ...c, scheduled_at: e.target.value }))} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white" />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={compose.pinned} onChange={(e) => setCompose((c) => ({ ...c, pinned: e.target.checked }))} /> Pin this notice</label>
+              <Button onClick={() => void saveAnnouncement()} disabled={saving || (!canWrite && !canBroadcast)}>{saving ? "Saving..." : editTarget ? "Update announcement" : "Publish announcement"}</Button>
+            </div>
           </div>
-          {editTarget ? <Button variant="ghost" onClick={() => { setEditTarget(null); setCompose(EMPTY_COMPOSE); }}>Clear</Button> : null}
-        </div>
-        <div className="mt-3 grid gap-3">
-          <input value={compose.title} onChange={(e) => setCompose((c) => ({ ...c, title: e.target.value }))} placeholder="Announcement title" className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" />
-          <textarea value={compose.content} onChange={(e) => setCompose((c) => ({ ...c, content: e.target.value }))} placeholder="Write announcement..." rows={4} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" />
-          <div className="grid gap-2 sm:grid-cols-3">
-            <select value={compose.status} onChange={(e) => setCompose((c) => ({ ...c, status: e.target.value }))} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white"><option value="draft">Draft</option><option value="active">Published</option><option value="scheduled">Scheduled</option><option value="archived">Archived</option></select>
-            <select value={compose.audienceType} onChange={(e) => setCompose((c) => ({ ...c, audienceType: e.target.value }))} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white"><option value="all_estate">Entire Estate</option><option value="home">Specific Homes</option><option value="resident_group">Resident Groups</option></select>
-            <input type="datetime-local" value={compose.scheduled_at} onChange={(e) => setCompose((c) => ({ ...c, scheduled_at: e.target.value }))} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white" />
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <label className="flex items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={compose.pinned} onChange={(e) => setCompose((c) => ({ ...c, pinned: e.target.checked }))} /> Pin this notice</label>
-            <Button onClick={() => void saveAnnouncement()} disabled={saving || (!canWrite && !canBroadcast)}>{saving ? "Saving..." : editTarget ? "Update announcement" : "Publish announcement"}</Button>
-          </div>
-        </div>
+        )}
       </OisCard>
 
       <OisCard className="p-4">
