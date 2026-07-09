@@ -325,9 +325,9 @@ function infrastructureItems(infrastructure: any, utilities: any[], cameras: any
     if (!/offline|error|failed|critical|outage|unavailable/.test(status)) continue;
     items.push(
       infrastructureItemFromRow("utility", row, {
-        title: row?.name || row?.utility_type || "Utility failure",
-        detail: "Critical utility telemetry requires review.",
-        href: "/utilities",
+        title: row?.name || row?.utility_type || "Infrastructure service failure",
+        detail: "Critical infrastructure service telemetry requires review.",
+        href: "/services",
         status,
         action: "Review utility status",
         time: row?.observed_at || row?.updated_at || row?.created_at,

@@ -41,7 +41,7 @@ export type OisIconKey =
   | "infrastructureRegistry"
   | "securityCommand"
   | "visitorAccess"
-  | "utilityIntelligence"
+  | "infrastructureServices"
   | "environmentalAwareness"
   | "gateFlow"
   | "maintenanceContinuity"
@@ -67,7 +67,7 @@ export const OIS_DOMAIN_ICONS: Record<OisIconKey, LucideIcon> = {
   infrastructureRegistry: Cpu,
   securityCommand: ShieldCheck,
   visitorAccess: KeyRound,
-  utilityIntelligence: Droplets,
+  infrastructureServices: Droplets,
   environmentalAwareness: Leaf,
   gateFlow: Car,
   maintenanceContinuity: Wrench,
@@ -93,7 +93,7 @@ export const FACILITY_MODULE_ICON_KEYS: Record<string, OisIconKey> = {
   "estate-structure": "estateRegistry",
   "hardware-devices": "infrastructureRegistry",
   "security-access": "securityCommand",
-  utilities: "utilityIntelligence",
+  utilities: "infrastructureServices",
   "environment-sensors": "environmentalAwareness",
   "traffic-mobility": "gateFlow",
   maintenance: "maintenanceContinuity",

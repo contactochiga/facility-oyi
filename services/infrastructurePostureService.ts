@@ -111,7 +111,7 @@ export function resolveInfrastructurePosture(data: InfrastructurePostureData): I
     { source: "devices", label: "Devices", route: "/hardware-devices", ...devices },
     { source: "cameras", label: "Cameras", route: "/cameras", ...cameras },
     { source: "edge", label: "Edge", route: "/hardware-devices?tab=edge", ...edge },
-    { source: "utilities", label: "Utilities", route: "/utilities", ...utilities },
+    { source: "utilities", label: "Infrastructure Services", route: "/services", ...utilities },
     { source: "providers", label: "Providers", route: "/hardware-devices?tab=providers", ...providers },
   ];
 }

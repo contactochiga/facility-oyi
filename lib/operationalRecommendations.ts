@@ -234,13 +234,13 @@ function candidateFromInsight(
     case "utility":
       return {
         ...shared,
-        title: "Review Utility Anomaly",
+        title: "Review Infrastructure Service Anomaly",
         summary: "Inspect the abnormal utility pattern and verify whether supply posture or metering is drifting.",
         domain: "utility",
         reason: insight.reason,
         recommendedAction: /water/.test(lower(insight.summary + insight.reason)) ? "Inspect the water usage anomaly and verify leak risk." : "Review the energy spike and check generator, solar, or load state.",
         actionType: /water/.test(lower(insight.summary + insight.reason)) ? "inspect_water_anomaly" : "review_energy_spike",
-        expectedImpact: "Limits resource waste and prevents utility issues from becoming continuity incidents.",
+        expectedImpact: "Limits service disruption and prevents infrastructure issues from becoming continuity incidents.",
         estimatedBenefit: "Earlier anomaly detection and reduced operating cost risk.",
         verificationRequired: true,
         approvalRequired: false,

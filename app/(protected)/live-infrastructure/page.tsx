@@ -121,7 +121,7 @@ export default function LiveInfrastructureModule() {
               ["Oyi Edge", "/hardware-devices?tab=edge", RadioTower, "Heartbeat, queue, runtime and sync posture"],
               ["Camera Center", "/cameras", Camera, "Camera registry, stream readiness and events"],
               ["Incidents & Alerts", "/alerts", ShieldAlert, "Security, device, utility and operational incidents"],
-              ["Utilities", "/utilities", Zap, "Power, water, network and environmental source states"],
+              ["Infrastructure Services", "/services", Zap, "Resident service readiness, utility telemetry, and provider source states"],
               ["Maintenance", "/maintenance", Wrench, "Location-backed maintenance work orders"],
             ].map(([label, href, Icon, body]) => (
               <Link key={String(label)} href={String(href)} className="rounded-2xl border border-white/10 bg-black/15 p-4 transition hover:border-sky-400/25 hover:bg-white/[0.045]">

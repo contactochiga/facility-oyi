@@ -78,6 +78,36 @@ export type InfrastructureServiceAccountRow = {
   metadata?: Record<string, any>;
 };
 
+export type InfrastructureServiceTransactionRow = {
+  id: string;
+  estate_id?: string | null;
+  home_id?: string | null;
+  resident_id?: string | null;
+  service_key: string;
+  service_type?: string | null;
+  provider?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  status?: string | null;
+  transaction_type?: string | null;
+  settlement_status?: string | null;
+  provider_reference?: string | null;
+  metadata?: Record<string, any>;
+  created_at?: string | null;
+};
+
+export type InfrastructureServiceEventRow = {
+  id: string;
+  event_type: string;
+  estate_id?: string | null;
+  home_id?: string | null;
+  service_key?: string | null;
+  user_id?: string | null;
+  actor_id?: string | null;
+  payload?: Record<string, any>;
+  created_at?: string | null;
+};
+
 export type RoomsResponse<T = any> = {
   rooms: T[];
 };
@@ -454,6 +484,20 @@ export const facilityService = {
     resident_id?: string;
   }): Promise<{ accounts: InfrastructureServiceAccountRow[]; summary?: Record<string, any> }> {
     const res = await API.get("/services/accounts", { params });
+    return res.data;
+  },
+
+  async listInfrastructureServiceTransactions(estateId?: string, limit = 80): Promise<{ transactions: InfrastructureServiceTransactionRow[]; summary?: Record<string, number> }> {
+    const res = await API.get("/services/estate/transactions", {
+      params: { estate_id: estateId, limit },
+    });
+    return res.data;
+  },
+
+  async listInfrastructureServiceEvents(estateId?: string, limit = 80): Promise<{ events: InfrastructureServiceEventRow[] }> {
+    const res = await API.get("/services/events", {
+      params: { estate_id: estateId, limit },
+    });
     return res.data;
   },
 

@@ -248,20 +248,20 @@ function utilityCandidate(
   if (!shouldReason(signals, awareness)) return null;
   return {
     domain: "utility",
-    title: "Utility Continuity Risk",
+    title: "Infrastructure Service Continuity Risk",
     summary: `${text(signal.entity.name || signal.entity.id, "A utility asset")} is reporting a pattern that can affect cost or continuity.`,
     severity: dominantSeverity(signals.map((item) => item.severity)),
     confidence: confidence([...signals.map((item) => item.confidence), ...awareness.map((item) => item.confidence)]),
-    reason: "Utility telemetry shows elevated operational variance, degraded supply posture, or a supporting source is unavailable.",
+    reason: "Infrastructure service telemetry shows elevated operational variance, degraded supply posture, or a supporting source is unavailable.",
     impact: "Energy cost, backup posture, or service continuity may drift before operators can intervene.",
-    recommendedAction: "Review utility telemetry, backup state, and recent source changes together.",
+    recommendedAction: "Review infrastructure service telemetry, backup state, and recent source changes together.",
     evidence: mergeEvidence(signals, awareness),
     relatedSignals: signals.map((item) => item.id),
     relatedAwareness: awareness.map((item) => item.id),
     generatedAt,
     owner: ownerFrom(signals, awareness),
     verification: "Verify telemetry accuracy and current utility source availability.",
-    nextStep: "Open Utility Intelligence if the source mix remains unstable.",
+    nextStep: "Open Infrastructure Services if the source mix remains unstable.",
     entityKey: entityKey(signal),
   };
 }

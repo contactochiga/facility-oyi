@@ -291,8 +291,8 @@ export default function DigitalTwinPage() {
       for (const visitor of visitorIncidents) rows.push({ type: "Visitor Incident", title: text(visitor.visitor_name, "Visitor"), subtitle: text(visitor.purpose || visitor.home_id, "No gate location"), rows: [["Status", text(visitor.status)], ["Time", when(visitor.created_at)], ["Home", text(visitor.home_id, "No home source")]], href: "/visitors" });
     }
     if (visible.utilities) {
-      for (const item of utilityTelemetry.data) rows.push({ type: "Utility", title: text(item.utility_type, "Utility telemetry"), subtitle: text(item.source, "Awaiting telemetry"), rows: [["State", text(item.state, "awaiting telemetry")], ["Value", item.value === null || item.value === undefined ? "Awaiting telemetry" : `${item.value} ${text(item.unit, "")}`], ["Observed", when(item.observed_at)], ["Source", text(item.source, "No source configured")]], href: "/utilities" });
-      for (const home of homes.filter((h: any) => h.electricity_meter || h.water_meter || h.internet_id)) rows.push({ type: "Utility", title: text(home.name || home.unit, "Utility endpoint"), subtitle: "Estate/home utility identifiers", rows: [["Power", home.electricity_meter ? "Configured" : "Not configured"], ["Water", home.water_meter ? "Configured" : "Not configured"], ["Network", home.internet_id ? "Configured" : "Not configured"]], href: "/utilities" });
+      for (const item of utilityTelemetry.data) rows.push({ type: "Service", title: text(item.utility_type, "Infrastructure services telemetry"), subtitle: text(item.source, "Awaiting telemetry"), rows: [["State", text(item.state, "awaiting telemetry")], ["Value", item.value === null || item.value === undefined ? "Awaiting telemetry" : `${item.value} ${text(item.unit, "")}`], ["Observed", when(item.observed_at)], ["Source", text(item.source, "No source configured")]], href: "/services" });
+      for (const home of homes.filter((h: any) => h.electricity_meter || h.water_meter || h.internet_id)) rows.push({ type: "Service", title: text(home.name || home.unit, "Service endpoint"), subtitle: "Estate/home service identifiers", rows: [["Electricity", home.electricity_meter ? "Configured" : "Not configured"], ["Water", home.water_meter ? "Configured" : "Not configured"], ["Internet", home.internet_id ? "Configured" : "Not configured"]], href: "/services" });
     }
     return rows;
   }, [visible, homes, rooms, registry, cameras.data, cameraInfrastructure.data, edgeNodes, maintenance.data, notifications.data, platformIncidents.data, utilityTelemetry.data, visitorIncidents, placements.data]);
@@ -309,7 +309,7 @@ export default function DigitalTwinPage() {
     ...edgeAttention.map((node) => ({ label: text(node.name || node.node_id), domain: "Edge Health", status: text(node.status || node.sync_status), href: "/hardware-devices?tab=edge" })),
     ...openMaintenance.map((item) => ({ label: text(item.title), domain: "Maintenance Queue", status: text(item.status), href: "/maintenance" })),
     ...platformIncidents.data.map((item) => ({ label: text(item.title), domain: "Incident Queue", status: text(item.status, "open"), href: "/alerts" })),
-    ...utilityTelemetry.data.filter((item) => /degraded|offline/.test(lower(item.state))).map((item) => ({ label: text(item.utility_type), domain: "Utility Health", status: text(item.state), href: "/utilities" })),
+    ...utilityTelemetry.data.filter((item) => /degraded|offline/.test(lower(item.state))).map((item) => ({ label: text(item.utility_type), domain: "Infrastructure Services", status: text(item.state), href: "/services" })),
     ...notifications.data.map((item) => ({ label: text(item.title || item.message), domain: "Incident Queue", status: text(item.status || item.severity, "new"), href: "/alerts" })),
   ].slice(0, 12);
 
