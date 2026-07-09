@@ -1,138 +1,246 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { OisPageToolbar, OisRegistryHeader, OisRegistryPanel, OisRuntimeCard } from "@/components/ois";
+import { OisPageToolbar, OisRegistryHeader, OisRegistryPanel } from "@/components/ois";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
-import Button from "@/components/ui/Button";
-import { facilityService } from "@/services/facilityService";
+import { facilityService, type InfrastructureServiceAccountRow } from "@/services/facilityService";
 import { serviceConfigService, type ServiceConfig } from "@/services/serviceConfigService";
 import { formatMoney } from "@/lib/format";
-import { Eye, RefreshCw, SlidersHorizontal, ToggleLeft, ToggleRight } from "lucide-react";
 
-const FALLBACK_SERVICES: ServiceConfig[] = [
-  { service_key: "utility_token", title: "Utility Token", description: "Resident electricity token purchase", active: true, status: "pending configuration", billing_mode: "metered" },
-  { service_key: "water_service", title: "Water Service", description: "Water recharge and service billing", active: true, status: "pending configuration", billing_mode: "metered" },
-  { service_key: "gas_service", title: "Gas Service", description: "Gas refill and household continuity", active: true, status: "pending configuration", billing_mode: "metered" },
-  { service_key: "internet_service", title: "Internet Service", description: "Resident internet subscription services", active: true, status: "pending configuration", billing_mode: "fixed" },
-  { service_key: "generator_recovery", title: "Generator Recovery", description: "Backup generator recovery and outage continuity", active: true, status: "pending configuration", billing_mode: "fixed" },
-  { service_key: "solar_battery_service", title: "Solar / Battery Service", description: "Solar and battery continuity service", active: true, status: "pending configuration", billing_mode: "fixed" },
-  { service_key: "service_charge", title: "Service Charge", description: "Estate operational dues", active: true, status: "pending configuration", billing_mode: "fixed" },
-  { service_key: "other_facility_fees", title: "Other Facility Fees", description: "Special estate fees", active: true, status: "pending configuration", billing_mode: "fixed" },
-];
+const FILTERS = [
+  "All",
+  "Electricity",
+  "Water",
+  "Internet",
+  "Gas",
+  "Generator",
+  "Solar",
+  "Issues",
+  "Ready",
+  "Pending",
+] as const;
 
-function lower(value: unknown) { return String(value || "").toLowerCase(); }
-function serviceKey(config: ServiceConfig) { return String(config.service_key || config.key || "service"); }
-function serviceTitle(config: ServiceConfig) { return String(config.title || serviceKey(config).replace(/_/g, " ")); }
-function isEnabled(config: ServiceConfig) { return config.enabled ?? config.active ?? false; }
-function readiness(config: ServiceConfig) {
-  if (!isEnabled(config)) return "Unavailable";
-  const status = lower(config.status);
-  if (/maintenance/.test(status)) return "Maintenance mode";
-  if (/pending|config/.test(status)) return "Pending readiness";
-  return "Available";
+const KEY_LABELS: Record<string, string> = {
+  utility_token: "Electricity",
+  water_service: "Water",
+  gas_service: "Gas",
+  internet_service: "Internet",
+  fiber_internet: "Internet",
+  generator_recovery: "Generator",
+  solar_battery_service: "Solar / Battery",
+  service_charge: "Estate Fees",
+  other_facility_fees: "Facility Services",
+};
+
+function toneFor(value?: string | null) {
+  const text = String(value || "").toLowerCase();
+  if (/ready|stable|active|available|online/.test(text)) return "stable";
+  if (/issue|failed|warning|degraded|blocked/.test(text)) return "warning";
+  if (/unavailable|offline|unsupported/.test(text)) return "unavailable";
+  return "pending";
 }
-function readinessTone(label: string) { if (label === "Available") return "stable"; if (label === "Maintenance mode") return "warning"; if (label === "Unavailable") return "unavailable"; return "pending"; }
-function dateLabel(value?: string | null) { if (!value) return "Time unavailable"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Time unavailable" : d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 
-function Field({ label, value }: { label: string; value: React.ReactNode }) { return <OisCard variant="evidence" className="p-3"><div className="text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">{label}</div><div className="mt-1 text-sm text-[var(--ois-text-primary)]">{value}</div></OisCard>; }
+function when(value?: string | null) {
+  if (!value) return "No recent activity";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "No recent activity"
+    : date.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function matchesFilter(account: InfrastructureServiceAccountRow, active: typeof FILTERS[number]) {
+  if (active === "All") return true;
+  if (active === "Issues") return /issue|failed|warning|blocked|unsupported/.test(`${account.status} ${account.vending_readiness} ${account.provider_health}`.toLowerCase());
+  if (active === "Ready") return String(account.vending_readiness || "").toLowerCase() === "ready";
+  if (active === "Pending") return /pending|manual_review|setup/.test(`${account.status} ${account.vending_readiness} ${account.last_transaction_status}`.toLowerCase());
+  return KEY_LABELS[account.service_key] === active;
+}
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <OisCard variant="evidence" className="p-3">
+      <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">{label}</div>
+      <div className="mt-1 text-sm text-[var(--ois-text-primary)]">{value}</div>
+    </OisCard>
+  );
+}
 
 export default function FacilityServicesPage() {
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [configError, setConfigError] = useState<string | null>(null);
+  const [estateId, setEstateId] = useState<string>("");
   const [configs, setConfigs] = useState<ServiceConfig[]>([]);
+  const [accounts, setAccounts] = useState<InfrastructureServiceAccountRow[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
-  const [wallet, setWallet] = useState({ balance: 0, outstanding: 0, collected: 0 });
-  const [selected, setSelected] = useState<ServiceConfig | null>(null);
+  const [selected, setSelected] = useState<InfrastructureServiceAccountRow | null>(null);
+  const [activeFilter, setActiveFilter] = useState<typeof FILTERS[number]>("All");
 
   async function load() {
-    setLoading(true); setError(null); setNotice(null);
+    setLoading(true);
+    setError(null);
     try {
       const overview = await facilityService.overview().catch(() => null);
-      const estateId = String((overview as any)?.estate?.id || (overview as any)?.estate_id || "").trim();
-      setWallet({ balance: Number((overview as any)?.wallet?.balance || 0), outstanding: Number((overview as any)?.wallet?.outstanding_dues || 0), collected: Number((overview as any)?.wallet?.collected_this_month || 0) });
-      const configResult = await serviceConfigService.list();
-      setConfigError(configResult.error || null);
-      setConfigs(configResult.configs.length ? configResult.configs : FALLBACK_SERVICES);
-      if (estateId) {
-        const paymentRows = await facilityService.listEstateServicePayments(estateId, 20).catch(() => ({ payments: [] }));
-        setPayments(Array.isArray(paymentRows.payments) ? paymentRows.payments : []);
-      } else setPayments([]);
-    } catch (err: any) { setError(err?.message || "Failed to load service operations"); }
-    finally { setLoading(false); }
+      const nextEstateId = String((overview as any)?.estate?.id || (overview as any)?.estate_id || "").trim();
+      setEstateId(nextEstateId);
+      const [configResult, accountsResult, paymentRows] = await Promise.all([
+        serviceConfigService.list(),
+        nextEstateId ? facilityService.listInfrastructureServiceAccounts({ estate_id: nextEstateId }) : Promise.resolve({ accounts: [] }),
+        nextEstateId ? facilityService.listEstateServicePayments(nextEstateId, 20) : Promise.resolve({ payments: [] }),
+      ]);
+      setConfigs(configResult.configs || []);
+      setAccounts(accountsResult.accounts || []);
+      setPayments(paymentRows.payments || []);
+    } catch (err: any) {
+      setError(err?.message || "Failed to load infrastructure services");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
 
-  async function toggleService(config: ServiceConfig) {
-    setSaving(true); setError(null); setNotice(null);
-    const enabled = !isEnabled(config);
-    const result = await serviceConfigService.update(serviceKey(config), { active: enabled, enabled });
-    setSaving(false);
-    if (result.error) { setError(result.error); return; }
-    setNotice(`${serviceTitle(config)} updated.`);
-    await load();
-  }
+  const filtered = useMemo(
+    () => accounts.filter((account) => matchesFilter(account, activeFilter)),
+    [accounts, activeFilter],
+  );
 
-  const enabled = configs.filter(isEnabled).length;
-  const disabled = configs.length - enabled;
-  const pending = configs.filter((config) => readiness(config) === "Pending readiness").length;
-
-  const consumerImpact = useMemo(() => [
-    { label: "Visitor services", enabled: true, source: "Security & Access / Visitors" },
-    { label: "Maintenance services", enabled: configs.some((config) => /maintenance|service_charge|other/.test(serviceKey(config))), source: "Maintenance request flow" },
-    { label: "Wallet services", enabled: configs.some(isEnabled), source: "Wallet-funded resident services" },
-    { label: "Community services", enabled: true, source: "Community module" },
-  ], [configs]);
+  const readyCount = accounts.filter((account) => String(account.vending_readiness || "").toLowerCase() === "ready").length;
+  const issueCount = accounts.filter((account) => matchesFilter(account, "Issues")).length;
+  const pendingCount = accounts.filter((account) => matchesFilter(account, "Pending")).length;
+  const residentLinked = accounts.filter((account) => account.resident_id).length;
 
   return (
     <div className="space-y-6">
-      <Topbar title="Infrastructure Services" subtitle="Resident service controls" strip={[{ label: "Healthy", value: disabled ? "Mixed" : "Stable", detail: "Readiness posture", tone: disabled ? "warning" : "stable" }, { label: "Enabled", value: enabled, detail: "Resident-facing", tone: "attention" }, { label: "Pending", value: pending, detail: "Needs configuration", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Registry sync", tone: "info" }]} />
-      {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
-      {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
-      {configError ? <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">Readiness source: {configError}. Showing contract defaults as Pending readiness, not live controls.</div> : null}
+      <Topbar
+        title="Infrastructure Services"
+        subtitle="Resident-bound service operations"
+        strip={[
+          { label: "Accounts", value: accounts.length, detail: "Provisioned services", tone: "stable" },
+          { label: "Ready", value: readyCount, detail: "Vending-ready", tone: "attention" },
+          { label: "Pending", value: pendingCount, detail: "Provider/manual review", tone: "warning" },
+          { label: "Linked", value: residentLinked, detail: "Resident assignments", tone: "info" },
+        ]}
+      />
 
-      <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
+      {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
+
+      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <OisRegistryPanel
-          title="Infrastructure Services Registry"
-          caption="Resident-facing electricity, water, gas, internet, recovery, and estate service readiness."
-          toolbar={<OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search service readiness..." />}
+          title="Provisioned Service Accounts"
+          caption="Electricity, water, gas, internet, generator, solar, estate fees, and resident service readiness."
+          toolbar={<OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search home, resident, provider, or identifier..." />}
           className="p-5"
         >
-          <div className="grid gap-3 md:grid-cols-2">
-            {configs.map((config) => {
-              const ready = readiness(config);
-              return <OisCard key={serviceKey(config)} variant="evidence" className="p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-white">{serviceTitle(config)}</h3><p className="mt-1 text-xs leading-5 text-zinc-500">{config.description || "No readiness description supplied."}</p></div><OisStatusBadge status={readinessTone(ready)} label={ready} className="uppercase" /></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><Field label="Billing" value={config.billing_mode || "Pending source"} /><Field label="Suggested" value={config.suggested_amount ? formatMoney(Number(config.suggested_amount), "NGN") : "Pending source"} /></div><div className="mt-4 flex flex-wrap gap-2"><Button variant="ghost" onClick={() => setSelected(config)} className="gap-2"><Eye className="h-4 w-4" />Review</Button><Button variant={isEnabled(config) ? "secondary" : "primary"} onClick={() => void toggleService(config)} disabled={saving || Boolean(configError)} className="gap-2">{isEnabled(config) ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}{isEnabled(config) ? "Disable" : "Enable"}</Button></div></OisCard>;
-            })}
+          <div className="flex gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {FILTERS.map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setActiveFilter(filter)}
+                className={`rounded-full border px-3 py-2 text-xs transition ${activeFilter === filter ? "border-sky-300/30 bg-sky-400/12 text-sky-100" : "border-white/10 bg-white/[0.04] text-zinc-400 hover:bg-white/[0.06]"}`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {filtered.map((account) => (
+              <button
+                key={account.id}
+                type="button"
+                onClick={() => setSelected(account)}
+                className="w-full text-left"
+              >
+                <OisListItem
+                  title={`${KEY_LABELS[account.service_key] || account.service_title} · ${account.home_label || "Home pending"}`}
+                  description={`${account.resident_name || "Resident pending"} · ${account.provider || "Provider pending"} · ${account.identifier || "Identifier pending"}`}
+                  meta={when(account.last_activity_at)}
+                  status={toneFor(account.vending_readiness || account.status)}
+                  action={
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <OisStatusBadge status={toneFor(account.provider_health)} label={String(account.provider_health || "Unknown").replace(/_/g, " ")} />
+                      <OisStatusBadge status={toneFor(account.vending_readiness)} label={String(account.vending_readiness || "Pending").replace(/_/g, " ")} />
+                    </div>
+                  }
+                />
+              </button>
+            ))}
+            {!filtered.length ? (
+              <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">
+                No infrastructure service accounts match this filter yet.
+              </div>
+            ) : null}
           </div>
         </OisRegistryPanel>
 
         <aside className="space-y-4">
-          <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Consumer impact preview</h2><div className="mt-4 space-y-2">{consumerImpact.map((item) => <OisListItem key={item.label} title={item.label} description={item.source} status={item.enabled ? "stable" : "unavailable"} />)}</div></OisCard>
-          <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Service finance signal</h2><div className="mt-4 grid gap-2"><Field label="Estate wallet" value={formatMoney(wallet.balance, "NGN")} /><Field label="Outstanding" value={formatMoney(wallet.outstanding, "NGN")} /><Field label="Collected this month" value={formatMoney(wallet.collected, "NGN")} /></div></OisCard>
-          <OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Readiness Activity</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Audit events appear when the backend records service readiness changes. No local audit activity is fabricated.</p></OisCard>
+          <OisCard className="p-5">
+            <OisRegistryHeader title="Readiness Posture" caption="Provider, wallet, and resident service linkage." />
+            <div className="mt-4 space-y-2">
+              <OisListItem title="Issues requiring review" description="Provider failures, unsupported vending, or blocked status" meta={`${issueCount} records`} status={issueCount ? "warning" : "stable"} />
+              <OisListItem title="Estate scope" description={estateId ? "Live estate registry" : "Estate context pending"} meta={estateId || "No estate"} status={estateId ? "stable" : "pending"} />
+              <OisListItem title="Configuration coverage" description={`${configs.length} service profiles available`} meta="Infrastructure service controls" status={configs.length ? "stable" : "pending"} />
+            </div>
+          </OisCard>
+
+          <OisCard className="p-5">
+            <OisRegistryHeader title="Recent Activity" caption="Transactions and service activity already emitted by the backend." />
+            <div className="mt-4 space-y-2">
+              {payments.slice(0, 6).map((payment, index) => (
+                <OisListItem
+                  key={payment.id || payment.reference || index}
+                  title={payment.service_title || payment.type || "Service transaction"}
+                  description={`${payment.home_label || payment.home_name || "Home pending"} · ${payment.user_name || payment.user_email || "Resident pending"}`}
+                  meta={when(payment.created_at)}
+                  status={toneFor(payment.status)}
+                />
+              ))}
+              {!payments.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No service activity has synced yet.</div> : null}
+            </div>
+          </OisCard>
         </aside>
       </section>
 
-      <OisCard className="p-5"><OisRegistryHeader title="Resident Service Activity" caption="Recent payment and readiness signals from service usage." /><div className="mt-4 space-y-2">{payments.slice(0, 10).map((payment, index) => <OisListItem key={payment.id || payment.reference || index} title={payment.service_title || payment.type || "Service payment"} description={`${payment.home_label || payment.home_name || "Home pending"} · ${payment.amount ? formatMoney(Number(payment.amount), "NGN") : "Amount pending"}`} meta={dateLabel(payment.created_at)} status={readinessTone(payment.status || "Pending readiness")} />)}{!payments.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No resident service activity has synced yet.</div> : null}</div></OisCard>
-
-      <OisRuntimeCard
-        title="Runtime Insights"
-        items={[
-          { label: "Resident-ready services", value: enabled, delta: "available for use" },
-          { label: "Pending readiness", value: pending, delta: "need backend configuration" },
-          { label: "Recent payments", value: payments.length, delta: "resident activity signals" },
-        ]}
-      />
-
-      <OisDrawer open={Boolean(selected)} onClose={() => setSelected(null)} title={selected ? serviceTitle(selected) : "Service readiness"} subtitle={selected ? `Readiness · ${serviceKey(selected)}` : undefined} width="md">
-        {selected ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selected.description || "No readiness description supplied."}</p><p className="mt-2 text-xs text-zinc-500">{selected.account_label || "Pending source"}</p></div><OisStatusBadge status={readinessTone(readiness(selected))} label={readiness(selected)} /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Field label="Service key" value={serviceKey(selected)} /><Field label="Readiness" value={<OisStatusBadge status={readinessTone(readiness(selected))} label={readiness(selected)} />} /><Field label="Account label" value={selected.account_label || "Pending source"} /><Field label="Account hint" value={selected.account_hint || "Pending source"} /><Field label="Unit cost" value={selected.unit_cost ? formatMoney(Number(selected.unit_cost), "NGN") : "Pending source"} /><Field label="Updated" value={dateLabel(selected.updated_at)} /></div><div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-zinc-400"><SlidersHorizontal className="mb-2 h-4 w-4 text-sky-200" />Readiness controls use <code>/services/config/:serviceKey</code>. If the operator lacks <code>settings.manage</code>, controls remain visible but fail closed through backend permissions.</div></div> : null}
+      <OisDrawer
+        open={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        title={selected ? (KEY_LABELS[selected.service_key] || selected.service_title) : "Infrastructure service"}
+        subtitle={selected ? selected.home_label || "Service record" : undefined}
+        width="md"
+      >
+        {selected ? (
+          <div className="space-y-4">
+            <OisCard variant="evidence" className="p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm text-zinc-300">{selected.resident_name || "Resident pending assignment"} · {selected.provider || "Provider pending"}</p>
+                  <p className="mt-2 text-xs text-zinc-500">{selected.identifier || "Identifier pending"} · {selected.last_transaction_status || "No transaction yet"}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <OisStatusBadge status={toneFor(selected.provider_health)} label={String(selected.provider_health || "Unknown").replace(/_/g, " ")} />
+                  <OisStatusBadge status={toneFor(selected.vending_readiness)} label={String(selected.vending_readiness || "Pending").replace(/_/g, " ")} />
+                </div>
+              </div>
+            </OisCard>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Provider" value={selected.provider || "Pending source"} />
+              <Field label="Identifier" value={selected.identifier || "Pending source"} />
+              <Field label="Tariff profile" value={selected.tariff_profile || "Pending source"} />
+              <Field label="Billing profile" value={selected.billing_profile || "Pending source"} />
+              <Field label="Wallet link" value={selected.wallet_linked ? "Linked" : "Pending"} />
+              <Field label="Last activity" value={when(selected.last_activity_at)} />
+              <Field label="Outstanding" value={selected.outstanding != null ? formatMoney(Number(selected.outstanding), "NGN") : "No outstanding"} />
+              <Field label="Plan / notes" value={selected.plan || selected.metadata?.service_notes || "Pending source"} />
+            </div>
+          </div>
+        ) : null}
       </OisDrawer>
     </div>
   );

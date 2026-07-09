@@ -41,6 +41,43 @@ export type EstateServicePaymentRow = {
   home_label?: string | null;
 };
 
+export type InfrastructureServiceAccountRow = {
+  id: string;
+  estate_id: string;
+  home_id: string;
+  service_key: string;
+  service_title: string;
+  service_group: string;
+  provider_type?: string | null;
+  provider?: string | null;
+  identifier?: string | null;
+  meter_number?: string | null;
+  account_number?: string | null;
+  tariff_profile?: string | null;
+  billing_profile?: string | null;
+  kct?: string | null;
+  kctn?: string | null;
+  status?: string | null;
+  linked?: boolean;
+  plan?: string | null;
+  balance?: number | null;
+  outstanding?: number | null;
+  wallet_id?: string | null;
+  wallet_linked?: boolean;
+  resident_id?: string | null;
+  resident_name?: string | null;
+  resident_email?: string | null;
+  home_label?: string | null;
+  vending_readiness?: string | null;
+  provider_health?: string | null;
+  provider_supported?: boolean;
+  provider_health_reason?: string | null;
+  last_activity_at?: string | null;
+  last_transaction_status?: string | null;
+  last_transaction_type?: string | null;
+  metadata?: Record<string, any>;
+};
+
 export type RoomsResponse<T = any> = {
   rooms: T[];
 };
@@ -408,6 +445,15 @@ export const facilityService = {
     const res = await API.get("/services/estate/payments", {
       params: { estate_id: estateId, limit },
     });
+    return res.data;
+  },
+
+  async listInfrastructureServiceAccounts(params?: {
+    estate_id?: string;
+    home_id?: string;
+    resident_id?: string;
+  }): Promise<{ accounts: InfrastructureServiceAccountRow[]; summary?: Record<string, any> }> {
+    const res = await API.get("/services/accounts", { params });
     return res.data;
   },
 
