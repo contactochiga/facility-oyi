@@ -41,6 +41,24 @@ type HomeRow = {
   pending_invite_count?: number;
   expired_invite_count?: number;
   occupancy_status?: "occupied" | "pending_activation" | "vacant" | string;
+  service_bindings?: Record<string, {
+    provider?: string | null;
+    account_ref?: string | null;
+    meter_id?: string | null;
+    plan?: string | null;
+    status?: string | null;
+    linked?: boolean;
+    tariff_profile?: string | null;
+    billing_profile?: string | null;
+    kct?: string | null;
+    kctn?: string | null;
+  }>;
+};
+
+type ResidentOption = {
+  id: string;
+  label: string;
+  meta: string;
 };
 
 type RoomRow = {
@@ -97,15 +115,23 @@ export default function HomesPage() {
   // Add modal
   const [showAdd, setShowAdd] = useState(false);
   const [editHomeId, setEditHomeId] = useState<string | null>(null);
+  const [residentOptions, setResidentOptions] = useState<ResidentOption[]>([]);
   const [form, setForm] = useState({
     name: "",
     unit: "",
     block: "",
     description: "",
+    resident_id: "",
     electricity_meter: "",
+    electricity_kct: "",
+    electricity_kctn: "",
     water_meter: "",
+    gas_id: "",
     internet_id: "",
     gate_code: "",
+    provider: "",
+    tariff_profile: "",
+    billing_profile: "",
   });
   const canSubmit = useMemo(() => form.name.trim().length > 0, [form.name]);
   const editingHome = useMemo(() => homes.find((h) => h.id === editHomeId) || null, [homes, editHomeId]);
@@ -154,6 +180,26 @@ export default function HomesPage() {
 
       const res = await facilityService.listHomes(eid); // { homes: [] }
       setHomes(res?.homes || []);
+      try {
+        const estateUsers = await facilityService.listEstateUsers();
+        const options = Array.isArray(estateUsers?.users)
+          ? estateUsers.users
+              .map((row: any) => {
+                const user = row?.users;
+                const id = String(user?.id || "");
+                if (!id) return null;
+                return {
+                  id,
+                  label: user?.full_name || user?.username || user?.email || "Resident",
+                  meta: [user?.email || null, row?.role || null].filter(Boolean).join(" · "),
+                };
+              })
+              .filter(Boolean) as ResidentOption[]
+          : [];
+        setResidentOptions(options);
+      } catch {
+        setResidentOptions([]);
+      }
     } catch (e: any) {
       setErr(e?.response?.data?.error || "Failed to load homes");
     } finally {
@@ -201,10 +247,52 @@ export default function HomesPage() {
         unit: form.unit.trim() || undefined,
         block: form.block.trim() || undefined,
         description: form.description.trim() || undefined,
+        resident_id: form.resident_id || undefined,
         electricity_meter: form.electricity_meter.trim() || undefined,
         water_meter: form.water_meter.trim() || undefined,
         internet_id: form.internet_id.trim() || undefined,
         gate_code: form.gate_code.trim() || undefined,
+        service_bindings: {
+          utility_token: {
+            account_ref: form.electricity_meter.trim() || undefined,
+            meter_id: form.electricity_meter.trim() || undefined,
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+            kct: form.electricity_kct.trim() || undefined,
+            kctn: form.electricity_kctn.trim() || undefined,
+          },
+          water_service: {
+            account_ref: form.water_meter.trim() || undefined,
+            meter_id: form.water_meter.trim() || undefined,
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+          },
+          gas_service: {
+            account_ref: form.gas_id.trim() || undefined,
+            meter_id: form.gas_id.trim() || undefined,
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+          },
+          internet_service: {
+            account_ref: form.internet_id.trim() || undefined,
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+          },
+          service_charge: {
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+          },
+          other_facility_fees: {
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+          },
+        },
         type: "home",
       });
 
@@ -218,10 +306,17 @@ export default function HomesPage() {
         unit: "",
         block: "",
         description: "",
+        resident_id: "",
         electricity_meter: "",
+        electricity_kct: "",
+        electricity_kctn: "",
         water_meter: "",
+        gas_id: "",
         internet_id: "",
         gate_code: "",
+        provider: "",
+        tariff_profile: "",
+        billing_profile: "",
       });
       setNotice("Home created successfully.");
 
@@ -244,10 +339,52 @@ export default function HomesPage() {
         unit: form.unit.trim() || undefined,
         block: form.block.trim() || undefined,
         description: form.description.trim() || undefined,
+        resident_id: form.resident_id || undefined,
         electricity_meter: form.electricity_meter.trim() || undefined,
         water_meter: form.water_meter.trim() || undefined,
         internet_id: form.internet_id.trim() || undefined,
         gate_code: form.gate_code.trim() || undefined,
+        service_bindings: {
+          utility_token: {
+            account_ref: form.electricity_meter.trim() || undefined,
+            meter_id: form.electricity_meter.trim() || undefined,
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+            kct: form.electricity_kct.trim() || undefined,
+            kctn: form.electricity_kctn.trim() || undefined,
+          },
+          water_service: {
+            account_ref: form.water_meter.trim() || undefined,
+            meter_id: form.water_meter.trim() || undefined,
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+          },
+          gas_service: {
+            account_ref: form.gas_id.trim() || undefined,
+            meter_id: form.gas_id.trim() || undefined,
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+          },
+          internet_service: {
+            account_ref: form.internet_id.trim() || undefined,
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+          },
+          service_charge: {
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+          },
+          other_facility_fees: {
+            provider: form.provider.trim() || undefined,
+            tariff_profile: form.tariff_profile.trim() || undefined,
+            billing_profile: form.billing_profile.trim() || undefined,
+          },
+        },
       });
 
       if (res?.home?.id) {
@@ -263,10 +400,17 @@ export default function HomesPage() {
         unit: "",
         block: "",
         description: "",
+        resident_id: "",
         electricity_meter: "",
+        electricity_kct: "",
+        electricity_kctn: "",
         water_meter: "",
+        gas_id: "",
         internet_id: "",
         gate_code: "",
+        provider: "",
+        tariff_profile: "",
+        billing_profile: "",
       });
       setNotice("Home details updated successfully.");
       await load();
@@ -284,10 +428,17 @@ export default function HomesPage() {
       unit: "",
       block: "",
       description: "",
+      resident_id: "",
       electricity_meter: "",
+      electricity_kct: "",
+      electricity_kctn: "",
       water_meter: "",
+      gas_id: "",
       internet_id: "",
       gate_code: "",
+      provider: "",
+      tariff_profile: "",
+      billing_profile: "",
     });
     setShowAdd(true);
   }
@@ -299,10 +450,17 @@ export default function HomesPage() {
       unit: String(home.unit || ""),
       block: String(home.block || ""),
       description: String(home.description || ""),
+      resident_id: String(home.resident_id || ""),
       electricity_meter: String(home.electricity_meter || ""),
+      electricity_kct: String(home.service_bindings?.utility_token?.kct || ""),
+      electricity_kctn: String(home.service_bindings?.utility_token?.kctn || ""),
       water_meter: String(home.water_meter || ""),
+      gas_id: String(home.service_bindings?.gas_service?.account_ref || home.service_bindings?.gas_service?.meter_id || ""),
       internet_id: String(home.internet_id || ""),
       gate_code: String(home.gate_code || ""),
+      provider: String(home.service_bindings?.utility_token?.provider || home.service_bindings?.water_service?.provider || home.service_bindings?.internet_service?.provider || ""),
+      tariff_profile: String(home.service_bindings?.utility_token?.tariff_profile || home.service_bindings?.water_service?.tariff_profile || home.service_bindings?.internet_service?.tariff_profile || ""),
+      billing_profile: String(home.service_bindings?.utility_token?.billing_profile || home.service_bindings?.water_service?.billing_profile || home.service_bindings?.internet_service?.billing_profile || ""),
     });
     setShowAdd(true);
   }
@@ -629,6 +787,19 @@ export default function HomesPage() {
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               />
 
+              <select
+                className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                value={form.resident_id}
+                onChange={(e) => setForm((p) => ({ ...p, resident_id: e.target.value }))}
+              >
+                <option value="">Assign resident later</option>
+                {residentOptions.map((resident) => (
+                  <option key={resident.id} value={resident.id}>
+                    {resident.label} {resident.meta ? `· ${resident.meta}` : ""}
+                  </option>
+                ))}
+              </select>
+
               <div className="grid grid-cols-2 gap-3">
                 <input
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
@@ -647,6 +818,27 @@ export default function HomesPage() {
               <div className="grid grid-cols-2 gap-3">
                 <input
                   className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                  placeholder="KCT (optional)"
+                  value={form.electricity_kct}
+                  onChange={(e) => setForm((p) => ({ ...p, electricity_kct: e.target.value }))}
+                />
+                <input
+                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                  placeholder="KCTN (optional)"
+                  value={form.electricity_kctn}
+                  onChange={(e) => setForm((p) => ({ ...p, electricity_kctn: e.target.value }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                  placeholder="Gas service ID (optional)"
+                  value={form.gas_id}
+                  onChange={(e) => setForm((p) => ({ ...p, gas_id: e.target.value }))}
+                />
+                <input
+                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
                   placeholder="Internet ID (optional)"
                   value={form.internet_id}
                   onChange={(e) => setForm((p) => ({ ...p, internet_id: e.target.value }))}
@@ -659,8 +851,29 @@ export default function HomesPage() {
                 />
               </div>
 
+              <div className="grid gap-3 md:grid-cols-3">
+                <input
+                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                  placeholder="Provider (optional)"
+                  value={form.provider}
+                  onChange={(e) => setForm((p) => ({ ...p, provider: e.target.value }))}
+                />
+                <input
+                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                  placeholder="Tariff profile (optional)"
+                  value={form.tariff_profile}
+                  onChange={(e) => setForm((p) => ({ ...p, tariff_profile: e.target.value }))}
+                />
+                <input
+                  className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                  placeholder="Billing profile (optional)"
+                  value={form.billing_profile}
+                  onChange={(e) => setForm((p) => ({ ...p, billing_profile: e.target.value }))}
+                />
+              </div>
+
               <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-zinc-400">
-                These identifiers feed the consumer app directly. Keep meters and internet IDs accurate here so resident services remain active and bill correctly.
+                Saving this home now provisions resident-facing infrastructure services automatically. Meter IDs, gas/internet accounts, tariff profile, billing profile, and resident assignment feed Consumer OS, wallet readiness, and Oyi Core service signals.
               </div>
 
               <div className="flex gap-2 mt-2">

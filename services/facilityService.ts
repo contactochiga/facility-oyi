@@ -377,6 +377,7 @@ export const facilityService = {
     gate_code?: string;
     lat?: number;
     lng?: number;
+    service_bindings?: Record<string, any>;
   }): Promise<{ message: string; home: any }> {
     const res = await API.post("/facility/homes", payload);
     return res.data;
@@ -396,6 +397,7 @@ export const facilityService = {
       gate_code?: string;
       lat?: number;
       lng?: number;
+      service_bindings?: Record<string, any>;
     }
   ): Promise<{ message: string; home: any }> {
     const res = await API.patch(`/facility/homes/${homeId}`, payload);

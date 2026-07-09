@@ -16,7 +16,10 @@ import { Eye, RefreshCw, SlidersHorizontal, ToggleLeft, ToggleRight } from "luci
 const FALLBACK_SERVICES: ServiceConfig[] = [
   { service_key: "utility_token", title: "Utility Token", description: "Resident electricity token purchase", active: true, status: "pending configuration", billing_mode: "metered" },
   { service_key: "water_service", title: "Water Service", description: "Water recharge and service billing", active: true, status: "pending configuration", billing_mode: "metered" },
+  { service_key: "gas_service", title: "Gas Service", description: "Gas refill and household continuity", active: true, status: "pending configuration", billing_mode: "metered" },
   { service_key: "internet_service", title: "Internet Service", description: "Resident internet subscription services", active: true, status: "pending configuration", billing_mode: "fixed" },
+  { service_key: "generator_recovery", title: "Generator Recovery", description: "Backup generator recovery and outage continuity", active: true, status: "pending configuration", billing_mode: "fixed" },
+  { service_key: "solar_battery_service", title: "Solar / Battery Service", description: "Solar and battery continuity service", active: true, status: "pending configuration", billing_mode: "fixed" },
   { service_key: "service_charge", title: "Service Charge", description: "Estate operational dues", active: true, status: "pending configuration", billing_mode: "fixed" },
   { service_key: "other_facility_fees", title: "Other Facility Fees", description: "Special estate fees", active: true, status: "pending configuration", billing_mode: "fixed" },
 ];
@@ -90,15 +93,15 @@ export default function FacilityServicesPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Service Readiness" subtitle="Resident service controls" strip={[{ label: "Healthy", value: disabled ? "Mixed" : "Stable", detail: "Readiness posture", tone: disabled ? "warning" : "stable" }, { label: "Enabled", value: enabled, detail: "Resident-facing", tone: "attention" }, { label: "Pending", value: pending, detail: "Needs configuration", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Registry sync", tone: "info" }]} />
+      <Topbar title="Infrastructure Services" subtitle="Resident service controls" strip={[{ label: "Healthy", value: disabled ? "Mixed" : "Stable", detail: "Readiness posture", tone: disabled ? "warning" : "stable" }, { label: "Enabled", value: enabled, detail: "Resident-facing", tone: "attention" }, { label: "Pending", value: pending, detail: "Needs configuration", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Registry sync", tone: "info" }]} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
       {configError ? <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">Readiness source: {configError}. Showing contract defaults as Pending readiness, not live controls.</div> : null}
 
       <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <OisRegistryPanel
-          title="Service Registry"
-          caption="Resident-facing services, readiness, and control state."
+          title="Infrastructure Services Registry"
+          caption="Resident-facing electricity, water, gas, internet, recovery, and estate service readiness."
           toolbar={<OisPageToolbar onRefresh={() => void load()} refreshing={loading} searchPlaceholder="Search service readiness..." />}
           className="p-5"
         >
