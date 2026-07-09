@@ -1,6 +1,7 @@
 import API from "./api";
 
 export type ServiceConfig = {
+  estate_id?: string | null;
   service_key: string;
   key?: string;
   title?: string | null;
@@ -14,6 +15,7 @@ export type ServiceConfig = {
   billing_mode?: string | null;
   account_label?: string | null;
   account_hint?: string | null;
+  created_at?: string | null;
   updated_at?: string | null;
   metadata?: Record<string, any> | null;
 };
