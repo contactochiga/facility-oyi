@@ -337,6 +337,17 @@ export type InfrastructureDevice = {
   capabilities: string[];
   protocols: string[];
   metadata: Record<string, any>;
+  normalized_state?: Record<string, any> | null;
+  supported_controls?: string[];
+  control_profile?: string | null;
+  health_status?: string | null;
+  provider_health?: string | null;
+  primary_state?: string | null;
+  telemetry_summary?: Record<string, any> | null;
+  activity_summary?: string | null;
+  last_signal?: string | null;
+  device_family?: string | null;
+  device_type?: string | null;
 };
 
 export type InfrastructureOperations = {

@@ -27,6 +27,7 @@ import {
   type InfrastructureOperations,
 } from "@/services/facilityService";
 import { iconForTab } from "@/lib/oisIconRegistry";
+import { activitySummary, healthLabel, onlineLabel, providerHealthLabel, statusLabel, toneFromDevice } from "@/lib/deviceRuntimePresentation";
 
 type Tab = "registry" | "discovery" | "assignments" | "providers" | "edge" | "telemetry";
 
@@ -59,8 +60,12 @@ function tone(status?: string | null) {
   return "unavailable";
 }
 
-function Status({ value }: { value?: string | null }) {
-  return <OisStatusBadge status={tone(value)} label={text(value, "unknown").replace(/_/g, " ")} className="uppercase tracking-[0.12em]" />;
+function Status({ value, device }: { value?: string | null; device?: InfrastructureDevice | null }) {
+  const status = device ? toneFromDevice(device) : tone(value);
+  const label = device
+    ? healthLabel(device.health_status || device.provider_health || device.primary_state || value, text(value, "unknown"))
+    : text(value, "unknown").replace(/_/g, " ");
+  return <OisStatusBadge status={status as any} label={label} className="uppercase tracking-[0.12em]" />;
 }
 
 function location(device: InfrastructureDevice) {
@@ -125,7 +130,7 @@ export default function HardwareDevicesPage() {
   const rooms = useMemo(() => (data?.rooms || []).filter((room) => String(room.home_id || "") === homeId), [data, homeId]);
   const assigned = registry.filter((device) => Boolean(device.home_id));
   const pending = registry.filter((device) => !device.home_id);
-  const attention = registry.filter((device) => ["offline", "error"].includes(device.status));
+  const attention = registry.filter((device) => toneFromDevice(device) === "critical" || toneFromDevice(device) === "pending");
 
   function openAssignment(device: InfrastructureDevice) {
     setAssigning(device);
@@ -262,7 +267,7 @@ export default function HardwareDevicesPage() {
                   <tr key={device.id} className="text-zinc-300">
                     <td className="py-3 pr-3 font-medium text-white">{device.name}</td><td>{device.type}</td><td>{device.provider}</td>
                     <td className="max-w-36 truncate font-mono text-[11px] text-zinc-500">{device.oyi_id}</td><td className="max-w-40 truncate font-mono text-[11px] text-zinc-500">{device.external_id || "Unavailable"}</td>
-                    <td>{location(device)}</td><td><Status value={device.status} /></td><td>{date(device.last_seen_at)}</td>
+                    <td>{location(device)}</td><td><Status value={device.status} device={device} /></td><td>{date(device.last_seen_at)}</td>
                     <td><button type="button" onClick={() => setDetail(device)} className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-zinc-300 hover:text-white">Review</button></td>
                   </tr>
                 ))}
@@ -275,9 +280,9 @@ export default function HardwareDevicesPage() {
               <OisListItem
                 key={device.id}
                 title={device.name}
-                description={`${location(device)} · ${text(device.provider, "Provider unavailable")}`}
-                meta={`Last seen ${date(device.last_seen_at)}`}
-                status={tone(device.status)}
+                description={`${location(device)} · ${activitySummary(device, text(device.provider, "Provider unavailable"))}`}
+                meta={`Last seen ${date(device.last_seen_at)} · ${providerHealthLabel(device.provider_health, onlineLabel(device, "Unknown"))}`}
+                status={toneFromDevice(device) as any}
                 action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />}
                 onClick={() => setDetail(device)}
                 className="w-full text-left"
@@ -345,7 +350,7 @@ export default function HardwareDevicesPage() {
         width="md"
         footer={detail ? <div className="flex flex-wrap gap-2"><Button variant="ghost" disabled className="gap-2"><LocateFixed className="h-4 w-4" /> Locate unavailable</Button><Button onClick={() => { setDetail(null); openAssignment(detail); }} className="gap-2"><SlidersHorizontal className="h-4 w-4" /> Ownership</Button></div> : null}
       >
-        {detail ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-white">{location(detail)}</p><p className="mt-2 text-xs text-zinc-500">Last seen {date(detail.last_seen_at)}</p></div><OisStatusBadge status={tone(detail.status)} label={text(detail.status, "unknown").replace(/_/g, " ")} className="uppercase" /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Oyi ID</span><span className="mt-1 block break-all font-mono text-xs text-zinc-300">{detail.oyi_id}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">External ID</span><span className="mt-1 block break-all font-mono text-xs text-zinc-300">{detail.external_id || "Unavailable"}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Location</span><span className="mt-1 block text-zinc-300">{location(detail)}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Last seen</span><span className="mt-1 block text-zinc-300">{date(detail.last_seen_at)}</span></OisCard></div></div> : null}
+        {detail ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-white">{location(detail)}</p><p className="mt-2 text-xs text-zinc-500">{activitySummary(detail, `Last seen ${date(detail.last_seen_at)}`)}</p></div><OisStatusBadge status={toneFromDevice(detail) as any} label={healthLabel(detail.health_status || detail.status, text(detail.status, "unknown"))} className="uppercase" /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Oyi ID</span><span className="mt-1 block break-all font-mono text-xs text-zinc-300">{detail.oyi_id}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">External ID</span><span className="mt-1 block break-all font-mono text-xs text-zinc-300">{detail.external_id || "Unavailable"}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Location</span><span className="mt-1 block text-zinc-300">{location(detail)}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Last seen</span><span className="mt-1 block text-zinc-300">{date(detail.last_seen_at)}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Primary state</span><span className="mt-1 block text-zinc-300">{statusLabel(detail.primary_state, "Unknown")}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Provider health</span><span className="mt-1 block text-zinc-300">{providerHealthLabel(detail.provider_health, "Unknown")}</span></OisCard></div></div> : null}
       </OisDrawer>
     </div>
   );

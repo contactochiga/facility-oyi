@@ -10,6 +10,7 @@ import { facilityService, type InfrastructureOperations } from "@/services/facil
 import cameraService, { type BoundCamera } from "@/services/cameraService";
 import { maintenanceService, type MaintenanceItem } from "@/services/maintenanceService";
 import { useContextStore } from "@/store/useContextStore";
+import { activitySummary, healthLabel, toneFromDevice } from "@/lib/deviceRuntimePresentation";
 
 function text(value: any, fallback = "Unavailable") {
   const next = String(value ?? "").trim();
@@ -40,6 +41,14 @@ function Panel({ title, subtitle, children }: { title: string; subtitle?: string
 function Status({ value }: { value: string }) {
   return <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em] ${tone(value)}`}>{value}</span>;
 }
+
+type AttentionItem = {
+  domain: string;
+  label: string;
+  status: string;
+  href: string;
+  summary?: string;
+};
 
 function openMaintenance(item: MaintenanceItem) {
   return !/closed|completed|resolved|cancelled/.test(lower(item.status));
@@ -89,16 +98,16 @@ export default function LiveInfrastructureModule() {
   const registry = infra?.registry || [];
   const edgeNodes = infra?.edge_nodes || [];
   const telemetry = infra?.telemetry || [];
-  const offlineDevices = registry.filter((device) => /offline|error|unavailable/.test(lower(device.status)));
+  const offlineDevices = registry.filter((device) => toneFromDevice(device) === "critical" || toneFromDevice(device) === "pending");
   const cameraAttention = cameras.filter((camera) => /offline|error|degraded|unavailable|unknown/.test(lower(camera.health_status || camera.stream_status || camera.status)));
   const edgeAttention = edgeNodes.filter((node) => /offline|degraded|unreachable|failed|unknown/.test(lower(node.status || node.sync_status)));
   const openRequests = maintenance.filter(openMaintenance);
 
-  const attention = useMemo(() => [
-    ...offlineDevices.map((device) => ({ domain: "Device", label: text(device.name), status: text(device.status, "attention"), href: "/hardware-devices" })),
+  const attention = useMemo<AttentionItem[]>(() => [
+    ...offlineDevices.map((device) => ({ domain: "Device", label: text(device.name), summary: activitySummary(device), status: healthLabel(device.health_status || device.status, "Attention"), href: "/hardware-devices" })),
     ...cameraAttention.map((camera) => ({ domain: "Camera", label: text(camera.name || camera.ip), status: text(camera.health_status || camera.stream_status || camera.status, "attention"), href: "/cameras" })),
     ...edgeAttention.map((node) => ({ domain: "Oyi Edge", label: text(node.name || node.node_id), status: text(node.status || node.sync_status, "attention"), href: "/hardware-devices?tab=edge" })),
-    ...openRequests.map((item) => ({ domain: "Maintenance", label: text(item.title), status: text(item.status), href: "/maintenance" })),
+    ...openRequests.map((item) => ({ domain: "Maintenance", label: text(item.title), summary: "", status: text(item.status), href: "/maintenance" })),
   ].slice(0, 12), [offlineDevices, cameraAttention, edgeAttention, openRequests]);
 
   return (
@@ -138,7 +147,7 @@ export default function LiveInfrastructureModule() {
 
         <Panel title="Infrastructure Attention" subtitle="Real source items requiring operator review.">
           <div className="space-y-2">
-            {attention.map((item, index) => <Link key={`${item.domain}-${item.label}-${index}`} href={item.href} className="block rounded-xl border border-white/10 bg-black/15 p-3 transition hover:border-sky-400/25"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">{item.domain}</p><p className="mt-1 text-sm text-white">{item.label}</p></div><Status value={item.status} /></div></Link>)}
+            {attention.map((item, index) => <Link key={`${item.domain}-${item.label}-${index}`} href={item.href} className="block rounded-xl border border-white/10 bg-black/15 p-3 transition hover:border-sky-400/25"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">{item.domain}</p><p className="mt-1 text-sm text-white">{item.label}</p>{item.summary ? <p className="mt-1 text-xs text-zinc-500">{item.summary}</p> : null}</div><Status value={item.status} /></div></Link>)}
             {!attention.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No critical infrastructure attention required from loaded sources.</div> : null}
           </div>
         </Panel>
