@@ -14,6 +14,7 @@ import FacilityConversationComposer from "@/components/assistant/FacilityConvers
 import FacilityConversationFeed from "@/components/assistant/FacilityConversationFeed";
 import { useFacilityConversationStore } from "@/store/useFacilityConversationStore";
 import { useViewportDockLayout } from "@/hooks/useViewportDockLayout";
+import { deriveFacilityOperationalObject } from "@/services/operationalObjectContext";
 
 export default function FacilityIntelligenceModule() {
   const router = useRouter();
@@ -37,6 +38,13 @@ export default function FacilityIntelligenceModule() {
     messages.filter((message) => message.role === "assistant" && !message.pending).forEach(() => undefined);
   }, [messages]);
   const moduleContext = searchParams.get("module") || "facility-intelligence";
+  const operationalObject = deriveFacilityOperationalObject({
+    module: moduleContext,
+    pathname: "/facility-intelligence",
+    estate_id: context?.estate_id || (user as any)?.estate_id || null,
+    home_id: context?.home_id || null,
+    searchParams,
+  });
   const composerRef = useRef<HTMLFormElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const { viewportHeight, dockHeight, keyboardInset } = useViewportDockLayout({
@@ -102,6 +110,7 @@ export default function FacilityIntelligenceModule() {
       page: "/facility-intelligence",
       route: "/facility-intelligence",
       filters: Object.fromEntries(Array.from(searchParams.entries()).slice(0, 12)),
+      operationalObject,
     });
   }
 

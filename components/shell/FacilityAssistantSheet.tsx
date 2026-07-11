@@ -10,6 +10,7 @@ import { useFacilityConversationStore } from "@/store/useFacilityConversationSto
 import FacilityConversationComposer from "@/components/assistant/FacilityConversationComposer";
 import FacilityConversationFeed from "@/components/assistant/FacilityConversationFeed";
 import { useViewportDockLayout } from "@/hooks/useViewportDockLayout";
+import { deriveFacilityOperationalObject } from "@/services/operationalObjectContext";
 
 export default function FacilityAssistantSheet() {
   const router = useRouter();
@@ -37,6 +38,13 @@ export default function FacilityAssistantSheet() {
   ), [user]);
   const pageFilters = useMemo(() => Object.fromEntries(Array.from(searchParams.entries()).slice(0, 12)), [searchParams]);
   const moduleContext = useMemo(() => String(pathname).replace(/^\//, "").split("/")[0] || "overview", [pathname]);
+  const operationalObject = useMemo(() => deriveFacilityOperationalObject({
+    module: moduleContext,
+    pathname,
+    estate_id: context?.estate_id || (user as any)?.estate_id || null,
+    home_id: context?.home_id || null,
+    searchParams,
+  }), [context?.estate_id, context?.home_id, moduleContext, pathname, searchParams, user]);
 
   useEffect(() => {
     if (!open) return;
@@ -81,6 +89,7 @@ export default function FacilityAssistantSheet() {
       route: pathname,
       filters: pageFilters,
       focusHint: focusHint || null,
+      operationalObject,
     });
   }
 

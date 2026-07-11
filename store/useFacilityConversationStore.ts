@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { oyiService, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
+import { oyiService, type OperationalObject, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
 import type { OisContext } from "@/store/useContextStore";
 
 export type FacilityChatMessage = {
@@ -34,6 +34,7 @@ type SendArgs = {
   route?: string | null;
   filters?: Record<string, string>;
   focusHint?: string | null;
+  operationalObject?: Partial<OperationalObject> | null;
 };
 
 type ConversationState = {
@@ -178,6 +179,7 @@ export const useFacilityConversationStore = create<ConversationState>()(persist(
         page: args.page,
         route: args.route,
         filters: args.filters,
+        operational_object: args.operationalObject || null,
         runtime_context: {
           focus_hint: args.focusHint || null,
           page: args.page || null,

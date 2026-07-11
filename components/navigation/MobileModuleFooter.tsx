@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { Sparkles } from "lucide-react";
 import { facilityMobileModules, type MobileModuleItem } from "./mobileNavConfig";
@@ -10,6 +10,7 @@ import { FACILITY_MODULES, visibleModules } from "@/lib/moduleRegistry";
 import { useContextStore } from "@/store/useContextStore";
 import { useFacilityConversationStore } from "@/store/useFacilityConversationStore";
 import FacilityConversationComposer from "@/components/assistant/FacilityConversationComposer";
+import { deriveFacilityOperationalObject } from "@/services/operationalObjectContext";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -29,6 +30,7 @@ const PAGE_TWO_KEYS = ["utilities", "community", "wallets", "administration"];
 export default function MobileModuleFooter({ items = facilityMobileModules }: { items?: MobileModuleItem[] }) {
   const pathname = usePathname() || "/overview";
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useSessionStore();
   const { context } = useContextStore();
   const { busy, sendMessage } = useFacilityConversationStore();
@@ -46,6 +48,13 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
   const [quickChatOpen, setQuickChatOpen] = useState(false);
   const [quickChatValue, setQuickChatValue] = useState("");
   const touchStartX = useRef<number | null>(null);
+  const operationalObject = useMemo(() => deriveFacilityOperationalObject({
+    module: pathname.replace(/^\//, "").split("/")[0] || "overview",
+    pathname,
+    estate_id: context?.estate_id || (user as any)?.estate_id || null,
+    home_id: context?.home_id || null,
+    searchParams,
+  }), [context?.estate_id, context?.home_id, pathname, searchParams, user]);
 
   useEffect(() => {
     setPageIndex(detectedPage);
@@ -65,6 +74,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
       page: pathname,
       route: pathname,
       focusHint: value,
+      operationalObject,
     });
     setQuickChatOpen(false);
     router.push("/facility-intelligence?focus=1");
