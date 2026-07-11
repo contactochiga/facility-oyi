@@ -27,7 +27,7 @@ export async function runConversationRuntime(request: ConversationRequest): Prom
   } catch {
     // Temporary compatibility fallback for page stability if backend
     // conversation runtime is unavailable.
-    response = buildConversationResponse({
+    const fallback = buildConversationResponse({
       request,
       signals,
       awareness,
@@ -37,6 +37,12 @@ export async function runConversationRuntime(request: ConversationRequest): Prom
       permissions: request.actor?.permissions || [],
       context: request.context,
     });
+    response = {
+      ...fallback,
+      summary: `${fallback.summary} This is a local fallback and has not been confirmed by the backend Oyi runtime.`,
+      answer: `${fallback.answer} This answer was generated locally because the canonical backend runtime was unavailable.`,
+      source: "conversation_runtime",
+    };
   }
   runtime.publishConversation({
     event: "conversation.runtime",

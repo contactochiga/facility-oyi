@@ -55,7 +55,7 @@ async function emitLocal(event: string, payload: Record<string, any>) {
     auditId: payload?.receipt?.auditId || `${event}:${signal.id || Date.now()}`,
   };
   if (!receipt.accepted) return;
-  const signalPayload = { ...payload, operational_signal: receipt.signal, signal_priority: receipt.priority };
+  const signalPayload: Record<string, any> = { ...payload, operational_signal: receipt.signal, signal_priority: receipt.priority };
   useFacilityRealtimeStore.getState().pushEvent(event, signalPayload);
   let awareness = serverAwareness;
   let insights = serverInsights;
@@ -76,6 +76,8 @@ async function emitLocal(event: string, payload: Record<string, any>) {
       insights = insights.length ? insights : bundle.insights;
       recommendations = recommendations.length ? recommendations : bundle.recommendations;
       automationPlans = automationPlans.length ? automationPlans : bundle.automationPlans;
+      signalPayload.local_fallback = true;
+      signalPayload.truth_provenance = "local_fallback";
     } catch {
       awareness = awareness || null;
     }
