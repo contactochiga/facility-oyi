@@ -112,7 +112,7 @@ export const oyiService = {
     return res.data as OyiAwareness & { ok?: boolean };
   },
 
-  async chat(input: { message: string; estate_id?: string | null; home_id?: string | null; module?: string | null; role?: string | null; thread_id?: string | null; context?: OisContext | null; page?: string | null; route?: string | null; filters?: Record<string, string>; runtime_context?: Record<string, any> | null }) {
+  async chat(input: { message: string; estate_id?: string | null; home_id?: string | null; module?: string | null; role?: string | null; thread_id?: string | null; context?: OisContext | null; page?: string | null; route?: string | null; filters?: Record<string, string>; runtime_context?: Record<string, any> | null; operational_object?: Partial<OperationalObject> | null }) {
     const res = await API.post("/oyi/runtime/conversation", {
       message: input.message,
       surface: "facility",
@@ -121,6 +121,7 @@ export const oyiService = {
       module: input.module || input.context?.module || null,
       role: input.role || null,
       thread_id: input.thread_id || null,
+      operational_object: input.operational_object || null,
       context: { ...(input.context || {}), runtime_context: input.runtime_context || null, page: input.page || null, route: input.route || null, filters: input.filters || {} },
     });
     const runtime = res.data?.response || {};
