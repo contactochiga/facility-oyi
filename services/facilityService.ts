@@ -19,6 +19,7 @@ export type MyEstatesResponse = {
 
 export type HomesResponse<T = any> = {
   homes: T[];
+  buildings?: EstateBuildingRow[];
 };
 
 export type EstateServicePaymentRow = {
@@ -113,6 +114,7 @@ export type RoomsResponse<T = any> = {
 };
 
 export type EstateStructureSummary = {
+  buildings?: number;
   homes: number;
   occupied_homes: number;
   vacant_homes: number;
@@ -133,10 +135,25 @@ export type EstateStructureSummary = {
 
 export type EstateStructureResponse = {
   estate: { id: string; name: string };
+  buildings?: EstateBuildingRow[];
   homes: any[];
   invitations: HomeInviteRow[];
   summary: EstateStructureSummary;
   sources: Record<string, string>;
+};
+
+export type EstateBuildingRow = {
+  id: string;
+  estate_id: string;
+  building_ref: string;
+  name: string;
+  block?: string | null;
+  floors?: number | null;
+  unit_count?: number | null;
+  building_type?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 // ---------------------------
@@ -193,6 +210,102 @@ export type DiscoverOptions = {
   username?: string;
   password?: string;
   [key: string]: any;
+};
+
+export type InfrastructureDiscoveryClassification = "compatible" | "needs_adapter" | "needs_edge" | "needs_credentials" | "unsupported" | "unknown";
+
+export type InfrastructureOnboardingProvider = {
+  key: string;
+  label: string;
+  adapter_key?: string | null;
+  implementation: "active" | "manual_import" | "adapter_required" | "future";
+  discovery_mode: "cloud" | "local_network" | "edge" | "manual";
+  authentication_methods: string[];
+  object_types: string[];
+  protocols: string[];
+  requires_edge: boolean;
+  supports_discovery: boolean;
+  supports_import: boolean;
+  supports_verification: boolean;
+  adapter_registered?: boolean;
+  readiness: InfrastructureDiscoveryClassification | "ready";
+  connection?: {
+    id: string;
+    authentication_method: string;
+    authentication_status: string;
+    credential_ref_present: boolean;
+    last_verified_at?: string | null;
+    last_error_code?: string | null;
+  } | null;
+  notes?: string;
+};
+
+export type InfrastructureOnboardingCandidate = {
+  id: string;
+  session_id: string;
+  provider_key: string;
+  adapter_key: string;
+  external_id?: string | null;
+  candidate_type: string;
+  name: string;
+  category?: string | null;
+  classification: InfrastructureDiscoveryClassification;
+  classification_reason?: string | null;
+  discovery_status: "discovered" | "classified" | "imported" | "verifying" | "verified" | "verification_failed" | "promoted" | "rejected" | string;
+  online?: boolean | null;
+  capabilities: string[];
+  protocols: string[];
+  proposed_home_id?: string | null;
+  proposed_room_id?: string | null;
+  duplicate_target_type?: string | null;
+  duplicate_target_id?: string | null;
+  promoted_target_type?: string | null;
+  promoted_target_id?: string | null;
+  provider_metadata?: Record<string, any>;
+  discovered_at?: string | null;
+  verified_at?: string | null;
+  promoted_at?: string | null;
+};
+
+export type InfrastructureOnboardingSession = {
+  id: string;
+  onboarding_ref: string;
+  estate_id: string;
+  building_id?: string | null;
+  home_id?: string | null;
+  partner_id?: string | null;
+  installer_id?: string | null;
+  status: string;
+  version: number;
+  notes?: string | null;
+  summary?: {
+    total?: number;
+    classifications?: Record<string, number>;
+    statuses?: Record<string, number>;
+    providers?: string[];
+  };
+  metadata?: Record<string, any>;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type InfrastructureOnboardingDetail = {
+  session: InfrastructureOnboardingSession;
+  candidates: InfrastructureOnboardingCandidate[];
+  verifications: Array<Record<string, any>>;
+  events: Array<Record<string, any>>;
+  connections: Array<Record<string, any>>;
+};
+
+export type InfrastructureOnboardingOverview = {
+  estate_id: string;
+  sessions: InfrastructureOnboardingSession[];
+  latest: InfrastructureOnboardingDetail | null;
+  partners: Array<Record<string, any>>;
+  providers: InfrastructureOnboardingProvider[];
+  connections: Array<Record<string, any>>;
 };
 
 // ---------------------------
@@ -425,6 +538,24 @@ export const facilityService = {
     return res.data;
   },
 
+  async listBuildings(estateId: string): Promise<{ buildings: EstateBuildingRow[] }> {
+    const res = await API.get(`/facility/estates/${estateId}/buildings`);
+    return res.data;
+  },
+
+  async createBuilding(payload: {
+    estate_id: string;
+    name: string;
+    building_ref?: string;
+    block?: string;
+    floors?: number;
+    unit_count?: number;
+    building_type?: string;
+  }): Promise<{ message: string; building: EstateBuildingRow }> {
+    const res = await API.post("/facility/buildings", payload);
+    return res.data;
+  },
+
   // ---------------------------
   // HOMES
   // ---------------------------
@@ -442,6 +573,7 @@ export const facilityService = {
 
   async createHome(payload: {
     estate_id: string;
+    building_id?: string;
     name: string;
     unit?: string;
     block?: string;
@@ -465,6 +597,7 @@ export const facilityService = {
     homeId: string,
     payload: {
       name?: string;
+      building_id?: string | null;
       unit?: string;
       block?: string;
       description?: string;
@@ -544,6 +677,66 @@ export const facilityService = {
       },
     });
     return res.data;
+  },
+
+  async infrastructureOnboardingOverview(): Promise<InfrastructureOnboardingOverview> {
+    const res = await API.get("/facility/infrastructure/onboarding/history");
+    return res.data;
+  },
+
+  async infrastructureOnboardingProviders(): Promise<{ providers: InfrastructureOnboardingProvider[] }> {
+    const res = await API.get("/facility/infrastructure/onboarding/providers");
+    return res.data;
+  },
+
+  async startInfrastructureOnboarding(payload: {
+    home_id?: string | null;
+    building_id?: string | null;
+    partner_id?: string | null;
+    installer_id?: string | null;
+    notes?: string | null;
+    property_type?: string | null;
+    onboarding_type?: string | null;
+  } = {}): Promise<{ session: InfrastructureOnboardingSession }> {
+    const res = await API.post("/facility/infrastructure/onboarding/sessions", payload);
+    return res.data;
+  },
+
+  async getInfrastructureOnboardingSession(sessionId: string): Promise<InfrastructureOnboardingDetail> {
+    const res = await API.get(`/facility/infrastructure/onboarding/sessions/${encodeURIComponent(sessionId)}`);
+    return res.data;
+  },
+
+  async authenticateInfrastructureProvider(sessionId: string, providerKey: string, payload: Record<string, any> = {}) {
+    const res = await API.post(`/facility/infrastructure/onboarding/sessions/${encodeURIComponent(sessionId)}/providers/${encodeURIComponent(providerKey)}/authenticate`, payload);
+    return res.data as { connection: Record<string, any> };
+  },
+
+  async discoverInfrastructure(sessionId: string, payload: {
+    providers?: string[];
+    provider_credentials?: Record<string, Record<string, any>>;
+    allow_local_scan?: boolean;
+  }): Promise<{ session: InfrastructureOnboardingSession; candidates: InfrastructureOnboardingCandidate[]; provider_results: Array<Record<string, any>> }> {
+    const res = await API.post(`/facility/infrastructure/onboarding/sessions/${encodeURIComponent(sessionId)}/discover`, payload);
+    return res.data;
+  },
+
+  async importInfrastructureCandidates(sessionId: string, payload: {
+    candidate_ids?: string[];
+    mappings?: Record<string, { home_id?: string | null; room_id?: string | null; zone_id?: string | null; metadata?: Record<string, any> }>;
+  }) {
+    const res = await API.post(`/facility/infrastructure/onboarding/sessions/${encodeURIComponent(sessionId)}/import`, payload);
+    return res.data as { session: InfrastructureOnboardingSession; candidates: InfrastructureOnboardingCandidate[] };
+  },
+
+  async verifyInfrastructureCandidates(sessionId: string, payload: { candidate_ids?: string[]; live_read?: boolean }) {
+    const res = await API.post(`/facility/infrastructure/onboarding/sessions/${encodeURIComponent(sessionId)}/verify`, payload);
+    return res.data as { session: InfrastructureOnboardingSession; verifications: Array<Record<string, any>> };
+  },
+
+  async promoteInfrastructureCandidates(sessionId: string, payload: { candidate_ids?: string[] }) {
+    const res = await API.post(`/facility/infrastructure/onboarding/sessions/${encodeURIComponent(sessionId)}/promote`, payload);
+    return res.data as { session: InfrastructureOnboardingSession; promoted: InfrastructureOnboardingCandidate[]; failures: Array<Record<string, any>> };
   },
 
   // ---------------------------

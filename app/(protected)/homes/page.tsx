@@ -13,12 +13,13 @@ import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import { OisPageToolbar, OisRegistryHeader, OisRuntimeCard } from "@/components/ois";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { facilityService } from "@/services/facilityService";
+import { facilityService, type EstateBuildingRow } from "@/services/facilityService";
 import { Building2, ChevronRight, Pencil, Users } from "lucide-react";
 
 type HomeRow = {
   id: string;
   estate_id: string;
+  building_id?: string | null;
   name: string;
   unit?: string | null;
   block?: string | null;
@@ -116,8 +117,10 @@ export default function HomesPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [editHomeId, setEditHomeId] = useState<string | null>(null);
   const [residentOptions, setResidentOptions] = useState<ResidentOption[]>([]);
+  const [buildings, setBuildings] = useState<EstateBuildingRow[]>([]);
   const [form, setForm] = useState({
     name: "",
+    building_id: "",
     unit: "",
     block: "",
     description: "",
@@ -180,6 +183,7 @@ export default function HomesPage() {
 
       const res = await facilityService.listHomes(eid); // { homes: [] }
       setHomes(res?.homes || []);
+      setBuildings(res?.buildings || []);
       try {
         const estateUsers = await facilityService.listEstateUsers();
         const options = Array.isArray(estateUsers?.users)
@@ -243,6 +247,7 @@ export default function HomesPage() {
     try {
       const res = await facilityService.createHome({
         estate_id: estateId,
+        building_id: form.building_id || undefined,
         name: form.name.trim(),
         unit: form.unit.trim() || undefined,
         block: form.block.trim() || undefined,
@@ -303,6 +308,7 @@ export default function HomesPage() {
       setShowAdd(false);
       setForm({
         name: "",
+        building_id: "",
         unit: "",
         block: "",
         description: "",
@@ -336,6 +342,7 @@ export default function HomesPage() {
     try {
       const res = await facilityService.updateHome(editHomeId, {
         name: form.name.trim() || undefined,
+        building_id: form.building_id || null,
         unit: form.unit.trim() || undefined,
         block: form.block.trim() || undefined,
         description: form.description.trim() || undefined,
@@ -397,6 +404,7 @@ export default function HomesPage() {
       setEditHomeId(null);
       setForm({
         name: "",
+        building_id: "",
         unit: "",
         block: "",
         description: "",
@@ -425,6 +433,7 @@ export default function HomesPage() {
     setEditHomeId(null);
     setForm({
       name: "",
+      building_id: "",
       unit: "",
       block: "",
       description: "",
@@ -447,6 +456,7 @@ export default function HomesPage() {
     setEditHomeId(home.id);
     setForm({
       name: String(home.name || ""),
+      building_id: String(home.building_id || ""),
       unit: String(home.unit || ""),
       block: String(home.block || ""),
       description: String(home.description || ""),
@@ -764,6 +774,24 @@ export default function HomesPage() {
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               />
+
+              <select
+                className="bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                value={form.building_id}
+                onChange={(e) => {
+                  const building = buildings.find((item) => item.id === e.target.value);
+                  setForm((previous) => ({
+                    ...previous,
+                    building_id: e.target.value,
+                    block: building ? String(building.block || building.name || previous.block) : previous.block,
+                  }));
+                }}
+              >
+                <option value="">Property level / no building</option>
+                {buildings.map((building) => (
+                  <option key={building.id} value={building.id}>{building.name}</option>
+                ))}
+              </select>
 
               <div className="grid grid-cols-2 gap-3">
                 <input

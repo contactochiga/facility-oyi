@@ -10,6 +10,7 @@ import {
   DoorOpen,
   Home,
   Layers3,
+  Plus,
   RefreshCw,
   UserCheck,
   UserPlus,
@@ -39,6 +40,10 @@ export default function EstateStructurePage() {
   const [data, setData] = useState<EstateStructureResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showBuilding, setShowBuilding] = useState(false);
+  const [buildingName, setBuildingName] = useState("");
+  const [buildingFloors, setBuildingFloors] = useState("");
+  const [savingBuilding, setSavingBuilding] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,6 +56,27 @@ export default function EstateStructurePage() {
       setLoading(false);
     }
   }, []);
+
+  const createBuilding = useCallback(async () => {
+    if (!data?.estate?.id || !buildingName.trim()) return;
+    setSavingBuilding(true);
+    setError(null);
+    try {
+      await facilityService.createBuilding({
+        estate_id: data.estate.id,
+        name: buildingName.trim(),
+        floors: buildingFloors ? Number(buildingFloors) : undefined,
+      });
+      setBuildingName("");
+      setBuildingFloors("");
+      setShowBuilding(false);
+      await load();
+    } catch (requestError: any) {
+      setError(requestError?.response?.data?.error || "Unable to create this building.");
+    } finally {
+      setSavingBuilding(false);
+    }
+  }, [buildingFloors, buildingName, data?.estate?.id, load]);
 
   useEffect(() => {
     void load();
@@ -74,6 +100,7 @@ export default function EstateStructurePage() {
         strip={[
           { label: "Estate", value: data?.estate?.name || "Context pending", detail: "Linked context", tone: "stable" },
           { label: "Homes", value: loading ? "Loading" : summary?.homes || 0, detail: "Registered units", tone: "attention" },
+          { label: "Buildings", value: loading ? "Loading" : summary?.buildings || 0, detail: "Property structure", tone: "stable" },
           { label: "Invites", value: loading ? "Loading" : summary?.pending_invitations || 0, detail: "Awaiting activation", tone: "warning" },
           { label: "Access issues", value: loading ? "Loading" : summary?.resident_access_issues || 0, detail: "Expired or failed", tone: "warning" },
         ]}
@@ -123,6 +150,11 @@ export default function EstateStructurePage() {
         <div className="rounded-[var(--ois-radius-card)] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] p-5 shadow-[var(--ois-elevation-card)]">
           <OisRegistryHeader title="Registry Actions" />
           <div className="mt-4 grid gap-2">
+            <button type="button" onClick={() => setShowBuilding(true)} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-2.5 text-left text-sm text-zinc-300 transition hover:border-sky-400/25 hover:text-white">
+              <Plus className="h-4 w-4 text-sky-200" />
+              <span className="flex-1">Add Building</span>
+              <ChevronRight className="h-4 w-4 text-zinc-600" />
+            </button>
             {[
               ["Add Home", "/homes?action=create", Home],
               ["Invite Resident", "/homes?view=access", UserPlus],
@@ -138,8 +170,11 @@ export default function EstateStructurePage() {
               </Link>
             ))}
           </div>
+          {data?.buildings?.length ? <div className="mt-5 border-t border-white/10 pt-4"><p className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">Buildings</p><div className="mt-3 space-y-2">{data.buildings.slice(0, 8).map((building) => <div key={building.id} className="rounded-xl border border-white/10 bg-black/15 px-3 py-3"><p className="text-sm text-zinc-100">{building.name}</p><p className="mt-1 text-xs text-zinc-500">{building.floors ? `${building.floors} floors` : "Floors not set"} · {building.unit_count || 0} planned units</p></div>)}</div></div> : null}
         </div>
       </section>
+
+      {showBuilding ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"><div className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl"><div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-semibold text-white">Add Building</h2><p className="mt-1 text-xs text-zinc-500">Create the structure once, then assign homes and infrastructure to it.</p></div><button type="button" onClick={() => setShowBuilding(false)} className="text-sm text-zinc-500 hover:text-white">Close</button></div><div className="mt-5 grid gap-3"><input value={buildingName} onChange={(event) => setBuildingName(event.target.value)} placeholder="Building name" className="rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-white outline-none" /><input value={buildingFloors} onChange={(event) => setBuildingFloors(event.target.value)} inputMode="numeric" placeholder="Number of floors (optional)" className="rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-white outline-none" /><div className="mt-2 flex justify-end gap-2"><Button variant="ghost" onClick={() => setShowBuilding(false)}>Cancel</Button><Button onClick={() => void createBuilding()} disabled={savingBuilding || !buildingName.trim()}>{savingBuilding ? "Saving" : "Add Building"}</Button></div></div></div></div> : null}
 
       <OisRuntimeCard
         title="Runtime Insights"

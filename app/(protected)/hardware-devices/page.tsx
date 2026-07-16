@@ -21,9 +21,10 @@ import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import {
   facilityService,
-  type DiscoverAdapter,
-  type DiscoveredDevice,
   type InfrastructureDevice,
+  type InfrastructureOnboardingCandidate,
+  type InfrastructureOnboardingOverview,
+  type InfrastructureOnboardingProvider,
   type InfrastructureOperations,
 } from "@/services/facilityService";
 import { iconForTab } from "@/lib/oisIconRegistry";
@@ -72,6 +73,23 @@ function location(device: InfrastructureDevice) {
   return device.room?.name || device.home?.name || [device.home?.block, device.home?.unit].filter(Boolean).join(" / ") || "Pending assignment";
 }
 
+function onboardingTone(value?: string | null) {
+  const state = text(value, "unknown").toLowerCase();
+  if (["compatible", "ready", "verified", "promoted", "operational", "authenticated", "not_required"].includes(state)) return "stable";
+  if (["unsupported", "failed", "verification_failed"].includes(state)) return "critical";
+  if (["needs_adapter", "needs_edge", "needs_credentials", "authentication_required", "conditional"].includes(state)) return "pending";
+  return "attention";
+}
+
+function providerReadiness(provider: InfrastructureOnboardingProvider) {
+  if (provider.readiness === "ready") return "Ready";
+  if (provider.readiness === "needs_edge") return "Oyi Edge required";
+  if (provider.readiness === "needs_credentials") return "Connection required";
+  if (provider.readiness === "needs_adapter") return "Adapter required";
+  if (provider.readiness === "unsupported") return "Not available yet";
+  return text(provider.readiness, "Review").replace(/_/g, " ");
+}
+
 export default function HardwareDevicesPage() {
   const [data, setData] = useState<InfrastructureOperations | null>(null);
   const [tab, setTab] = useState<Tab>("registry");
@@ -84,16 +102,22 @@ export default function HardwareDevicesPage() {
   const [homeId, setHomeId] = useState("");
   const [roomId, setRoomId] = useState("");
   const [saving, setSaving] = useState(false);
-  const [adapter, setAdapter] = useState<DiscoverAdapter>("tuya");
+  const [onboarding, setOnboarding] = useState<InfrastructureOnboardingOverview | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState("tuya");
   const [discovering, setDiscovering] = useState(false);
-  const [discovery, setDiscovery] = useState<DiscoveredDevice[]>([]);
+  const [providerResults, setProviderResults] = useState<Array<Record<string, any>>>([]);
   const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setData(await facilityService.infrastructureOperations());
+      const [operations, onboardingState] = await Promise.all([
+        facilityService.infrastructureOperations(),
+        facilityService.infrastructureOnboardingOverview().catch(() => null),
+      ]);
+      setData(operations);
+      setOnboarding(onboardingState);
     } catch (requestError: any) {
       setError(requestError?.response?.data?.error || requestError?.message || "Unable to load infrastructure operations.");
     } finally {
@@ -131,6 +155,9 @@ export default function HardwareDevicesPage() {
   const assigned = registry.filter((device) => Boolean(device.home_id));
   const pending = registry.filter((device) => !device.home_id);
   const attention = registry.filter((device) => toneFromDevice(device) === "critical" || toneFromDevice(device) === "pending");
+  const onboardingCandidates = onboarding?.latest?.candidates || [];
+  const onboardingProviders = onboarding?.providers || [];
+  const activeSession = onboarding?.latest?.session || null;
 
   function openAssignment(device: InfrastructureDevice) {
     setAssigning(device);
@@ -164,40 +191,48 @@ export default function HardwareDevicesPage() {
     setDiscoveryMessage(null);
     setError(null);
     try {
-      const result = await facilityService.discoverDevices(adapter);
-      setDiscovery(result.devices || []);
-      setDiscoveryMessage(result.devices?.length ? null : "Awaiting discovery source. No new devices were returned.");
+      let session = activeSession;
+      if (!session || ["operational", "cancelled", "failed"].includes(session.status)) {
+        session = (await facilityService.startInfrastructureOnboarding({ onboarding_type: "infrastructure_discovery" })).session;
+      }
+      const result = await facilityService.discoverInfrastructure(session.id, { providers: [selectedProvider] });
+      setProviderResults(result.provider_results || []);
+      const count = result.candidates?.length || 0;
+      setDiscoveryMessage(count ? `${count} systems found and staged for review.` : result.provider_results?.[0]?.message || "No new systems were returned by this source.");
+      await load();
     } catch (requestError: any) {
-      setDiscovery([]);
       setDiscoveryMessage(requestError?.response?.data?.error || requestError?.message || "Discovery source unavailable.");
     } finally {
       setDiscovering(false);
     }
   }
 
-  async function register(device: DiscoveredDevice) {
-    const externalId = text(device.externalId || device.external_id || device.device_id || device.devId || device.id, "");
-    if (!externalId || !data?.estate?.id) {
-      setError("This discovery result has no stable provider identity and cannot be registered.");
-      return;
-    }
+  async function onboardCandidate(candidate: InfrastructureOnboardingCandidate) {
+    if (!activeSession) return;
     setSaving(true);
     setError(null);
     try {
-      await facilityService.registerDevice({
-        estate_id: data.estate.id,
-        adapter: text(device.adapter || adapter, adapter),
-        external_id: externalId,
-        name: text(device.name || device.local_name, "Unnamed device"),
-        category: text(device.category, "device"),
-        capabilities: Array.isArray(device.capabilities) ? device.capabilities : [],
-        protocols: Array.isArray(device.protocols) ? device.protocols : [],
-        metadata: device.metadata || {},
-      });
-      setNotice(`${text(device.name || device.local_name, "Device")} registered. Assign it to a home when ready.`);
+      if (candidate.discovery_status === "classified") {
+        await facilityService.importInfrastructureCandidates(activeSession.id, { candidate_ids: [candidate.id] });
+      }
+      if (!["verified", "promoted"].includes(candidate.discovery_status)) {
+        await facilityService.verifyInfrastructureCandidates(activeSession.id, { candidate_ids: [candidate.id], live_read: true });
+      }
+      const detail = await facilityService.getInfrastructureOnboardingSession(activeSession.id);
+      const verified = detail.candidates.find((item) => item.id === candidate.id);
+      if (verified?.discovery_status !== "verified" && verified?.discovery_status !== "promoted") {
+        const verification = detail.verifications.find((item) => item.candidate_id === candidate.id);
+        const failed = Array.isArray(verification?.checks) ? verification.checks.find((check: any) => check.state === "failed") : null;
+        throw new Error(failed?.summary || "This system needs attention before it can be added to the registry.");
+      }
+      if (verified.discovery_status !== "promoted") {
+        const result = await facilityService.promoteInfrastructureCandidates(activeSession.id, { candidate_ids: [candidate.id] });
+        if (result.failures?.length) throw new Error(result.failures[0]?.message || "Registry promotion could not complete.");
+      }
+      setNotice(`${candidate.name} verified and added to the canonical registry.`);
       await load();
     } catch (requestError: any) {
-      setError(requestError?.response?.data?.error || requestError?.message || "Unable to register this device.");
+      setError(requestError?.response?.data?.error || requestError?.message || "Unable to complete onboarding for this system.");
     } finally {
       setSaving(false);
     }
@@ -298,23 +333,40 @@ export default function HardwareDevicesPage() {
           <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <h2 className="text-sm font-semibold text-white">Discovery</h2>
-                <p className="mt-1 text-xs leading-5 text-zinc-500">Discover, review, register, then assign. Edge-pushed results appear below when the source is active.</p>
+                <h2 className="text-sm font-semibold text-white">Discover Existing Infrastructure</h2>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-zinc-500">Oyi discovers what is already present, checks compatibility, prevents duplicate records, verifies the connection, and adds approved systems to the existing registry.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {(["tuya", "ssdp", "onvif"] as DiscoverAdapter[]).map((item) => <button key={item} type="button" onClick={() => setAdapter(item)} className={`rounded-xl border px-3 py-2 text-xs uppercase ${adapter === item ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{item}</button>)}
-                <Button onClick={() => void discover()} disabled={discovering} className="gap-2"><Search className="h-4 w-4" /> {discovering ? "Discovering" : "Discover"}</Button>
-              </div>
+              <Button onClick={() => void discover()} disabled={discovering} className="gap-2"><Search className="h-4 w-4" /> {discovering ? "Discovering" : "Discover Infrastructure"}</Button>
+            </div>
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              {(onboardingProviders.length ? onboardingProviders.filter((provider) => provider.supports_discovery || ["adapter_required", "future"].includes(provider.implementation)).slice(0, 12) : [
+                { key: "tuya", label: "Tuya / Smart Life", readiness: "ready" },
+                { key: "onvif", label: "ONVIF", readiness: "needs_edge" },
+                { key: "ssdp", label: "Local Network", readiness: "needs_edge" },
+                { key: "oyi_edge", label: "Oyi Edge", readiness: "ready" },
+              ] as any[]).map((provider) => <button key={provider.key} type="button" onClick={() => setSelectedProvider(provider.key)} className={`shrink-0 rounded-xl border px-3 py-2 text-xs transition ${selectedProvider === provider.key ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white"}`}><span>{provider.label}</span><span className="ml-2 text-[10px] opacity-60">{providerReadiness(provider as InfrastructureOnboardingProvider)}</span></button>)}
             </div>
             {discoveryMessage ? <p className="mt-4 rounded-xl border border-dashed border-white/10 px-3 py-3 text-sm text-zinc-500">{discoveryMessage}</p> : null}
+            {providerResults.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {providerResults.map((result, index) => (
+                  <OisStatusBadge
+                    key={`${result.provider_key}:${index}`}
+                    status={onboardingTone(result.classification)}
+                    label={`${text(result.provider_key, "Provider").replace(/_/g, " ")} · ${text(result.message, "Review")}`}
+                  />
+                ))}
+              </div>
+            ) : null}
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              {discovery.map((device, index) => {
-                const external = text(device.externalId || device.external_id || device.device_id || device.devId || device.id, "");
-                return <article key={`${external}:${index}`} className="rounded-xl border border-white/10 bg-black/15 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-medium text-white">{text(device.name || device.local_name, "Unnamed device")}</h3><p className="mt-1 text-xs text-zinc-500">{adapter} · {text(device.category, "device")} · {external || "No stable identity"}</p></div><Status value={device.online === true ? "online" : device.online === false ? "offline" : "unknown"} /></div><Button variant="ghost" onClick={() => void register(device)} disabled={!external || saving} className="mt-4 gap-2"><ChevronRight className="h-4 w-4" /> Register</Button></article>;
-              })}
+              {onboardingCandidates.map((candidate) => <article key={candidate.id} className="rounded-xl border border-white/10 bg-black/15 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate text-sm font-medium text-white">{candidate.name}</h3><p className="mt-1 text-xs text-zinc-500">{candidate.provider_key.replace(/_/g, " ")} · {text(candidate.category || candidate.candidate_type, "system")} · {candidate.duplicate_target_id ? "Existing record found" : "New identity"}</p></div><OisStatusBadge status={onboardingTone(candidate.discovery_status === "classified" ? candidate.classification : candidate.discovery_status)} label={text(candidate.discovery_status === "classified" ? candidate.classification : candidate.discovery_status).replace(/_/g, " ")} /></div><p className="mt-3 text-xs leading-5 text-zinc-400">{candidate.classification_reason || "Ready for infrastructure review."}</p>{candidate.classification === "compatible" ? <Button variant="ghost" onClick={() => void onboardCandidate(candidate)} disabled={saving || candidate.discovery_status === "promoted"} className="mt-4 gap-2"><ChevronRight className="h-4 w-4" /> {candidate.discovery_status === "promoted" ? "Operational" : candidate.discovery_status === "verified" ? "Add to Registry" : "Import and Verify"}</Button> : null}</article>)}
+              {!onboardingCandidates.length && !discovering ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500 lg:col-span-2">Choose a source and run discovery. Local systems are collected through Oyi Edge; cloud systems use their connected account.</p> : null}
             </div>
           </div>
-          <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><h2 className="text-sm font-semibold text-white">Edge Discovery Inbox</h2><p className="mt-1 text-xs text-zinc-500">{data?.sources?.discovered_devices?.available ? "Durable Edge discovery results." : "Awaiting discovery source."}</p><div className="mt-4 grid gap-2">{(data?.discovered || []).slice(0, 12).map((device) => <div key={device.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-3 text-sm"><Network className="h-4 w-4 text-sky-200" /><span className="flex-1 text-zinc-200">{device.name}</span><span className="text-xs text-zinc-500">{device.source}</span><Status value={device.registered ? "active" : device.status} /></div>)}</div></section>
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><h2 className="text-sm font-semibold text-white">Edge Discovery Inbox</h2><p className="mt-1 text-xs text-zinc-500">{data?.sources?.discovered_devices?.available ? "Local discovery reported by property Edge nodes." : "Awaiting an Edge discovery source."}</p><div className="mt-4 grid gap-2">{(data?.discovered || []).slice(0, 12).map((device) => <div key={device.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-3 text-sm"><Network className="h-4 w-4 text-sky-200" /><span className="flex-1 text-zinc-200">{device.name}</span><span className="text-xs text-zinc-500">{device.source}</span><Status value={device.registered ? "active" : device.status} /></div>)}{!data?.discovered?.length ? <p className="rounded-xl border border-dashed border-white/10 p-3 text-sm text-zinc-500">No local systems have been reported by Oyi Edge.</p> : null}</div></div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><h2 className="text-sm font-semibold text-white">Discovery History</h2><p className="mt-1 text-xs text-zinc-500">Automatic onboarding records, not project tasks.</p><div className="mt-4 space-y-2">{(onboarding?.sessions || []).slice(0, 8).map((session) => <div key={session.id} className="rounded-xl border border-white/10 bg-black/15 px-3 py-3"><div className="flex items-center justify-between gap-2"><p className="text-xs font-medium text-zinc-200">{session.onboarding_ref}</p><OisStatusBadge status={onboardingTone(session.status)} label={session.status.replace(/_/g, " ")} /></div><p className="mt-1 text-[11px] text-zinc-500">{session.summary?.total || 0} systems · {date(session.updated_at)}</p></div>)}{!onboarding?.sessions?.length ? <p className="rounded-xl border border-dashed border-white/10 p-3 text-sm text-zinc-500">No onboarding history yet.</p> : null}</div></div>
+          </section>
         </section>
       ) : null}
 
@@ -325,7 +377,7 @@ export default function HardwareDevicesPage() {
         </section>
       ) : null}
 
-      {tab === "providers" ? <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(data?.providers || []).map((provider) => <article key={provider.key} className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">{provider.name}</h2><p className="mt-1 text-xs text-zinc-500">{provider.device_count || 0} registry devices</p></div><Status value={provider.status} /></div><dl className="mt-4 space-y-2 text-xs"><div className="flex justify-between gap-3"><dt className="text-zinc-500">Last sync</dt><dd className="text-zinc-300">{date(provider.last_sync_at)}</dd></div><div className="flex justify-between gap-3"><dt className="text-zinc-500">Sync errors</dt><dd className="text-zinc-300">{provider.sync_errors || 0}</dd></div></dl>{provider.key === "tuya" ? <Button variant="ghost" onClick={() => void syncTuya()} disabled={!provider.can_sync || saving} className="mt-5 gap-2"><RefreshCw className="h-4 w-4" /> Re-Sync Provider</Button> : <p className="mt-5 text-xs text-zinc-500">{provider.status === "pending_configuration" ? "Pending readiness" : "Provider-driven synchronization"}</p>}</article>)}</section> : null}
+      {tab === "providers" ? <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{onboardingProviders.map((provider) => <article key={provider.key} className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">{provider.label}</h2><p className="mt-1 text-xs text-zinc-500">{provider.discovery_mode.replace(/_/g, " ")} · {provider.protocols.slice(0, 3).join(" · ") || "Integration adapter"}</p></div><OisStatusBadge status={onboardingTone(provider.readiness)} label={providerReadiness(provider)} /></div><dl className="mt-4 space-y-2 text-xs"><div className="flex justify-between gap-3"><dt className="text-zinc-500">Connection</dt><dd className="text-zinc-300">{text(provider.connection?.authentication_status, provider.authentication_methods.includes("none") ? "Not required" : "Not connected").replace(/_/g, " ")}</dd></div><div className="flex justify-between gap-3"><dt className="text-zinc-500">Last verified</dt><dd className="text-zinc-300">{date(provider.connection?.last_verified_at)}</dd></div><div className="flex justify-between gap-3"><dt className="text-zinc-500">Import</dt><dd className="text-zinc-300">{provider.supports_import ? "Available" : "Adapter required"}</dd></div></dl><div className="mt-5 flex flex-wrap gap-2">{provider.key === "tuya" ? <Button variant="ghost" onClick={() => void syncTuya()} disabled={saving} className="gap-2"><RefreshCw className="h-4 w-4" /> Re-Sync</Button> : null}{provider.supports_discovery ? <Button variant="ghost" onClick={() => { setSelectedProvider(provider.key); setTab("discovery"); }} className="gap-2"><Search className="h-4 w-4" /> Discover</Button> : null}</div>{provider.notes ? <p className="mt-3 text-xs leading-5 text-zinc-500">{provider.notes}</p> : null}</article>)}{!onboardingProviders.length ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500 md:col-span-2 xl:col-span-3">Provider readiness will appear after the onboarding schema is available.</p> : null}</section> : null}
 
       {tab === "edge" ? <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"><div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><h2 className="text-sm font-semibold text-white">Oyi Edge Nodes</h2><p className="mt-1 text-xs text-zinc-500">{data?.sources?.edge_nodes?.available ? "Heartbeat-backed local infrastructure agents." : "Awaiting live source."}</p><div className="mt-4 space-y-3">{(data?.edge_nodes || []).map((node) => <article key={node.id} className="rounded-xl border border-white/10 bg-black/15 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-medium text-white">{node.name}</h3><p className="mt-1 text-xs text-zinc-500">{node.node_id} · {node.ip_address || "IP unavailable"} · {node.version || "Version unavailable"}</p></div><Status value={node.status} /></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs text-zinc-400"><span>Last heartbeat: {date(node.last_heartbeat_at)}</span><span>Sync: {text(node.sync_status)}</span><span>Devices: {node.device_count || 0}</span><span>Queue: {node.queue_depth || 0}</span></div></article>)}{!data?.edge_nodes?.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 px-3 py-3 text-sm text-zinc-500">Awaiting Oyi Edge registration and heartbeat.</p> : null}</div></div><div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"><h2 className="text-sm font-semibold text-white">Heartbeat Activity</h2><div className="mt-4 space-y-2">{(data?.heartbeats || []).slice(0, 12).map((heartbeat) => <div key={heartbeat.id} className="flex gap-3 rounded-xl border border-white/10 bg-black/15 px-3 py-3"><CircleDot className="h-4 w-4 text-sky-200" /><span className="min-w-0 flex-1 text-xs text-zinc-300">{text(heartbeat.edge_node_id)}<span className="mt-1 block text-[11px] text-zinc-500">{date(heartbeat.received_at)}</span></span><Status value={heartbeat.heartbeat_status} /></div>)}</div></div></section> : null}
 
