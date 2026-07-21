@@ -186,6 +186,16 @@ export default function FacilityInfrastructureServicesPage() {
     billing_mode: "fixed",
     policyVersion: "v1",
     effectiveFrom: "",
+    resident_purchases_enabled: false,
+    minimum_purchase_amount: "",
+    maximum_purchase_amount: "",
+    fixed_fee: "",
+    percentage_fee: "",
+    tax_percentage: "",
+    fulfilment_method: "token",
+    vending_mode: "facility",
+    issuer_name: "",
+    support_contact: "",
   });
   const [activeDomain, setActiveDomain] = useState<(typeof DOMAIN_FILTERS)[number]>("All");
   const [activeType, setActiveType] = useState<(typeof TYPE_FILTERS)[number]>("All");
@@ -227,6 +237,7 @@ export default function FacilityInfrastructureServicesPage() {
   useEffect(() => {
     if (!selectedPolicy) return;
     const meta = policyMeta(selectedPolicy);
+    const electricity = selectedPolicy.metadata?.electricity && typeof selectedPolicy.metadata.electricity === "object" ? selectedPolicy.metadata.electricity : {};
     setPolicyDraft({
       title: selectedPolicy.title || SERVICE_LABELS[selectedPolicy.service_key] || "Service policy",
       suggested_amount: String(selectedPolicy.suggested_amount ?? ""),
@@ -235,6 +246,16 @@ export default function FacilityInfrastructureServicesPage() {
       billing_mode: String(selectedPolicy.billing_mode || "fixed"),
       policyVersion: meta.version,
       effectiveFrom: meta.effectiveFrom ? meta.effectiveFrom.slice(0, 16) : "",
+      resident_purchases_enabled: Boolean(electricity.resident_purchases_enabled),
+      minimum_purchase_amount: electricity.minimum_purchase_amount == null ? "" : String(electricity.minimum_purchase_amount),
+      maximum_purchase_amount: electricity.maximum_purchase_amount == null ? "" : String(electricity.maximum_purchase_amount),
+      fixed_fee: electricity.fixed_fee == null ? "" : String(electricity.fixed_fee),
+      percentage_fee: electricity.percentage_fee == null ? "" : String(electricity.percentage_fee),
+      tax_percentage: electricity.tax_percentage == null ? "" : String(electricity.tax_percentage),
+      fulfilment_method: String(electricity.fulfilment_method || "token"),
+      vending_mode: String(electricity.vending_mode || "facility"),
+      issuer_name: String(electricity.issuer_name || ""),
+      support_contact: String(electricity.support_contact || ""),
     });
   }, [selectedPolicy]);
 
@@ -378,6 +399,23 @@ export default function FacilityInfrastructureServicesPage() {
         version: policyDraft.policyVersion.trim() || "v1",
         effective_from: policyDraft.effectiveFrom || new Date().toISOString(),
       },
+      ...(selectedPolicy.service_key === "utility_token" ? {
+        electricity: {
+          ...(selectedPolicy.metadata?.electricity || {}),
+          resident_purchases_enabled: Boolean(policyDraft.resident_purchases_enabled),
+          tariff_per_kwh: policyDraft.unit_cost === "" ? null : Number(policyDraft.unit_cost),
+          minimum_purchase_amount: policyDraft.minimum_purchase_amount === "" ? null : Number(policyDraft.minimum_purchase_amount),
+          maximum_purchase_amount: policyDraft.maximum_purchase_amount === "" ? null : Number(policyDraft.maximum_purchase_amount),
+          fixed_fee: policyDraft.fixed_fee === "" ? null : Number(policyDraft.fixed_fee),
+          percentage_fee: policyDraft.percentage_fee === "" ? null : Number(policyDraft.percentage_fee),
+          tax_percentage: policyDraft.tax_percentage === "" ? null : Number(policyDraft.tax_percentage),
+          fulfilment_method: policyDraft.fulfilment_method,
+          vending_mode: policyDraft.vending_mode,
+          issuer_name: policyDraft.issuer_name.trim() || null,
+          support_contact: policyDraft.support_contact.trim() || null,
+          effective_from: policyDraft.effectiveFrom || new Date().toISOString(),
+        },
+      } : {}),
     };
     const result = await serviceConfigService.update(selectedPolicy.service_key, {
       estate_id: estateId,
@@ -856,6 +894,60 @@ export default function FacilityInfrastructureServicesPage() {
                 <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Effective from</span>
                 <input className={inputClassName()} type="datetime-local" value={policyDraft.effectiveFrom} onChange={(event) => setPolicyDraft((current) => ({ ...current, effectiveFrom: event.target.value }))} />
               </label>
+              {selectedPolicy.service_key === "utility_token" ? (
+                <>
+                  <label className="flex items-center justify-between gap-3 rounded-[14px] border border-white/10 bg-white/[0.03] px-3 py-3 sm:col-span-2">
+                    <span>
+                      <span className="block text-xs uppercase tracking-[0.16em] text-zinc-500">Resident purchases</span>
+                      <span className="mt-1 block text-xs text-zinc-500">Enable Buy Electricity for eligible home meters.</span>
+                    </span>
+                    <input type="checkbox" checked={policyDraft.resident_purchases_enabled} onChange={(event) => setPolicyDraft((current) => ({ ...current, resident_purchases_enabled: event.target.checked }))} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Minimum purchase</span>
+                    <input className={inputClassName()} inputMode="decimal" value={policyDraft.minimum_purchase_amount} onChange={(event) => setPolicyDraft((current) => ({ ...current, minimum_purchase_amount: event.target.value }))} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Maximum purchase</span>
+                    <input className={inputClassName()} inputMode="decimal" value={policyDraft.maximum_purchase_amount} onChange={(event) => setPolicyDraft((current) => ({ ...current, maximum_purchase_amount: event.target.value }))} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Fixed fee</span>
+                    <input className={inputClassName()} inputMode="decimal" value={policyDraft.fixed_fee} onChange={(event) => setPolicyDraft((current) => ({ ...current, fixed_fee: event.target.value }))} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Percentage fee</span>
+                    <input className={inputClassName()} inputMode="decimal" value={policyDraft.percentage_fee} onChange={(event) => setPolicyDraft((current) => ({ ...current, percentage_fee: event.target.value }))} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Tax percentage</span>
+                    <input className={inputClassName()} inputMode="decimal" value={policyDraft.tax_percentage} onChange={(event) => setPolicyDraft((current) => ({ ...current, tax_percentage: event.target.value }))} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Fulfilment method</span>
+                    <select className={inputClassName()} value={policyDraft.fulfilment_method} onChange={(event) => setPolicyDraft((current) => ({ ...current, fulfilment_method: event.target.value }))}>
+                      <option value="token">Token</option>
+                      <option value="direct_meter_credit">Direct meter credit</option>
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Vending mode</span>
+                    <select className={inputClassName()} value={policyDraft.vending_mode} onChange={(event) => setPolicyDraft((current) => ({ ...current, vending_mode: event.target.value }))}>
+                      <option value="facility">Facility controlled</option>
+                      <option value="external_provider">External provider</option>
+                      <option value="test">Test token mode</option>
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Receipt issuer</span>
+                    <input className={inputClassName()} value={policyDraft.issuer_name} onChange={(event) => setPolicyDraft((current) => ({ ...current, issuer_name: event.target.value }))} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Support contact</span>
+                    <input className={inputClassName()} value={policyDraft.support_contact} onChange={(event) => setPolicyDraft((current) => ({ ...current, support_contact: event.target.value }))} />
+                  </label>
+                </>
+              ) : null}
             </div>
           </div>
         ) : null}
