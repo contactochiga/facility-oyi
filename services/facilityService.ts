@@ -461,6 +461,17 @@ export type InfrastructureDevice = {
   last_signal?: string | null;
   device_family?: string | null;
   device_type?: string | null;
+  ownership_class?: string | null;
+  assignment_scope?: string | null;
+  commissioning_status?: string | null;
+  projection?: {
+    surface?: string;
+    visible?: boolean;
+    controllable?: boolean;
+    ownership_class?: string;
+    assignment_scope?: string;
+    provider_connection_id?: string | null;
+  } | null;
 };
 
 export type InfrastructureOperations = {

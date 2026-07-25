@@ -17,7 +17,8 @@
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
     "cap:add:android": "npx cap add android",
-    "validate:release": "node scripts/validate-release.mjs"
+    "smoke:device-projection": "node scripts/device-projection-smoke.mjs",
+    "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-projection"
   },
   "dependencies": {
     "@capacitor/core": "^6.1.0",
