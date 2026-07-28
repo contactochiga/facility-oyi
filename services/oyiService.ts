@@ -122,7 +122,14 @@ export const oyiService = {
       role: input.role || null,
       thread_id: input.thread_id || null,
       operational_object: input.operational_object || null,
-      context: { ...(input.context || {}), runtime_context: input.runtime_context || null, page: input.page || null, route: input.route || null, filters: input.filters || {} },
+      context: {
+        ...(input.context || {}),
+        runtime_context: input.runtime_context || null,
+        active_intelligence_context: input.runtime_context?.active_context || null,
+        page: input.page || null,
+        route: input.route || null,
+        filters: input.filters || {},
+      },
     });
     const runtime = res.data?.response || {};
     return {

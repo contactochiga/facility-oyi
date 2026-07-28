@@ -16,7 +16,7 @@ export default function FacilityAssistantSheet() {
   const router = useRouter();
   const { user } = useSessionStore();
   const { context } = useContextStore();
-  const { open, focusHint, source, closeAssistant } = useFacilityAssistantStore();
+  const { open, focusHint, source, activeContext, closeAssistant } = useFacilityAssistantStore();
   const { messages, threads, busy, hydrate, restoreThread, sendMessage } = useFacilityConversationStore();
   const pathname = usePathname() || "/overview";
   const searchParams = useSearchParams();
@@ -45,6 +45,29 @@ export default function FacilityAssistantSheet() {
     home_id: context?.home_id || null,
     searchParams,
   }), [context?.estate_id, context?.home_id, moduleContext, pathname, searchParams, user]);
+  const activeOperationalObject = useMemo(() => {
+    const object = activeContext?.selected_subobject || activeContext?.primary_object;
+    if (!activeContext || !object) return null;
+    return {
+      object_type: object.object_type,
+      canonical_id: object.canonical_id,
+      label: object.label,
+      estate_id: activeContext.scope.estate_id,
+      building_id: activeContext.scope.building_id,
+      home_id: activeContext.scope.home_id,
+      room_id: activeContext.scope.room_id,
+      parent_id: "parent_id" in object ? object.parent_id || null : null,
+      source_module: activeContext.primary_object?.source_module || activeContext.module,
+      metadata: {
+        active_context: {
+          context_id: activeContext.context_id,
+          context_version: activeContext.context_version,
+          source: activeContext.source,
+        },
+        visible_state: activeContext.visible_state,
+      },
+    };
+  }, [activeContext]);
 
   useEffect(() => {
     if (!open) return;
@@ -89,7 +112,8 @@ export default function FacilityAssistantSheet() {
       route: pathname,
       filters: pageFilters,
       focusHint: focusHint || null,
-      operationalObject,
+      operationalObject: activeOperationalObject || operationalObject,
+      activeIntelligenceContext: activeContext,
     });
   }
 

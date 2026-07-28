@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { oyiService, type OperationalObject, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
 import type { OisContext } from "@/store/useContextStore";
+import type { FacilityActiveIntelligenceContext } from "@/store/useFacilityAssistantStore";
 
 export type FacilityChatMessage = {
   id: string;
@@ -35,6 +36,7 @@ type SendArgs = {
   filters?: Record<string, string>;
   focusHint?: string | null;
   operationalObject?: Partial<OperationalObject> | null;
+  activeIntelligenceContext?: FacilityActiveIntelligenceContext | null;
 };
 
 type ConversationState = {
@@ -187,6 +189,7 @@ export const useFacilityConversationStore = create<ConversationState>()(persist(
           estate_name: args.context?.estate?.name || null,
           home_id: args.context?.home_id || null,
           filters: args.filters || {},
+          active_context: args.activeIntelligenceContext || null,
         },
       });
       const threadId = response.thread_id || get().threadId;
