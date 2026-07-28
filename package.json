@@ -18,7 +18,9 @@
     "cap:open:android": "npx cap open android",
     "cap:add:android": "npx cap add android",
     "smoke:device-projection": "node scripts/device-projection-smoke.mjs",
-    "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-projection"
+    "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-projection",
+    "smoke:intelligence-context": "node scripts/facility-intelligence-context-smoke.mjs",
+    "smoke:intelligence-privacy": "node scripts/facility-intelligence-context-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^6.1.0",
