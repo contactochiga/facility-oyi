@@ -5,6 +5,9 @@ import { readFile } from "node:fs/promises";
 const objectContextSource = await readFile(new URL("../services/operationalObjectContext.ts", import.meta.url), "utf8");
 const oyiServiceSource = await readFile(new URL("../services/oyiService.ts", import.meta.url), "utf8");
 const realtimeSource = await readFile(new URL("../services/facilityRealtime.ts", import.meta.url), "utf8");
+const launcherSource = await readFile(new URL("../components/shell/FacilityContextualOyiButton.tsx", import.meta.url), "utf8");
+const topbarSource = await readFile(new URL("../components/shell/ShellTopbar.tsx", import.meta.url), "utf8");
+const infrastructureDrawerSource = await readFile(new URL("../components/modules/InfrastructureDetailDrawer.tsx", import.meta.url), "utf8");
 
 function check(name, fn) {
   try {
@@ -34,6 +37,13 @@ check("Facility realtime consumes server-authorized awareness, not raw resident-
   assert.match(realtimeSource, /serverAwareness/);
   assert.match(realtimeSource, /operational_awareness/);
   assert.doesNotMatch(realtimeSource, /resident_device_private.*facility/i);
+});
+
+check("Facility renders contextual Oyi entry points for shell and infrastructure objects", () => {
+  assert.match(launcherSource, /Who is affected/);
+  assert.match(launcherSource, /openAssistant/);
+  assert.match(topbarSource, /FacilityContextualOyiButton/);
+  assert.match(infrastructureDrawerSource, /targetLabel=\{title\[source\]\}/);
 });
 
 if (process.exitCode) process.exit(process.exitCode);

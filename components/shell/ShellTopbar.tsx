@@ -8,6 +8,7 @@ import { notificationService } from "@/services/notificationService";
 import { loadUnreadMessageCount } from "@/services/facilityCommunicationPostureService";
 import { useFacilityAssistantStore } from "@/store/useFacilityAssistantStore";
 import { useContextStore } from "@/store/useContextStore";
+import FacilityContextualOyiButton from "@/components/shell/FacilityContextualOyiButton";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -90,6 +91,9 @@ export default function ShellTopbar() {
           </button>
 
           <div className="ml-auto flex items-center gap-2">
+            <div className="hidden lg:block">
+              <FacilityContextualOyiButton />
+            </div>
             <button
               type="button"
               onClick={() => router.push("/messages")}
