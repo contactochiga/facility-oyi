@@ -23,7 +23,8 @@
     "smoke:intelligence-privacy": "node scripts/facility-intelligence-context-smoke.mjs",
     "smoke:facility-intelligence-entry-contract": "node scripts/facility-intelligence-context-smoke.mjs",
     "smoke:building-scope-report": "node scripts/facility-intelligence-context-smoke.mjs",
-    "smoke:resident-privacy-isolation": "node scripts/facility-intelligence-context-smoke.mjs"
+    "smoke:resident-privacy-isolation": "node scripts/facility-intelligence-context-smoke.mjs",
+    "smoke:full-circle-intelligence-privacy": "node scripts/facility-intelligence-context-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^6.1.0",
