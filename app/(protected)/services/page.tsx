@@ -440,7 +440,7 @@ export default function FacilityInfrastructureServicesPage() {
   return (
     <div className="space-y-6">
       <Topbar
-        title="Infrastructure Services"
+        title="Utilities"
         subtitle="Provisioning • Operations • Providers • Billing • Transactions • Intelligence"
         strip={strip}
       />

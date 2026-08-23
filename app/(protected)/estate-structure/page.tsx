@@ -95,7 +95,7 @@ export default function EstateStructurePage() {
   return (
     <div className="space-y-6">
       <Topbar
-        title="Estate Registry"
+        title="Buildings"
         subtitle="Homes and access registry"
         strip={[
           { label: "Estate", value: data?.estate?.name || "Context pending", detail: "Linked context", tone: "stable" },

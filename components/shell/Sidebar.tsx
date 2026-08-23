@@ -6,7 +6,7 @@ import SidebarContent from "./SidebarContent";
 
 function SidebarBrand({ onClick }: { onClick?: () => void }) {
   return (
-    <div className="p-6 border-b border-white/10">
+    <div className="px-5 py-5 border-b border-white/[0.07]">
       <Link
         href="/overview"
         onClick={onClick}
@@ -31,7 +31,7 @@ function SidebarBrand({ onClick }: { onClick?: () => void }) {
             Oyi Facility
           </div>
           <div className="text-xs text-zinc-400 truncate">
-            Infrastructure operating system
+            Building Operations
           </div>
         </div>
       </Link>
@@ -49,7 +49,7 @@ export default function Sidebar({
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden xl:flex h-screen w-[280px] flex-col border-r border-white/10 bg-zinc-950">
+      <aside className="hidden xl:flex h-screen w-[264px] flex-col border-r border-white/[0.08] bg-[#050b13]">
         <SidebarBrand />
         <div className="flex-1 overflow-y-auto">
           <SidebarContent />

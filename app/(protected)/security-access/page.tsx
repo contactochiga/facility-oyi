@@ -95,7 +95,7 @@ export default function SecurityAccessPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Security & Access" subtitle="Visitors, incidents, and gates" strip={[{ label: "Visitors", value: loading ? "Loading" : activeVisitors.length }, { label: "Pending", value: loading ? "Loading" : pendingVisitors.length }, { label: "Cameras", value: loading ? "Loading" : cameras.length }, { label: "Attention", value: loading ? "Loading" : anomalies.length + unhealthyCameras.length }, { label: "Health", value: anomalies.length || unhealthyCameras.length ? "Review" : "Stable" }]} />
+      <Topbar title="Security" subtitle="Visitors, incidents, and gates" strip={[{ label: "Visitors", value: loading ? "Loading" : activeVisitors.length }, { label: "Pending", value: loading ? "Loading" : pendingVisitors.length }, { label: "Cameras", value: loading ? "Loading" : cameras.length }, { label: "Attention", value: loading ? "Loading" : anomalies.length + unhealthyCameras.length }, { label: "Health", value: anomalies.length || unhealthyCameras.length ? "Review" : "Stable" }]} />
 
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}

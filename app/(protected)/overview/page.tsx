@@ -349,7 +349,7 @@ function OverviewPage() {
   return (
     <div className="space-y-3 overflow-x-hidden pb-6 sm:space-y-4 lg:space-y-5 sm:overflow-visible sm:pb-0">
       <div className="hidden sm:block">
-        <Topbar title="Facility Overview" subtitle="Operational attention center" />
+        <Topbar title="Overview" subtitle="Real-time facility operations at a glance" />
       </div>
 
       {needsEstate ? (

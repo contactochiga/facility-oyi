@@ -15,6 +15,7 @@ import { PredictionDetailDrawerHost } from "@/components/modules/PredictionDetai
 import { InfrastructureDetailDrawerHost } from "@/components/modules/InfrastructureDetailDrawer";
 import { useContextStore } from "@/store/useContextStore";
 import FacilityAssistantSheet from "@/components/shell/FacilityAssistantSheet";
+import FacilityOyiHubLauncher from "@/components/shell/FacilityOyiHubLauncher";
 import ShellTopbar from "@/components/shell/ShellTopbar";
 import { cleanupFacilityPushRegistration, ensureFacilityPushRegistration } from "@/services/pushRegistrationService";
 import { useViewportDockLayout } from "@/hooks/useViewportDockLayout";
@@ -28,7 +29,6 @@ export default function ProtectedLayout({
   const { context, refresh: refreshContext, clear: clearContext } = useContextStore();
   const pathname = usePathname();
   const router = useRouter();
-  const fullScreenIntelligence = pathname === "/facility-intelligence";
   useViewportDockLayout({ active: true });
 
   useEffect(() => {
@@ -88,11 +88,12 @@ export default function ProtectedLayout({
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden" style={{ height: "var(--oyi-viewport-height)", width: "100%", maxWidth: "100vw" }}>
           <FacilityShellProvider openMenu={() => undefined}>
-            {fullScreenIntelligence ? <div className="hidden md:block"><ShellTopbar /></div> : <ShellTopbar />}
-            <main key={context?.estate_id || (user as any)?.estate_id || "facility"} className={`flex-1 min-h-0 ${fullScreenIntelligence ? "overflow-hidden px-0 pb-0 pt-0 md:overflow-x-hidden md:overflow-y-auto md:px-5 md:pb-6 md:pt-5 xl:px-7 xl:pt-6" : "overflow-x-hidden overflow-y-auto px-3 pb-[calc(104px+env(safe-area-inset-bottom))] pt-3 sm:px-5 sm:pb-6 sm:pt-5 xl:px-7 xl:pt-6"}`}>
+            <ShellTopbar />
+            <main key={context?.estate_id || (user as any)?.estate_id || "facility"} className="flex-1 min-h-0 overflow-x-hidden overflow-y-auto px-3 pb-[calc(104px+env(safe-area-inset-bottom))] pt-3 sm:px-5 sm:pb-6 sm:pt-5 xl:px-7 xl:pt-6">
               {children}
             </main>
-            {!fullScreenIntelligence ? <MobileModuleFooter /> : null}
+            <MobileModuleFooter />
+            <FacilityOyiHubLauncher />
             <FacilityAssistantSheet />
             <WorkflowDetailDrawerHost />
             <PredictionDetailDrawerHost />

@@ -7,6 +7,8 @@ const oyiServiceSource = await readFile(new URL("../services/oyiService.ts", imp
 const realtimeSource = await readFile(new URL("../services/facilityRealtime.ts", import.meta.url), "utf8");
 const launcherSource = await readFile(new URL("../components/shell/FacilityContextualOyiButton.tsx", import.meta.url), "utf8");
 const topbarSource = await readFile(new URL("../components/shell/ShellTopbar.tsx", import.meta.url), "utf8");
+const globalLauncherSource = await readFile(new URL("../components/shell/FacilityOyiHubLauncher.tsx", import.meta.url), "utf8");
+const protectedLayoutSource = await readFile(new URL("../app/(protected)/layout.tsx", import.meta.url), "utf8");
 const infrastructureDrawerSource = await readFile(new URL("../components/modules/InfrastructureDetailDrawer.tsx", import.meta.url), "utf8");
 const assistantStoreSource = await readFile(new URL("../store/useFacilityAssistantStore.ts", import.meta.url), "utf8");
 const assistantSheetSource = await readFile(new URL("../components/shell/FacilityAssistantSheet.tsx", import.meta.url), "utf8");
@@ -42,12 +44,14 @@ check("Facility realtime consumes server-authorized awareness, not raw resident-
   assert.doesNotMatch(realtimeSource, /resident_device_private.*facility/i);
 });
 
-check("Facility renders contextual Oyi entry points for shell and infrastructure objects", () => {
+check("Facility renders global and object-specific Oyi entry points", () => {
   assert.match(launcherSource, /Who is affected/);
   assert.match(launcherSource, /openAssistant/);
   assert.match(launcherSource, /contextFor/);
   assert.match(launcherSource, /primary_object/);
-  assert.match(topbarSource, /FacilityContextualOyiButton/);
+  assert.match(globalLauncherSource, /openAssistant/);
+  assert.match(protectedLayoutSource, /FacilityOyiHubLauncher/);
+  assert.doesNotMatch(topbarSource, /FacilityContextualOyiButton/);
   assert.match(infrastructureDrawerSource, /targetLabel=\{title\[source\]\}/);
 });
 

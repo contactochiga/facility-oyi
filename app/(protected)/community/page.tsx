@@ -132,12 +132,12 @@ export default function CommunityPage() {
   const visibleRows = tab === "announcements" ? announcements : tab === "posts" ? posts : tab === "media" ? mediaPosts : tab === "pinned" ? pinned : tab === "moderation" ? flagged : [];
 
   if (!canRead) {
-    return <div className="space-y-6"><Topbar title="Community Signals" subtitle="Community access required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
+    return <div className="space-y-6"><Topbar title="Community" subtitle="Community access required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
   }
 
   return (
     <div className="space-y-6">
-      <Topbar title="Community Signals" subtitle="Notices, posts and moderation" />
+      <Topbar title="Community" subtitle="Notices, posts and moderation" />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
