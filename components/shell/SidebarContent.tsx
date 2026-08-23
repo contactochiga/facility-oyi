@@ -119,9 +119,9 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
   return (
     <div className="flex h-full flex-col">
-      <nav className="p-4 space-y-1 overflow-y-auto">
+      <nav className="px-4 py-5 space-y-1 overflow-y-auto">
         <div className="px-3 pb-2 text-[9.5px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
-          Infrastructure OS
+          Operations
         </div>
         {navItems.map((it) => {
           const Icon = it.icon;
@@ -136,7 +136,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                 onNavigate?.();
               }}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all",
+                "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg border transition-all",
                 active
                   ? "border-sky-400/35 bg-sky-500/10 text-sky-50 shadow-[0_12px_30px_rgba(14,165,233,0.12)]"
                   : "border-transparent text-zinc-400 hover:border-white/10 hover:bg-white/5 hover:text-white"
@@ -144,7 +144,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
             >
               <span
                 className={cn(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border",
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
                   active
                     ? "border-white/15 bg-white/15 text-white"
                     : "border-white/10 bg-white/5 text-zinc-400"

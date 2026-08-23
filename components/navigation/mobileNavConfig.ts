@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { iconForDomain, iconForModule, OFFICE_ICON_ALIASES } from "@/lib/oisIconRegistry";
+import { iconForModule, OFFICE_ICON_ALIASES } from "@/lib/oisIconRegistry";
 
 export type MobileModuleItem = {
   key: string;
@@ -10,15 +10,17 @@ export type MobileModuleItem = {
 };
 
 export const facilityMobileModules: MobileModuleItem[] = [
-  { key: "overview", label: "Attention", href: "/overview", icon: iconForModule("overview"), activeRoutes: ["/overview"] },
+  { key: "overview", label: "Overview", href: "/overview", icon: iconForModule("overview"), activeRoutes: ["/overview"] },
   { key: "live-infrastructure", label: "Live", href: "/live-infrastructure", icon: iconForModule("live-infrastructure"), activeRoutes: ["/live-infrastructure", "/digital-twin"] },
-  { key: "estate-structure", label: "Registry", href: "/estate-structure", icon: iconForModule("estate-structure"), activeRoutes: ["/estate-structure", "/homes", "/occupancy"] },
-  { key: "hardware-devices", label: "Infra", href: "/hardware-devices", icon: iconForModule("hardware-devices"), activeRoutes: ["/hardware-devices", "/devices"] },
+  { key: "estate-structure", label: "Buildings", href: "/estate-structure", icon: iconForModule("estate-structure"), activeRoutes: ["/estate-structure", "/homes", "/occupancy"] },
+  { key: "hardware-devices", label: "Assets", href: "/hardware-devices", icon: iconForModule("hardware-devices"), activeRoutes: ["/hardware-devices", "/devices"] },
   { key: "security-access", label: "Security", href: "/security-access", icon: iconForModule("security-access"), activeRoutes: ["/security-access", "/security", "/visitors", "/cameras"] },
-  { key: "utilities", label: "Services", href: "/services", icon: iconForModule("utilities"), activeRoutes: ["/services", "/utilities", "/environment", "/water", "/traffic"] },
-  { key: "community", label: "Community", href: "/community", icon: iconForModule("community"), activeRoutes: ["/community", "/messages", "/maintenance", "/alerts"] },
-  { key: "wallets", label: "Financial", href: "/wallets", icon: iconForModule("wallets"), activeRoutes: ["/wallets"] },
-  { key: "administration", label: "Profile", href: "/account", icon: iconForDomain("operatorAccount"), activeRoutes: ["/account"] },
+  { key: "utilities", label: "Utilities", href: "/services", icon: iconForModule("utilities"), activeRoutes: ["/services", "/utilities", "/water"] },
+  { key: "environment-sensors", label: "Environment", href: "/environment", icon: iconForModule("environment-sensors"), activeRoutes: ["/environment"] },
+  { key: "traffic-mobility", label: "Access", href: "/traffic", icon: iconForModule("traffic-mobility"), activeRoutes: ["/traffic"] },
+  { key: "maintenance", label: "Maintenance", href: "/maintenance", icon: iconForModule("maintenance"), activeRoutes: ["/maintenance", "/alerts"] },
+  { key: "community", label: "Community", href: "/community", icon: iconForModule("community"), activeRoutes: ["/community", "/messages"] },
+  { key: "wallets", label: "Finance", href: "/wallets", icon: iconForModule("wallets"), activeRoutes: ["/wallets"] },
 ];
 
 export const officeMobileModules = [

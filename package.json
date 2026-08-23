@@ -20,6 +20,7 @@
     "smoke:device-projection": "node scripts/device-projection-smoke.mjs",
     "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-projection",
     "smoke:intelligence-context": "node scripts/facility-intelligence-context-smoke.mjs",
+    "smoke:commercial-shell": "node scripts/facility-commercial-shell-smoke.mjs",
     "smoke:intelligence-privacy": "node scripts/facility-intelligence-context-smoke.mjs",
     "smoke:facility-intelligence-entry-contract": "node scripts/facility-intelligence-context-smoke.mjs",
     "smoke:building-scope-report": "node scripts/facility-intelligence-context-smoke.mjs",

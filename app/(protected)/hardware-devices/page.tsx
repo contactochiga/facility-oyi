@@ -255,7 +255,7 @@ export default function HardwareDevicesPage() {
   return (
     <div className="space-y-6">
       <Topbar
-        title="Infrastructure Registry"
+        title="Assets"
         subtitle="Registry, discovery and edge operations"
         strip={[
           { label: "Registry", value: loading ? "Loading" : registry.length },

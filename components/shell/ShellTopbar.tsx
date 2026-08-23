@@ -1,32 +1,37 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Bell, ChevronDown, MessageSquare, Search } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Bell, MessageSquare } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import NotificationsModal from "@/components/notifications/NotificationsModal";
 import { notificationService } from "@/services/notificationService";
 import { loadUnreadMessageCount } from "@/services/facilityCommunicationPostureService";
-import { useFacilityAssistantStore } from "@/store/useFacilityAssistantStore";
-import { useContextStore } from "@/store/useContextStore";
-import FacilityContextualOyiButton from "@/components/shell/FacilityContextualOyiButton";
+import { FACILITY_MODULES } from "@/lib/moduleRegistry";
 
-function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
+const DOMAIN_SUBTITLES: Record<string, string> = {
+  overview: "Real-time facility operations at a glance",
+  "live-infrastructure": "Realtime estate operations",
+  "estate-structure": "Homes and building registry",
+  "hardware-devices": "Asset registry and edge operations",
+  "security-access": "Visitors, incidents, and gates",
+  utilities: "Infrastructure services and providers",
+  "environment-sensors": "Sensors and comfort signals",
+  "traffic-mobility": "Movement and access telemetry",
+  maintenance: "Work orders and ownership",
+  community: "Notices, posts, and moderation",
+  wallets: "Transactions and payment review",
+};
 
 export default function ShellTopbar() {
   const router = useRouter();
-  const { context, loading } = useContextStore();
-  const openAssistant = useFacilityAssistantStore((state) => state.openAssistant);
+  const pathname = usePathname() || "/overview";
   const [openNotif, setOpenNotif] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [messageCount, setMessageCount] = useState(0);
 
-  const estateLabel = useMemo(() => {
-    const name = String(context?.estate?.name || "").trim();
-    if (name) return name;
-    return loading ? "Loading estate context..." : "Estate context unavailable";
-  }, [context?.estate?.name, loading]);
+  const activeDomain = FACILITY_MODULES.find((item) =>
+    pathname === item.href || item.startsWith?.some((prefix) => pathname.startsWith(prefix))
+  );
 
   async function refreshUnread() {
     try {
@@ -63,37 +68,12 @@ export default function ShellTopbar() {
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="mx-auto flex h-14 max-w-[1680px] items-center gap-3 px-3 sm:h-[68px] sm:px-5 xl:px-7">
-          <button
-            type="button"
-            className="flex min-w-0 items-center gap-2 rounded-[14px] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] px-3 py-2 text-left text-sm text-[var(--ois-text-primary)] transition hover:border-sky-400/20 hover:bg-[var(--ois-surface-raised)]"
-          >
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" />
-            <span className="truncate">{estateLabel}</span>
-            <ChevronDown className="h-4 w-4 shrink-0 text-[var(--ois-text-muted)]" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => openAssistant("Search the current estate, module registry, runtime signals, and operational context.")}
-            className={cn(
-              "hidden h-11 flex-1 items-center justify-between rounded-[14px] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] px-3 text-left text-sm text-[var(--ois-text-muted)] md:flex",
-              "transition hover:border-sky-400/20 hover:bg-[var(--ois-surface-raised)]"
-            )}
-            aria-label="Search operational context"
-          >
-            <span className="flex items-center gap-2">
-              <Search className="h-4 w-4" />
-              <span className="truncate">Search anything...</span>
-            </span>
-            <span className="hidden rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-[var(--ois-text-faint)] md:inline-flex">
-              K
-            </span>
-          </button>
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold tracking-[-0.025em] text-[var(--ois-text-primary)] sm:text-lg">{activeDomain?.label || "Oyi Facility"}</h1>
+            <p className="hidden truncate text-xs text-[var(--ois-text-secondary)] sm:block">{activeDomain ? DOMAIN_SUBTITLES[activeDomain.key] : "Building Operations"}</p>
+          </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <div className="hidden lg:block">
-              <FacilityContextualOyiButton />
-            </div>
             <button
               type="button"
               onClick={() => router.push("/messages")}

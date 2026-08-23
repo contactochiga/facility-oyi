@@ -68,7 +68,7 @@ export default function TrafficPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Gate Flow Intelligence" subtitle="Movement and access telemetry" strip={[{ label: "Entries", value: loading ? "Loading" : entries }, { label: "Active", value: loading ? "Loading" : Math.max(0, entries - exits) }, { label: "Pending", value: loading ? "Loading" : pending }, { label: "Devices", value: loading ? "Loading" : `${onlineAccess}/${accessDevices.length}` }, { label: "Health", value: pending || !accessDevices.length ? "Review" : "Stable" }]} />
+      <Topbar title="Access" subtitle="Movement and access telemetry" strip={[{ label: "Entries", value: loading ? "Loading" : entries }, { label: "Active", value: loading ? "Loading" : Math.max(0, entries - exits) }, { label: "Pending", value: loading ? "Loading" : pending }, { label: "Devices", value: loading ? "Loading" : `${onlineAccess}/${accessDevices.length}` }, { label: "Health", value: pending || !accessDevices.length ? "Review" : "Stable" }]} />
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">

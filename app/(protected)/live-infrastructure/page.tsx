@@ -112,7 +112,7 @@ export default function LiveInfrastructureModule() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Live Infrastructure" subtitle="Realtime estate operations" strip={[{ label: "Status", value: status === "error" ? "Degraded" : status === "ready" ? "Live" : "Loading" }, { label: "Attention", value: attention.length }, { label: "Health", value: attention.length ? "Review" : "Stable" }, { label: "Action", value: "Open infrastructure" }]} />
+      <Topbar title="Live" subtitle="Realtime estate operations" strip={[{ label: "Status", value: status === "error" ? "Degraded" : status === "ready" ? "Live" : "Loading" }, { label: "Attention", value: attention.length }, { label: "Health", value: attention.length ? "Review" : "Stable" }, { label: "Action", value: "Open infrastructure" }]} />
       {error ? <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">{error}</p> : null}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">

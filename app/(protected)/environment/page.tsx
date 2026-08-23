@@ -41,7 +41,7 @@ export default function EnvironmentPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Environmental Awareness" subtitle="Sensors and comfort signals" strip={[{ label: "Status", value: envDevices.length ? "Live" : "Pending" }, { label: "Attention", value: unavailable + openEnvTickets.length }, { label: "Health", value: unavailable || openEnvTickets.length ? "Review" : "Stable" }, { label: "Action", value: "Inspect sensors" }]} />
+      <Topbar title="Environment" subtitle="Sensors and comfort signals" strip={[{ label: "Status", value: envDevices.length ? "Live" : "Pending" }, { label: "Attention", value: unavailable + openEnvTickets.length }, { label: "Health", value: unavailable || openEnvTickets.length ? "Review" : "Stable" }, { label: "Action", value: "Inspect sensors" }]} />
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <OisRegistryPanel

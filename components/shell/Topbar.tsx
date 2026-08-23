@@ -18,20 +18,8 @@ export default function Topbar({
   rightSlot?: React.ReactNode;
 }) {
   return (
-    <header className="space-y-2.5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[var(--ois-type-page-title)] font-semibold tracking-[-0.04em] text-[var(--ois-text-primary)]">
-            {title}
-          </h1>
-          {subtitle ? (
-            <p className="mt-0.5 text-[12px] text-[var(--ois-text-secondary)]">
-              {subtitle}
-            </p>
-          ) : null}
-        </div>
-        {rightSlot ? <div className="flex shrink-0 items-center gap-2">{rightSlot}</div> : null}
-      </div>
+    <header className="space-y-2.5" aria-label={`${title}${subtitle ? ` — ${subtitle}` : ""}`}>
+      {rightSlot ? <div className="flex justify-end"><div className="flex shrink-0 items-center gap-2">{rightSlot}</div></div> : null}
 
       {strip?.length ? (
         <OisOperationalStrip
