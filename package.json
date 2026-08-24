@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "smoke:camera-runtime-canonicalization": "node scripts/camera-runtime-canonicalization-smoke.mjs",
+    "verify:camera-core-distribution": "node scripts/verify-camera-core-distribution.mjs",
     "dev": "NEXT_BUILD_DIR=.next-dev next dev",
     "build": "next build",
     "build:native-shell": "node scripts/build-native-shell.mjs",
