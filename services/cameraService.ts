@@ -38,9 +38,6 @@ export type BoundCamera = {
   name: string | null;
   ip?: string | null;
   onvif_port: number | null;
-  rtsp_url?: string | null;
-  username?: string | null;
-  password?: string | null;
   status?: string | null;
   health_status?: string | null;
   stream_status?: string | null;
@@ -54,6 +51,15 @@ export type BoundCamera = {
   last_seen_at?: string | null;
   created_at?: string | null;
   metadata?: Record<string, any> | null;
+  health?: {
+    online: boolean;
+    status: string;
+    stream_status: string;
+    last_health_at?: string | null;
+    latency_ms?: number | null;
+    reconnect_count?: number;
+    provider_error?: string | null;
+  } | null;
 };
 
 export type CameraEvent = {
@@ -65,6 +71,7 @@ export type CameraEvent = {
   message?: string | null;
   metadata?: Record<string, any> | null;
   created_at?: string | null;
+  source_timestamp?: string | null;
 };
 
 export type CameraAiProfile = {
