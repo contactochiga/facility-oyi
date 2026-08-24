@@ -99,13 +99,13 @@ export default function LiveInfrastructureModule() {
   const edgeNodes = infra?.edge_nodes || [];
   const telemetry = infra?.telemetry || [];
   const offlineDevices = registry.filter((device) => toneFromDevice(device) === "critical" || toneFromDevice(device) === "pending");
-  const cameraAttention = cameras.filter((camera) => /offline|error|degraded|unavailable|unknown/.test(lower(camera.health_status || camera.stream_status || camera.status)));
+  const cameraAttention = cameras.filter((camera) => /offline|degraded|unknown/.test(camera.runtimeState));
   const edgeAttention = edgeNodes.filter((node) => /offline|degraded|unreachable|failed|unknown/.test(lower(node.status || node.sync_status)));
   const openRequests = maintenance.filter(openMaintenance);
 
   const attention = useMemo<AttentionItem[]>(() => [
     ...offlineDevices.map((device) => ({ domain: "Device", label: text(device.name), summary: activitySummary(device), status: healthLabel(device.health_status || device.status, "Attention"), href: "/hardware-devices" })),
-    ...cameraAttention.map((camera) => ({ domain: "Camera", label: text(camera.name || camera.ip), status: text(camera.health_status || camera.stream_status || camera.status, "attention"), href: "/cameras" })),
+    ...cameraAttention.map((camera) => ({ domain: "Camera", label: text(camera.name || camera.ip), status: camera.runtimeState, href: "/cameras" })),
     ...edgeAttention.map((node) => ({ domain: "Oyi Edge", label: text(node.name || node.node_id), status: text(node.status || node.sync_status, "attention"), href: "/hardware-devices?tab=edge" })),
     ...openRequests.map((item) => ({ domain: "Maintenance", label: text(item.title), summary: "", status: text(item.status), href: "/maintenance" })),
   ].slice(0, 12), [offlineDevices, cameraAttention, edgeAttention, openRequests]);

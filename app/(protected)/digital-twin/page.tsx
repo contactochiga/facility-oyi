@@ -136,7 +136,7 @@ function deviceLocation(device: any) {
 }
 
 function cameraStatus(camera: BoundCamera) {
-  return text(camera.health_status || camera.stream_status || camera.status, "unknown");
+  return camera.runtimeState;
 }
 
 function layerMatches(layer: LayerKey, entityType: string) {
@@ -270,14 +270,14 @@ export default function DigitalTwinPage() {
   const entities = useMemo(() => {
     const rows: Detail[] = [];
     if (visible.estate) {
-      for (const home of homes) rows.push({ type: "Home", title: text(home.name || home.unit || home.id, "Home"), subtitle: [home.block, home.unit].filter(Boolean).join(" / ") || "Estate structure", rows: [["Occupancy", text(home.occupancy_status || home.status, "Pending source")], ["Location", locationState("home", home.id)], ["Assigned devices", String(registry.filter((d) => String(d.home_id || d.home?.id || "") === String(home.id)).length)], ["Assigned cameras", String(cameras.data.filter((c) => String(c.metadata?.home_id || c.edge_node_id || "") === String(home.id)).length)], ["Maintenance", String(maintenance.data.filter((m) => String(m.home_id || "") === String(home.id)).length)]], href: `/homes/${home.id}/users` });
+      for (const home of homes) rows.push({ type: "Home", title: text(home.name || home.unit || home.id, "Home"), subtitle: [home.block, home.unit].filter(Boolean).join(" / ") || "Estate structure", rows: [["Occupancy", text(home.occupancy_status || home.status, "Pending source")], ["Location", locationState("home", home.id)], ["Assigned devices", String(registry.filter((d) => String(d.home_id || d.home?.id || "") === String(home.id)).length)], ["Assigned cameras", String(cameras.data.filter((c) => String(c.homeId || "") === String(home.id)).length)], ["Maintenance", String(maintenance.data.filter((m) => String(m.home_id || "") === String(home.id)).length)]], href: `/homes/${home.id}/users` });
       for (const room of rooms) rows.push({ type: "Room", title: text(room.name || room.id, "Room"), subtitle: `Home ${text(room.home_id, "unassigned")}`, rows: [["Type", text(room.type, "Not configured")], ["Location", locationState("room", room.id)], ["Floor", text(room.floor, "Not configured")], ["Devices", String(registry.filter((d) => String(d.room_id || d.room?.id || "") === String(room.id)).length)]], href: room.home_id ? `/homes/${room.home_id}/rooms` : "/homes" });
     }
     if (visible.devices) {
       for (const device of registry) rows.push({ type: "Device", title: text(device.name || device.oyi_id, "Device"), subtitle: deviceLocation(device), rows: [["Status", text(device.status, "unknown")], ["Location", locationState("device", device.id)], ["Provider", text(device.provider || device.adapter)], ["Protocol", text((device.protocols || []).join(", "), "Unavailable")], ["External ID", text(device.external_id, "Unavailable")]], href: "/hardware-devices" });
     }
     if (visible.cameras) {
-      for (const camera of cameras.data) rows.push({ type: "Camera", title: text(camera.name || camera.ip, "Camera"), subtitle: text(camera.ip || camera.edge_node_id, "No location source"), rows: [["Health", cameraStatus(camera)], ["Location", locationState("camera", camera.id)], ["Zone", text(cameraInfrastructure.data.find((item) => String(item.camera_id) === String(camera.id))?.zone, "Location pending")], ["Last seen", when(camera.last_seen_at)], ["AI profile", "Open Camera Center"], ["Edge", text(camera.edge_node_id, "No Edge node")]], href: "/cameras" });
+      for (const camera of cameras.data) rows.push({ type: "Camera", title: text(camera.name || camera.ip, "Camera"), subtitle: text(camera.location || camera.edgeNodeId, "No location source"), rows: [["Health", cameraStatus(camera)], ["Location", locationState("camera", camera.id)], ["Zone", text(cameraInfrastructure.data.find((item) => String(item.camera_id) === String(camera.id))?.zone, "Location pending")], ["Last seen", when(camera.health?.lastSeenAt)], ["AI profile", "Open Camera Center"], ["Edge", text(camera.edgeNodeId, "No Edge node")]], href: "/cameras" });
     }
     if (visible.edge) {
       for (const node of edgeNodes) rows.push({ type: "Edge", title: text(node.name || node.node_id, "Oyi Edge node"), subtitle: text(node.ip_address || node.estate_id, "No location source"), rows: [["Status", text(node.status, "unknown")], ["Location", locationState("edge_node", node.id)], ["Version", text(node.version)], ["Heartbeat", when(node.last_heartbeat_at)], ["Queue", text(node.queue_depth, "Awaiting telemetry")], ["Devices", text(node.device_count, "Awaiting telemetry")]], href: "/hardware-devices?tab=edge" });

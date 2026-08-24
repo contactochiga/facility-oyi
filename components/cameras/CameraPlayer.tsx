@@ -1,8 +1,9 @@
 // components/cameras/CameraPlayer.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback } from "react";
 import cameraService from "@/services/cameraService";
+import { useCameraPlayback } from "@/lib/oyi-camera-core/useCameraPlayback";
 
 type Props = {
   cameraId: string;
@@ -25,120 +26,11 @@ export default function CameraPlayer({
   variant = "tile",
   rewindSeconds = 0,
 }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [src, setSrc] = useState<string>("");
-
-  const isHlsNative = useMemo(() => {
-    if (typeof document === "undefined") return false;
-    const v = document.createElement("video");
-    return v.canPlayType("application/vnd.apple.mpegurl") !== "";
-  }, []);
-
-  // ✅ Fetch playback URL (live/rewind), refresh every 60s
-  useEffect(() => {
-    let alive = true;
-    let timer: any = null;
-
-    async function refreshTokenAndSrc() {
-      try {
-        setErr(null);
-        const res = await cameraService.getPlayback(cameraId, rewindSeconds);
-        if (!alive) return;
-        setSrc(String(res?.url || ""));
-      } catch (e: any) {
-        if (!alive) return;
-        const msg =
-          e?.response?.data?.error ||
-          e?.message ||
-          "Failed to load stream";
-        setErr(String(msg));
-        setSrc("");
-      }
-    }
-
-    refreshTokenAndSrc();
-    timer = setInterval(refreshTokenAndSrc, 60_000);
-
-    return () => {
-      alive = false;
-      if (timer) clearInterval(timer);
-    };
-  }, [cameraId, rewindSeconds]);
-
-  // ✅ Mount HLS playback whenever src changes
-  useEffect(() => {
-    let hls: any;
-
-    async function mount() {
-      const video = videoRef.current;
-      if (!video || !src) return;
-
-      // reset
-      try {
-        video.pause();
-        video.removeAttribute("src");
-        video.load();
-      } catch {}
-
-      // ✅ Safari native HLS
-      if (isHlsNative) {
-        video.src = src;
-        try {
-          if (autoPlay) await video.play();
-        } catch {}
-        return;
-      }
-
-      // ✅ Non-safari via hls.js
-      try {
-        const mod = await import("hls.js");
-        const Hls = mod.default;
-
-        if (!Hls.isSupported()) {
-          setErr("HLS not supported in this browser.");
-          return;
-        }
-
-        hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 30,
-          xhrSetup: (xhr: XMLHttpRequest) => {
-            xhr.withCredentials = true;
-          },
-        });
-
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-          hls.loadSource(src);
-        });
-
-        hls.on(Hls.Events.ERROR, (_evt: any, data: any) => {
-          if (data?.fatal) {
-            setErr(data?.details || "Stream error");
-            try {
-              hls.destroy();
-            } catch {}
-          }
-        });
-
-        try {
-          if (autoPlay) await video.play();
-        } catch {}
-      } catch (e: any) {
-        setErr(e?.message || "Failed to load HLS player.");
-      }
-    }
-
-    mount();
-
-    return () => {
-      try {
-        hls?.destroy?.();
-      } catch {}
-    };
-  }, [src, autoPlay, isHlsNative]);
+  const createSession = useCallback(
+    (id: string, options?: { rewindSeconds?: number }) => cameraService.getPlayback(id, options?.rewindSeconds),
+    []
+  );
+  const { videoRef, status, error: err } = useCameraPlayback({ cameraId, rewindSeconds, enabled: Boolean(cameraId), autoPlay, createSession });
 
   return (
     <div
@@ -163,9 +55,9 @@ export default function CameraPlayer({
         </div>
       )}
 
-      {!err && !src && (
+      {!err && status !== "ready" && (
         <div className="px-3 py-2 text-xs text-zinc-300 bg-white/5 border-t border-white/10">
-          Loading stream…
+          {status === "refreshing" ? "Refreshing stream…" : "Loading stream…"}
         </div>
       )}
     </div>

@@ -1,0 +1,19 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import ts from "typescript";
+
+const runtime = fs.readFileSync("lib/oyi-camera-core/runtime.ts", "utf8");
+const hook = fs.readFileSync("lib/oyi-camera-core/useCameraPlayback.ts", "utf8");
+const service = fs.readFileSync("services/cameraService.ts", "utf8");
+const player = fs.readFileSync("components/cameras/CameraPlayer.tsx", "utf8");
+const page = fs.readFileSync("app/(protected)/cameras/page.tsx", "utf8");
+const js = ts.transpileModule(runtime, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+const mod = { exports: {} }; new Function("module", "exports", js)(mod, mod.exports); const core = mod.exports;
+const camera = core.normalizeCamera({ id:"cam", privacy_scope:"facility", stream_status:"ready", health:{online:true,status:"healthy"}, rtsp_url:"rtsp://secret@10.0.0.2/live", credential_ref:"vault:camera" });
+assert.equal(camera.runtimeState,"online"); assert.equal(JSON.stringify(camera).includes("rtsp"),false); assert.equal(JSON.stringify(camera).includes("vault:camera"),false);
+const event = core.normalizeCameraEvent({id:"ev",camera_id:"cam",event_type:"unknown_future",created_at:"2026-08-24T10:00:00Z",source_timestamp:"2026-08-24T09:59:00Z"}); assert.equal(core.getCameraEventOccurrenceTime(event),"2026-08-24T09:59:00Z");
+for (const symbol of ["CameraHealth","CameraEvent","CameraPlaybackSession","normalizeCamera","normalizeCameraEvent","cameraRuntimeState","serializeCameraOyiContext","CameraRealtimeAdapter"]) assert.match(runtime,new RegExp(symbol));
+for (const lifecycle of ["expiresAt","refreshing","failureCount","clearTimers","destroy","generation","import(\"hls.js\")"]) assert.ok(hook.includes(lifecycle),`missing playback lifecycle: ${lifecycle}`);
+assert.match(service,/createCameraReadClient/); assert.match(service,/normalizeCamera/); assert.match(player,/useCameraPlayback/); assert.doesNotMatch(player,/new Hls|import\("hls\.js"\)/);
+assert.match(page,/getCameraEventOccurrenceTime/); assert.doesNotMatch(page,/event\.created_at|event\.event_type|camera\.stream_status/);
+console.log("Facility Camera Core Phase 2 regression smoke passed");
