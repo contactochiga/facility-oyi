@@ -45,7 +45,7 @@ export default function InfrastructureDetailDrawer({ source, onClose }: { source
     if (source === "providers") return data.providerEvents;
     return records;
   }, [data, records, source]);
-  const route = posture?.route || "/live-infrastructure";
+  const route = posture?.route || "/hardware-devices";
   return <OisDrawer open={true} onClose={onClose} width="md" title={title[source]} subtitle="Estate-scoped operational posture and supporting evidence." footer={<div className="flex items-center justify-between gap-3"><div><p className="text-xs text-zinc-500">Recommended next action</p><p className="text-sm text-sky-100">{nextAction[source]}</p></div><div className="flex shrink-0 items-center gap-2"><FacilityContextualOyiButton compact targetLabel={title[source]} /><Link href={route} onClick={onClose} className="rounded-lg border border-sky-400/20 bg-sky-500/10 px-3 py-2 text-xs text-sky-100">Open source</Link></div></div>}>
     {state === "loading" ? <div className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" />Loading infrastructure posture</div> : null}
     {state === "error" ? <p className="rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-sm text-rose-100">Infrastructure evidence is unavailable for this facility context.</p> : null}

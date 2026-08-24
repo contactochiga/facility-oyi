@@ -11,11 +11,12 @@ const assistantStyles = await readFile(new URL("../app/globals.css", import.meta
 const launcher = await readFile(new URL("../components/oyi-shell/OyiLauncher.tsx", import.meta.url), "utf8");
 const orb = await readFile(new URL("../components/oyi-shell/OyiOrb.tsx", import.meta.url), "utf8");
 const mobileFooter = await readFile(new URL("../components/navigation/MobileModuleFooter.tsx", import.meta.url), "utf8");
+const mobileConfig = await readFile(new URL("../components/navigation/mobileNavConfig.ts", import.meta.url), "utf8");
 const sidebarContent = await readFile(new URL("../components/shell/SidebarContent.tsx", import.meta.url), "utf8");
 const legacyRoute = await readFile(new URL("../app/(protected)/facility-intelligence/page.tsx", import.meta.url), "utf8");
 
 const expected = [
-  ["Overview", "/overview"], ["Live", "/live-infrastructure"], ["Buildings", "/estate-structure"],
+  ["Overview", "/overview"], ["Buildings", "/estate-structure"],
   ["Assets", "/hardware-devices"], ["Security", "/security-access"], ["Utilities", "/services"],
   ["Environment", "/environment"], ["Access", "/traffic"], ["Maintenance", "/maintenance"],
   ["Community", "/community"], ["Finance", "/wallets"],
@@ -24,6 +25,8 @@ const expected = [
 for (const [label, href] of expected) {
   assert.match(modules, new RegExp(`label: "${label}"[^\\n]+href: "${href.replaceAll("/", "\\/")}"`));
 }
+assert.doesNotMatch(modules, /label: "Live"/);
+assert.doesNotMatch(mobileConfig, /label: "Live"/);
 assert.doesNotMatch(modules, /label: "Operational Intelligence"/);
 assert.match(sidebar, /Building Operations/);
 assert.doesNotMatch(sidebar, /Infrastructure operating system/);

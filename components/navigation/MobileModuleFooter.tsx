@@ -19,7 +19,7 @@ function isActive(pathname: string, item: MobileModuleItem) {
   return (item.activeRoutes || [item.href]).some((route) => routeMatches(pathname, route));
 }
 
-const PAGE_ONE_KEYS = ["overview", "live-infrastructure", "estate-structure", "hardware-devices", "security-access", "utilities"];
+const PAGE_ONE_KEYS = ["overview", "estate-structure", "hardware-devices", "security-access", "utilities"];
 const PAGE_TWO_KEYS = ["environment-sensors", "traffic-mobility", "maintenance", "community", "wallets"];
 
 export default function MobileModuleFooter({ items = facilityMobileModules }: { items?: MobileModuleItem[] }) {

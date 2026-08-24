@@ -11,7 +11,6 @@ export type MobileModuleItem = {
 
 export const facilityMobileModules: MobileModuleItem[] = [
   { key: "overview", label: "Overview", href: "/overview", icon: iconForModule("overview"), activeRoutes: ["/overview"] },
-  { key: "live-infrastructure", label: "Live", href: "/live-infrastructure", icon: iconForModule("live-infrastructure"), activeRoutes: ["/live-infrastructure", "/digital-twin"] },
   { key: "estate-structure", label: "Buildings", href: "/estate-structure", icon: iconForModule("estate-structure"), activeRoutes: ["/estate-structure", "/homes", "/occupancy"] },
   { key: "hardware-devices", label: "Assets", href: "/hardware-devices", icon: iconForModule("hardware-devices"), activeRoutes: ["/hardware-devices", "/devices"] },
   { key: "security-access", label: "Security", href: "/security-access", icon: iconForModule("security-access"), activeRoutes: ["/security-access", "/security", "/visitors", "/cameras"] },
