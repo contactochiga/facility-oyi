@@ -8,6 +8,9 @@ const sidebar = await readFile(new URL("../components/shell/Sidebar.tsx", import
 const assistant = await readFile(new URL("../components/shell/FacilityAssistantSheet.tsx", import.meta.url), "utf8");
 const assistantShell = await readFile(new URL("../components/oyi-shell/OyiInteractionShell.tsx", import.meta.url), "utf8");
 const assistantStyles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+const launcher = await readFile(new URL("../components/oyi-shell/OyiLauncher.tsx", import.meta.url), "utf8");
+const orb = await readFile(new URL("../components/oyi-shell/OyiOrb.tsx", import.meta.url), "utf8");
+const mobileFooter = await readFile(new URL("../components/navigation/MobileModuleFooter.tsx", import.meta.url), "utf8");
 const sidebarContent = await readFile(new URL("../components/shell/SidebarContent.tsx", import.meta.url), "utf8");
 const legacyRoute = await readFile(new URL("../app/(protected)/facility-intelligence/page.tsx", import.meta.url), "utf8");
 
@@ -36,6 +39,15 @@ assert.match(assistantShell, /OyiProcessingRow/);
 assert.match(assistantStyles, /md:w-\[400px\]/);
 assert.match(assistantStyles, /h-\[min\(560px/);
 assert.match(assistantStyles, /bg-\[#07101a\]/);
+assert.match(launcher, /OyiOrb/);
+assert.doesNotMatch(launcher, /Sparkles/);
+assert.match(orb, /oyi-shell-orb/);
+assert.match(orb, />Oyi</);
+assert.match(assistantStyles, /h-14 w-14/);
+assert.match(assistantStyles, /bg-\[#06101d\]/);
+assert.match(assistantStyles, /shadow-\[0_10px_40px_rgba\(56,189,248,0.35\)\]/);
+assert.doesNotMatch(mobileFooter, /Sparkles/);
+assert.doesNotMatch(mobileFooter, /Open Oyi Facility Intelligence/);
 assert.match(sidebar, /w-\[236px\]/);
 assert.match(sidebarContent, /min-h-9/);
 assert.match(sidebarContent, /size=\{16\}/);
