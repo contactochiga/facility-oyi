@@ -6,6 +6,9 @@ const modules = await readFile(new URL("../lib/moduleRegistry.ts", import.meta.u
 const topbar = await readFile(new URL("../components/shell/ShellTopbar.tsx", import.meta.url), "utf8");
 const sidebar = await readFile(new URL("../components/shell/Sidebar.tsx", import.meta.url), "utf8");
 const assistant = await readFile(new URL("../components/shell/FacilityAssistantSheet.tsx", import.meta.url), "utf8");
+const assistantShell = await readFile(new URL("../components/oyi-shell/OyiInteractionShell.tsx", import.meta.url), "utf8");
+const assistantStyles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+const sidebarContent = await readFile(new URL("../components/shell/SidebarContent.tsx", import.meta.url), "utf8");
 const legacyRoute = await readFile(new URL("../app/(protected)/facility-intelligence/page.tsx", import.meta.url), "utf8");
 
 const expected = [
@@ -24,8 +27,19 @@ assert.doesNotMatch(sidebar, /Infrastructure operating system/);
 for (const removed of ["Search anything", "FacilityContextualOyiButton", "ChevronDown", "estateLabel"]) {
   assert.doesNotMatch(topbar, new RegExp(removed));
 }
-assert.match(assistant, />Oyi</);
-assert.match(assistant, /Facility Intelligence/);
+assert.match(assistant, /title="Oyi"/);
+assert.match(assistant, /subtitle="Facility Intelligence"/);
+assert.match(assistant, /OyiInteractionShell/);
 assert.match(assistant, /activeIntelligenceContext/);
+assert.match(assistantShell, /data-oyi-interaction-shell="true"/);
+assert.match(assistantShell, /OyiProcessingRow/);
+assert.match(assistantStyles, /md:w-\[400px\]/);
+assert.match(assistantStyles, /h-\[min\(560px/);
+assert.match(assistantStyles, /bg-\[#07101a\]/);
+assert.match(sidebar, /w-\[236px\]/);
+assert.match(sidebarContent, /min-h-9/);
+assert.match(sidebarContent, /size=\{16\}/);
+assert.doesNotMatch(sidebarContent, /shadow-\[0_12px_30px/);
+assert.doesNotMatch(sidebarContent, /h-7 w-7 shrink-0 items-center justify-center rounded-lg border/);
 assert.match(legacyRoute, /redirect\("\/overview\?oyi=open"\)/);
 console.log("Facility commercial shell smoke passed.");
