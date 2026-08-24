@@ -1,4 +1,5 @@
 import API from "./api";
+import { createCameraReadClient, normalizeCamera, normalizeCameraEvent, type Camera, type CameraEvent, type CameraPlaybackSession, type CameraScope } from "@/lib/oyi-camera-core/core";
 
 export type DiscoveredCamera = {
   externalId: string;
@@ -10,7 +11,7 @@ export type DiscoveredCamera = {
   metadata?: any;
 };
 
-export type CameraPrivacyScope = "facility" | "home" | "office";
+export type CameraPrivacyScope = Exclude<CameraScope, "unknown">;
 export type CameraType = "ip_camera" | "dvr_channel" | "nvr_channel";
 export type DvrBrand = "generic_rtsp" | "hikvision" | "dahua" | "hilook" | "uniview";
 
@@ -32,40 +33,15 @@ export type CameraDvr = {
   metadata?: Record<string, any> | null;
 };
 
-export type BoundCamera = {
-  id: string;
-  estate_id: string;
-  name: string | null;
+export type BoundCamera = Camera & {
   ip?: string | null;
   onvif_port: number | null;
-  rtsp_url?: string | null;
-  username?: string | null;
-  password?: string | null;
-  status?: string | null;
-  health_status?: string | null;
-  stream_status?: string | null;
   edge_status?: string | null;
-  edge_node_id?: string | null;
-  location?: string | null;
-  nvr_id?: string | null;
+  nvrId?: string | null;
   channel?: string | null;
-  credential_ref?: string | null;
-  privacy_scope?: CameraPrivacyScope | string | null;
-  last_seen_at?: string | null;
-  created_at?: string | null;
   metadata?: Record<string, any> | null;
 };
-
-export type CameraEvent = {
-  id: string;
-  camera_id: string;
-  event_type: string;
-  confidence?: number | null;
-  snapshot_url?: string | null;
-  message?: string | null;
-  metadata?: Record<string, any> | null;
-  created_at?: string | null;
-};
+export type { CameraEvent };
 
 export type CameraAiProfile = {
   armed?: boolean;
@@ -107,6 +83,9 @@ export type CameraInventory = {
   };
 };
 
+const readClient = createCameraReadClient(API);
+const facilityCamera = (raw: any): BoundCamera => ({ ...normalizeCamera(raw), ip: raw?.ip ?? null, onvif_port: raw?.onvif_port ?? null, edge_status: raw?.edge_status ?? null, nvrId: raw?.nvr_id ?? null, channel: raw?.channel ?? null, metadata: raw?.metadata ?? null });
+
 export const cameraService = {
   async scan(payload: { cidr?: string; username?: string; password?: string }) {
     const res = await API.post("/cameras/scan", payload);
@@ -115,12 +94,12 @@ export const cameraService = {
 
   async listByEstate(estateId: string) {
     const res = await API.get(`/cameras/estate/${encodeURIComponent(estateId)}`);
-    return res.data as { ok: boolean; items: BoundCamera[] };
+    return { ok: true, items: (res.data?.items || []).map(facilityCamera) as BoundCamera[] };
   },
 
   async inventoryByEstate(estateId: string) {
     const res = await API.get(`/cameras/inventory/estate/${encodeURIComponent(estateId)}`);
-    return res.data as CameraInventory;
+    return { ...res.data, cameras: (res.data?.cameras || []).map(facilityCamera) } as CameraInventory;
   },
 
   async listDvrs(estateId: string) {
@@ -135,7 +114,7 @@ export const cameraService = {
 
   async importDvr(payload: { estateId?: string; name: string; brand: DvrBrand | string; ip_address: string; port?: number; username?: string; password?: string; channel_count: number; edge_node_id?: string; credential_ref?: string; model?: string; onvif_enabled?: boolean; channels: DvrChannelDraft[] }) {
     const res = await API.post("/cameras/dvrs/import", payload);
-    return res.data as { ok: boolean; dvr: CameraDvr; cameras: BoundCamera[]; errors?: Array<{ channel: number; error: string }>; message: string };
+    return { ...res.data, cameras: (res.data?.cameras || []).map(facilityCamera) } as { ok: boolean; dvr: CameraDvr; cameras: BoundCamera[]; errors?: Array<{ channel: number; error: string }>; message: string };
   },
 
   async validateStream(cameraId: string) {
@@ -162,7 +141,7 @@ export const cameraService = {
     enabled?: boolean;
   }) {
     const res = await API.post("/cameras/bind", payload);
-    return res.data as { ok: boolean; camera: BoundCamera };
+    return { ...res.data, camera: facilityCamera(res.data?.camera) } as { ok: boolean; camera: BoundCamera };
   },
 
   async getHlsToken(cameraId: string) {
@@ -170,34 +149,18 @@ export const cameraService = {
     return res.data as { ok: boolean; token: string; expires_in: number };
   },
 
-  async getPlayback(cameraId: string, rewindSeconds = 0) {
-    const rewind = Math.max(0, Math.floor(rewindSeconds || 0));
-    try {
-      const res = await API.get(`/cameras/${encodeURIComponent(cameraId)}/playback`, { params: { rewind } });
-      if (res?.data?.url || res?.data?.hls_url) {
-        return { ...res.data, url: res.data.hls_url || res.data.url, type: res.data.playback_type || res.data.type || "hls" } as { ok: boolean; type: "hls"; url: string; rewind: number; hls_url?: string; edge_status?: string; stream_status?: string; message?: string };
-      }
-    } catch (err: any) {
-      const status = Number(err?.response?.status || 0);
-      if (![404, 405, 501, 502].includes(status)) throw err;
-    }
-
-    const tokenRes = await API.get(`/cameras/${encodeURIComponent(cameraId)}/hls-token`);
-    const token = String(tokenRes?.data?.token || "").trim();
-    if (!token) throw new Error("Playback unavailable: missing HLS token.");
-    let url = this.hlsUrl(cameraId, token);
-    if (rewind > 0) url = `${url}${url.includes("?") ? "&" : "?"}rewind=${encodeURIComponent(String(rewind))}`;
-    return { ok: true, type: "hls", url, rewind } as { ok: boolean; type: "hls"; url: string; rewind: number };
+  async getPlayback(cameraId: string, rewindSeconds = 0): Promise<CameraPlaybackSession> {
+    return readClient.createPlaybackSession(cameraId, { rewindSeconds });
   },
 
   async listEvents(cameraId: string, opts?: { limit?: number; sinceMinutes?: number }) {
-    const res = await API.get(`/cameras/${encodeURIComponent(cameraId)}/events`, { params: { limit: opts?.limit ?? 30, sinceMinutes: opts?.sinceMinutes ?? 24 * 60 } });
-    return res.data as { ok: boolean; events: CameraEvent[]; warning?: string };
+    const events = await readClient.getCameraEvents(cameraId, { limit: opts?.limit ?? 30, sinceMinutes: opts?.sinceMinutes ?? 24 * 60 });
+    return { ok: true, events };
   },
 
   async createEvent(cameraId: string, payload: { event_type: string; confidence?: number; snapshot_url?: string; message?: string; metadata?: Record<string, any> }) {
     const res = await API.post(`/cameras/${encodeURIComponent(cameraId)}/events`, payload);
-    return res.data as { ok: boolean; event?: CameraEvent; error?: string };
+    return { ...res.data, event: res.data?.event ? normalizeCameraEvent(res.data.event) : undefined } as { ok: boolean; event?: CameraEvent; error?: string };
   },
 
   async getAnalyticsCapabilities() {

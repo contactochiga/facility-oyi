@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import { facilityService, type InfrastructureOperations } from "@/services/facilityService";
 import { visitorService, type VisitorItem } from "@/services/visitorService";
 import cameraService, { type BoundCamera, type CameraEvent } from "@/services/cameraService";
+import { getCameraEventOccurrenceTime } from "@/lib/oyi-camera-core/core";
 import { notificationService, type AlertItem } from "@/services/notificationService";
 
 function status(value: any) {
@@ -56,9 +57,9 @@ export default function SecurityAccessPage() {
         setCameras(cameraRows);
         const eventRows = await Promise.all(cameraRows.slice(0, 8).map(async (camera) => {
           const result = await cameraService.listEvents(camera.id, { limit: 8, sinceMinutes: 24 * 60 }).catch(() => ({ events: [] }));
-          return (result.events || []).map((event) => ({ ...event, camera_name: camera.name || camera.ip || "Camera" }));
+          return (result.events || []).map((event: CameraEvent) => ({ ...event, camera_name: camera.name || camera.ip || "Camera" }));
         }));
-        setEvents(eventRows.flat().sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 20));
+        setEvents(eventRows.flat().sort((a, b) => new Date(getCameraEventOccurrenceTime(b)).getTime() - new Date(getCameraEventOccurrenceTime(a)).getTime()).slice(0, 20));
       } else {
         setCameras([]);
         setEvents([]);
@@ -82,7 +83,7 @@ export default function SecurityAccessPage() {
 
   const activeVisitors = visitors.filter((v) => ["approved", "entered", "active"].includes(status(v.status)));
   const pendingVisitors = visitors.filter((v) => status(v.status) === "pending");
-  const unhealthyCameras = cameras.filter((camera) => ["offline", "error", "degraded"].includes(status(camera.status || camera.health_status || camera.stream_status)));
+  const unhealthyCameras = cameras.filter((camera) => ["offline", "degraded"].includes(camera.runtimeState));
   const anomalies = useMemo(() => [...(infra?.telemetry || []), ...alerts.slice(0, 6).map((alert) => ({ id: alert.id, affected: alert.title, domain: "alert", action: alert.message, time: alert.created_at }))].slice(0, 8), [infra, alerts]);
 
   async function lockdown() {
@@ -109,7 +110,7 @@ export default function SecurityAccessPage() {
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
             <div className="flex items-center justify-between gap-3"><OisRegistryHeader title="Camera health and events" caption={loading ? "Loading records" : `${cameras.length} records`} /><Link href="/cameras" className="text-xs text-sky-200">Open camera wall</Link></div>
-            <div className="mt-4 space-y-2">{cameras.slice(0, 6).map((camera) => <Link key={camera.id} href="/cameras" className="block"><OisListItem icon={<Camera className="h-4 w-4 text-sky-200" />} title={camera.name || camera.ip || "Camera"} description={`${camera.ip || "IP unavailable"} · ${when(camera.last_seen_at)}`} meta={`${events.filter((event) => event.camera_id === camera.id).length} recent events`} status={["offline", "error", "degraded"].includes(status(camera.status || camera.health_status || camera.stream_status)) ? "critical" : "stable"} /></Link>)}{!cameras.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No live camera source configured.</p> : null}</div>
+            <div className="mt-4 space-y-2">{cameras.slice(0, 6).map((camera) => <Link key={camera.id} href="/cameras" className="block"><OisListItem icon={<Camera className="h-4 w-4 text-sky-200" />} title={camera.name || camera.ip || "Camera"} description={`${camera.location || "Location unavailable"} · ${when(camera.health?.lastSeenAt)}`} meta={`${events.filter((event) => event.cameraId === camera.id).length} recent events`} status={["offline", "degraded"].includes(camera.runtimeState) ? "critical" : "stable"} /></Link>)}{!cameras.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No live camera source configured.</p> : null}</div>
           </div>
         </div>
 
