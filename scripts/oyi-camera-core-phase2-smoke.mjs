@@ -7,8 +7,13 @@ const hook = fs.readFileSync("lib/oyi-camera-core/useCameraPlayback.ts", "utf8")
 const service = fs.readFileSync("services/cameraService.ts", "utf8");
 const player = fs.readFileSync("components/cameras/CameraPlayer.tsx", "utf8");
 const page = fs.readFileSync("app/(protected)/cameras/page.tsx", "utf8");
+const media = fs.readFileSync("lib/oyi-camera-core/media.ts", "utf8");
+const detection = fs.readFileSync("lib/oyi-camera-core/detection.ts", "utf8");
+const compile = (source) => { const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText; const mod = { exports: {} }; new Function("module", "exports", js)(mod, mod.exports); return mod.exports; };
+const mediaModule = compile(media);
+const detectionModule = compile(detection);
 const js = ts.transpileModule(runtime, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const mod = { exports: {} }; new Function("module", "exports", js)(mod, mod.exports); const core = mod.exports;
+const mod = { exports: {} }; new Function("module", "exports", "require", js)(mod, mod.exports, (specifier) => specifier === "./media" ? mediaModule : specifier === "./detection" ? detectionModule : (() => { throw new Error(`Unexpected require: ${specifier}`); })()); const core = mod.exports;
 const camera = core.normalizeCamera({ id:"cam", privacy_scope:"facility", stream_status:"ready", health:{online:true,status:"healthy"}, rtsp_url:"rtsp://secret@10.0.0.2/live", credential_ref:"vault:camera" });
 assert.equal(camera.runtimeState,"online"); assert.equal(JSON.stringify(camera).includes("rtsp"),false); assert.equal(JSON.stringify(camera).includes("vault:camera"),false);
 const event = core.normalizeCameraEvent({id:"ev",camera_id:"cam",event_type:"unknown_future",created_at:"2026-08-24T10:00:00Z",source_timestamp:"2026-08-24T09:59:00Z"}); assert.equal(core.getCameraEventOccurrenceTime(event),"2026-08-24T09:59:00Z");

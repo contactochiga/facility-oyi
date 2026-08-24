@@ -14,7 +14,6 @@ type Props = {
   // NEW
   controls?: boolean;
   variant?: "hero" | "tile";
-  rewindSeconds?: number;
 };
 
 export default function CameraPlayer({
@@ -24,13 +23,12 @@ export default function CameraPlayer({
   autoPlay = true,
   controls = true,
   variant = "tile",
-  rewindSeconds = 0,
 }: Props) {
   const createSession = useCallback(
-    (id: string, options?: { rewindSeconds?: number }) => cameraService.getPlayback(id, options?.rewindSeconds),
+    (id: string) => cameraService.getPlayback(id),
     []
   );
-  const { videoRef, status, error: err } = useCameraPlayback({ cameraId, rewindSeconds, enabled: Boolean(cameraId), autoPlay, createSession });
+  const { videoRef, status, error: err } = useCameraPlayback({ cameraId, enabled: Boolean(cameraId), autoPlay, createSession });
 
   return (
     <div
