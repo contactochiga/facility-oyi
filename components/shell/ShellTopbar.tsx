@@ -64,20 +64,20 @@ export default function ShellTopbar() {
   return (
     <>
       <header
-        className="sticky top-0 z-50 border-b border-[var(--ois-border-subtle)] bg-[rgba(7,10,15,0.92)] backdrop-blur-xl"
+        className="sticky top-0 z-50 border-b border-[var(--ois-border-subtle)] bg-[#070a0f]"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
-        <div className="mx-auto flex h-14 max-w-[1680px] items-center gap-3 px-3 sm:h-[68px] sm:px-5 xl:px-7">
+        <div className="mx-auto flex h-14 max-w-[1680px] items-center gap-3 px-4 sm:px-5">
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold tracking-[-0.025em] text-[var(--ois-text-primary)] sm:text-lg">{activeDomain?.label || "Oyi Facility"}</h1>
-            <p className="hidden truncate text-xs text-[var(--ois-text-secondary)] sm:block">{activeDomain ? DOMAIN_SUBTITLES[activeDomain.key] : "Building Operations"}</p>
+            <h1 className="truncate text-[15px] font-semibold text-[var(--ois-text-primary)]">{activeDomain?.label || "Oyi Facility"}</h1>
+            <p className="hidden truncate text-[11.5px] text-[var(--ois-text-secondary)] sm:block">{activeDomain ? DOMAIN_SUBTITLES[activeDomain.key] : "Building Operations"}</p>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
               onClick={() => router.push("/messages")}
-              className="relative grid h-11 w-11 place-items-center rounded-[14px] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] text-[var(--ois-text-secondary)] transition hover:border-sky-400/20 hover:bg-[var(--ois-surface-raised)] hover:text-[var(--ois-text-primary)]"
+              className="relative grid h-8 w-8 place-items-center rounded-[4px] text-[var(--ois-text-secondary)] transition-colors hover:bg-white/[0.04] hover:text-[var(--ois-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
               aria-label="Messages"
             >
               <MessageSquare className="h-4 w-4" />
@@ -91,7 +91,7 @@ export default function ShellTopbar() {
             <button
               type="button"
               onClick={() => setOpenNotif(true)}
-              className="relative grid h-11 w-11 place-items-center rounded-[14px] border border-[var(--ois-border-default)] bg-[var(--ois-surface)] text-[var(--ois-text-secondary)] transition hover:border-sky-400/20 hover:bg-[var(--ois-surface-raised)] hover:text-[var(--ois-text-primary)]"
+              className="relative grid h-8 w-8 place-items-center rounded-[4px] text-[var(--ois-text-secondary)] transition-colors hover:bg-white/[0.04] hover:text-[var(--ois-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
               aria-label="Notifications"
             >
               <Bell className="h-4 w-4" />

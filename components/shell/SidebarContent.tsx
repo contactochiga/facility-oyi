@@ -119,8 +119,8 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
   return (
     <div className="flex h-full flex-col">
-      <nav className="px-4 py-5 space-y-1 overflow-y-auto">
-        <div className="px-3 pb-2 text-[9.5px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+      <nav className="overflow-y-auto px-3 py-4">
+        <div className="mb-1.5 px-2 text-[10.5px] font-normal uppercase tracking-[0.08em] text-zinc-500">
           Operations
         </div>
         {navItems.map((it) => {
@@ -136,49 +136,40 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                 onNavigate?.();
               }}
               className={cn(
-                "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg border transition-all",
+                "mb-px flex min-h-9 w-full items-center gap-2.5 rounded-[4px] px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-300/70",
                 active
-                  ? "border-sky-400/35 bg-sky-500/10 text-sky-50 shadow-[0_12px_30px_rgba(14,165,233,0.12)]"
-                  : "border-transparent text-zinc-400 hover:border-white/10 hover:bg-white/5 hover:text-white"
+                  ? "bg-sky-500/[0.12] text-white"
+                  : "text-zinc-400 hover:bg-white/[0.04] hover:text-white"
               )}
             >
-              <span
-                className={cn(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
-                  active
-                    ? "border-white/15 bg-white/15 text-white"
-                    : "border-white/10 bg-white/5 text-zinc-400"
-                )}
-              >
-                <Icon size={15.5} className={cn(active ? "opacity-100" : "opacity-90")} />
-              </span>
-              <span className="text-[13px] font-medium truncate">{it.label}</span>
+              <Icon size={16} strokeWidth={1.6} className={cn("shrink-0", active ? "text-sky-300 opacity-100" : "opacity-75")} />
+              <span className="truncate text-[13px] font-normal">{it.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      <div className="mt-auto p-4">
+      <div className="mt-auto border-t border-white/[0.08] px-3 pb-3 pt-2.5">
         <div ref={accountRef} className="relative">
           <button
             type="button"
             onClick={() => setOpenAccount((v) => !v)}
             className={cn(
-              "w-full flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-3",
-              "hover:bg-white/10 transition"
+              "flex w-full items-center gap-2 rounded-[4px] px-2 py-1.5 text-left transition-colors",
+              "hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
             )}
           >
-            <div className="h-10 w-10 rounded-full bg-blue-600/30 border border-blue-500/30 flex items-center justify-center text-zinc-100 font-semibold">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sky-400/20 bg-sky-600/20 text-[10.5px] font-semibold text-zinc-100">
               {initials}
             </div>
 
             <div className="min-w-0 flex-1 text-left">
-              <div className="text-sm font-semibold text-zinc-100 truncate">{displayName}</div>
-              <div className="text-xs text-zinc-400 truncate">{displaySub}</div>
+              <div className="truncate text-[12px] text-zinc-100">{displayName}</div>
+              <div className="truncate text-[10.5px] text-zinc-500">{displaySub}</div>
             </div>
 
             <ChevronDown
-              size={18}
+              size={14}
               className={cn("text-zinc-400 transition", openAccount ? "rotate-180" : "")}
             />
           </button>
