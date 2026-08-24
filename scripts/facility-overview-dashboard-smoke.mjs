@@ -1,0 +1,13 @@
+import fs from "node:fs";
+import assert from "node:assert/strict";
+const page=fs.readFileSync("app/(protected)/overview/page.tsx","utf8");
+const view=fs.readFileSync("components/overview/FacilityOverviewDashboard.tsx","utf8");
+assert.match(page,/FacilityOverviewDashboard/);
+for(const contract of ["infrastructureOperations","platformTwin","inventoryByEstate","loadFacilityAttention","utilityService.summary","facility:realtime-event"]) assert.match(page,new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
+for(const mode of ["Operations","Twin","Cameras","Occupancy","Infrastructure"]) assert.match(view,new RegExp(`\\"${mode}\\"`));
+for(const state of ["Digital Twin not configured","No cameras connected","No infrastructure connected","Operational history will appear as telemetry accumulates"]) assert.ok(view.includes(state));
+assert.doesNotMatch(view,/rtsp:\/\/|snapshot_url|storage_key|mock cameras|fake event/i);
+assert.doesNotMatch(page,/rtsp:\/\/|supabase.*storage|\/cameras\/scan/i);
+assert.match(view,/grid-cols-2/);
+assert.match(view,/xl:grid-cols/);
+console.log("Facility Overview dashboard smoke passed.");
