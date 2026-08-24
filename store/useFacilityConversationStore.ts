@@ -58,6 +58,26 @@ function id() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function facilityProcessingLabel(module?: string | null) {
+  const labels: Record<string, string> = {
+    overview: "Scanning facility…",
+    "live-infrastructure": "Checking infrastructure…",
+    "estate-structure": "Reviewing buildings…",
+    "hardware-devices": "Reviewing assets…",
+    "security-access": "Checking security…",
+    utilities: "Checking utilities…",
+    services: "Checking utilities…",
+    "environment-sensors": "Checking environmental data…",
+    environment: "Checking environmental data…",
+    "traffic-mobility": "Reviewing access activity…",
+    traffic: "Reviewing access activity…",
+    maintenance: "Reviewing maintenance…",
+    community: "Reviewing community activity…",
+    wallets: "Checking finance…",
+  };
+  return labels[String(module || "")] || "Checking facility records…";
+}
+
 function initialAssistantMessage() {
   return {
     id: id(),
@@ -166,7 +186,7 @@ export const useFacilityConversationStore = create<ConversationState>()(persist(
       messages: [
         ...state.messages,
         { id: id(), role: "user", content: message },
-        { id: pendingId, role: "assistant", content: "Reviewing live operational context…", pending: true },
+        { id: pendingId, role: "assistant", content: facilityProcessingLabel(args.module), pending: true },
       ],
     }));
     try {

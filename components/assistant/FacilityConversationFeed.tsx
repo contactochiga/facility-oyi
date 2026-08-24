@@ -169,7 +169,7 @@ export default function FacilityConversationFeed({
         const mine = message.role === "user";
         return (
           <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-            <div className={`${compact ? "max-w-[96%]" : "max-w-[94%] sm:max-w-[88%]"} overflow-hidden rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_14px_40px_rgba(0,0,0,0.22)] ${mine ? "bg-sky-400 text-slate-950" : "border border-white/[0.07] bg-white/[0.045] text-zinc-100"}`}>
+            <div className={`${compact ? "max-w-[88%] rounded-[5px] px-3 py-2 text-[12.5px] leading-[1.55]" : "max-w-[94%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_14px_40px_rgba(0,0,0,0.22)] sm:max-w-[88%]"} overflow-hidden ${mine ? (compact ? "bg-sky-400/20 text-white" : "bg-sky-400 text-slate-950") : "border border-white/[0.09] bg-white/[0.045] text-zinc-100"}`}>
               <p className={`whitespace-pre-wrap break-words ${message.pending ? "animate-pulse text-zinc-400" : ""}`}>{message.content}</p>
               {!mine && shouldRenderSupport(message.display_mode) ? (
                 <>
