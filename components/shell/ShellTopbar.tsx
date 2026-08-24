@@ -10,7 +10,6 @@ import { FACILITY_MODULES } from "@/lib/moduleRegistry";
 
 const DOMAIN_SUBTITLES: Record<string, string> = {
   overview: "Real-time facility operations at a glance",
-  "live-infrastructure": "Realtime estate operations",
   "estate-structure": "Homes and building registry",
   "hardware-devices": "Asset registry and edge operations",
   "security-access": "Visitors, incidents, and gates",

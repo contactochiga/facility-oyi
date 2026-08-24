@@ -44,7 +44,6 @@ export function visibleTabs<T extends TabDefinition>(user: OyiIdentity | null | 
 
 export const FACILITY_MODULES: ModuleDefinition[] = [
   { key: "overview", label: "Overview", href: "/overview", startsWith: ["/overview"], anyOf: ["estates.read", "homes.read"] },
-  { key: "live-infrastructure", label: "Live", href: "/live-infrastructure", startsWith: ["/live-infrastructure", "/digital-twin"], anyOf: ["twin.view", "estates.read"] },
   { key: "estate-structure", label: "Buildings", href: "/estate-structure", startsWith: ["/estate-structure", "/homes", "/occupancy"], anyOf: ["homes.read", "estates.read"] },
   { key: "hardware-devices", label: "Assets", href: "/hardware-devices", startsWith: ["/hardware-devices", "/devices"], anyOf: ["devices.read"] },
   { key: "security-access", label: "Security", href: "/security-access", startsWith: ["/security-access", "/security", "/visitors", "/cameras"], anyOf: ["cameras.view", "visitors.manage", "visitors.create"] },
@@ -57,12 +56,6 @@ export const FACILITY_MODULES: ModuleDefinition[] = [
 ];
 
 export const FACILITY_TABS: Record<string, TabDefinition[]> = {
-  "live-infrastructure": [
-    { key: "map", label: "Map", anyOf: ["estates.read"] },
-    { key: "twin", label: "Digital Twin", anyOf: ["twin.view", "estates.read"] },
-    { key: "heat", label: "Heat Maps", anyOf: ["estates.read"] },
-    { key: "layers", label: "Infrastructure Layers", anyOf: ["devices.read"] },
-  ],
   "hardware-devices": [
     { key: "dashboard", label: "Continuity", anyOf: ["devices.read"] },
     { key: "registry", label: "Registry", anyOf: ["devices.read"] },
