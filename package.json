@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "smoke:facility-overview": "node scripts/facility-overview-dashboard-smoke.mjs",
     "smoke:camera-center": "node scripts/camera-center-dashboard-smoke.mjs",
     "smoke:camera-runtime-canonicalization": "node scripts/camera-runtime-canonicalization-smoke.mjs",
     "verify:camera-core-distribution": "node scripts/verify-camera-core-distribution.mjs",
