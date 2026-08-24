@@ -3,11 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import { Sparkles } from "lucide-react";
 import { facilityMobileModules, type MobileModuleItem } from "./mobileNavConfig";
 import { useSessionStore } from "@/store/useSessionStore";
 import { FACILITY_MODULES, visibleModules } from "@/lib/moduleRegistry";
-import { useFacilityAssistantStore } from "@/store/useFacilityAssistantStore";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -27,7 +25,6 @@ const PAGE_TWO_KEYS = ["environment-sensors", "traffic-mobility", "maintenance",
 export default function MobileModuleFooter({ items = facilityMobileModules }: { items?: MobileModuleItem[] }) {
   const pathname = usePathname() || "/overview";
   const { user } = useSessionStore();
-  const openAssistant = useFacilityAssistantStore((state) => state.openAssistant);
   const visibleKeys = useMemo(() => new Set(visibleModules(user, FACILITY_MODULES).map((module) => module.key)), [user]);
   const visibleItems = useMemo(() => items.filter((item) => visibleKeys.has(item.key)), [items, visibleKeys]);
   const pages = useMemo(() => [
@@ -103,8 +100,7 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
           </div>
         </div>
 
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
+        <div className="mt-2 flex items-center justify-center gap-1.5">
             {[0, 1].map((page) => (
               <button
                 key={page}
@@ -117,19 +113,6 @@ export default function MobileModuleFooter({ items = facilityMobileModules }: { 
                 )}
               />
             ))}
-          </div>
-
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => openAssistant()}
-              className="inline-flex h-9 min-w-[116px] items-center justify-center gap-2 rounded-full border border-sky-300/16 bg-sky-400/[0.09] px-4 text-[11px] text-sky-50"
-              aria-label="Open Oyi Facility Intelligence"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Oyi</span>
-            </button>
-          </div>
         </div>
       </div>
     </nav>

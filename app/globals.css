@@ -78,15 +78,17 @@ textarea { field-sizing: content; }
     @apply text-sm text-zinc-500;
   }
 
-  .oyi-shell-launcher {
-    @apply fixed bottom-5 right-5 z-[80] hidden h-12 items-center gap-2 rounded-full border border-sky-300/20 bg-[#071523] px-3.5 text-[13px] font-medium text-sky-50 shadow-[0_12px_36px_rgba(0,0,0,0.48)] transition-colors md:inline-flex;
+  .oyi-shell-orb {
+    @apply fixed right-5 z-[80] grid h-14 w-14 place-items-center rounded-full border border-sky-300/30 bg-[#06101d] text-white shadow-[0_10px_40px_rgba(56,189,248,0.35)] transition hover:border-sky-300/60;
+    bottom: calc(6.25rem + env(safe-area-inset-bottom));
   }
-  .oyi-shell-launcher:hover { @apply border-sky-300/35 bg-[#0a1a2a]; }
-  .oyi-shell-launcher:focus-visible,
+  .oyi-shell-orb > span { @apply text-lg font-semibold; }
+  .oyi-shell-orb:focus-visible,
   .oyi-shell-panel button:focus-visible,
   .oyi-shell-panel textarea:focus-visible { @apply outline-none ring-2 ring-sky-300/75 ring-offset-2 ring-offset-[#07101a]; }
-  .oyi-shell-launcher-mark { @apply grid h-7 w-7 place-items-center rounded-full bg-sky-400/15 text-sky-100; }
-  .oyi-shell-launcher-mark svg { @apply h-4 w-4; }
+  @media (min-width: 768px) {
+    .oyi-shell-orb { bottom: 1.25rem; }
+  }
 
   .oyi-shell-layer { @apply fixed inset-0 z-[120]; }
   .oyi-shell-dismiss { @apply absolute inset-0 cursor-default bg-black/60 md:bg-black/35; }
@@ -155,5 +157,5 @@ textarea { field-sizing: content; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .oyi-shell-layer *, .oyi-shell-launcher * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .oyi-shell-layer *, .oyi-shell-orb { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
