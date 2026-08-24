@@ -1,5 +1,6 @@
 import API from "./api";
 import { createCameraReadClient, normalizeCamera, type Camera, type CameraEvent, type CameraPlaybackSession, type CameraScope } from "@/lib/oyi-camera-core/core";
+import { createCameraMediaReadClient, type CameraMediaKind } from "@/lib/oyi-camera-core/media";
 
 export type DiscoveredCamera = {
   id: string;
@@ -87,6 +88,7 @@ export type CameraInventory = {
 };
 
 const readClient = createCameraReadClient(API);
+const mediaClient = createCameraMediaReadClient(API);
 const facilityCamera = (raw: any): BoundCamera => ({ ...normalizeCamera(raw), ip: raw?.ip ?? null, onvif_port: raw?.onvif_port ?? null, edge_status: raw?.edge_status ?? null, nvrId: raw?.nvr_id ?? null, channel: raw?.channel ?? null, metadata: raw?.metadata ?? null });
 
 export const cameraService = {
@@ -161,6 +163,14 @@ export const cameraService = {
   async listEvents(cameraId: string, opts?: { limit?: number; sinceMinutes?: number }) {
     const events = await readClient.getCameraEvents(cameraId, { limit: opts?.limit ?? 30, sinceMinutes: opts?.sinceMinutes ?? 24 * 60 });
     return { ok: true, events };
+  },
+
+  async listMedia(cameraId: string, opts?: { limit?: number; kind?: CameraMediaKind; eventId?: string }) {
+    return mediaClient.getCameraMedia(cameraId, { limit: opts?.limit ?? 20, kind: opts?.kind, eventId: opts?.eventId });
+  },
+
+  async createMediaAccess(mediaId: string) {
+    return mediaClient.createCameraMediaAccess(mediaId);
   },
 
   async getAiProfile(cameraId: string) {

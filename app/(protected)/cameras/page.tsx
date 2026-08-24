@@ -1,17 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Brain, Camera, CheckCircle2, Link2, PlayCircle, Plus, RefreshCw, Search, Server, Shield, TestTube2, X } from "lucide-react";
+import { Camera, CheckCircle2, Link2, Plus, Search, Server, Shield, TestTube2, X } from "lucide-react";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
-import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
+import CameraCenterDashboard from "@/components/cameras/CameraCenterDashboard";
 import CameraPlayer from "@/components/cameras/CameraPlayer";
 import cameraService, { type BoundCamera, type CameraDvr, type CameraEvent, type CameraPrivacyScope, type DiscoveredCamera, type DvrBrand, type DvrChannelDraft } from "@/services/cameraService";
 import { getCameraEventOccurrenceTime } from "@/lib/oyi-camera-core/core";
 import { facilityService } from "@/services/facilityService";
+import type { CameraMediaReference } from "@/lib/oyi-camera-core/media";
 
 const brands: Array<{ value: DvrBrand; label: string }> = [
   { value: "generic_rtsp", label: "Generic RTSP" },
@@ -68,7 +69,9 @@ export default function CamerasPage() {
   const [items, setItems] = useState<BoundCamera[]>([]);
   const [dvrs, setDvrs] = useState<CameraDvr[]>([]);
   const [summary, setSummary] = useState({ dvrs: 0, cameras: 0, healthy_streams: 0, offline_streams: 0, edge_nodes: 0, ai_enabled_cameras: 0 });
-  const [events, setEvents] = useState<Array<CameraEvent & { camera_name?: string }>>([]);
+  const [events, setEvents] = useState<Array<CameraEvent & { camera_name?: string; camera_location?: string; thumbnail_url?: string | null }>>([]);
+  const [edgeNodes, setEdgeNodes] = useState<Array<Record<string, any>>>([]);
+  const [mediaSummary, setMediaSummary] = useState({ count: 0, bytes: 0, evidence: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -116,21 +119,39 @@ export default function CamerasPage() {
         setItems([]);
         setEvents([]);
         setDvrs([]);
+        setEdgeNodes([]);
+        setMediaSummary({ count: 0, bytes: 0, evidence: 0 });
         return;
       }
-      const inventory = await cameraService.inventoryByEstate(estate).catch(async () => {
+      const [inventory, infrastructure] = await Promise.all([cameraService.inventoryByEstate(estate).catch(async () => {
         const cameras = await cameraService.listByEstate(estate).then((r) => r.items || []);
         return { ok: true, cameras, dvrs: [], summary: { dvrs: 0, cameras: cameras.length, healthy_streams: 0, offline_streams: 0, edge_nodes: 0, ai_enabled_cameras: 0 } };
-      });
+      }), facilityService.infrastructureOperations().catch(() => null)]);
       const cameraRows = inventory.cameras || [];
       setItems(cameraRows);
       setDvrs(inventory.dvrs || []);
+      setEdgeNodes(infrastructure?.edge_nodes || []);
       setSummary(inventory.summary || { dvrs: 0, cameras: cameraRows.length, healthy_streams: 0, offline_streams: 0, edge_nodes: 0, ai_enabled_cameras: 0 });
-      const eventRows = await Promise.all(cameraRows.slice(0, 12).map(async (camera) => {
-        const result = await cameraService.listEvents(camera.id, { limit: 12, sinceMinutes: 24 * 60 }).catch(() => ({ events: [] }));
-        return (result.events || []).map((event: CameraEvent) => ({ ...event, camera_name: camera.name || camera.ip || "Camera" }));
+      const cameraResults = await Promise.all(cameraRows.slice(0, 12).map(async (camera) => {
+        const [eventResult, mediaResult] = await Promise.all([
+          cameraService.listEvents(camera.id, { limit: 8, sinceMinutes: 24 * 60 }).catch(() => ({ events: [] })),
+          cameraService.listMedia(camera.id, { limit: 20 }).catch(() => ({ items: [] })),
+        ]);
+        return {
+          events: (eventResult.events || []).map((event: CameraEvent) => ({ ...event, camera_name: camera.name || camera.ip || "Camera", camera_location: camera.location || undefined })),
+          media: mediaResult.items || [],
+        };
       }));
-      setEvents(eventRows.flat().sort((a, b) => new Date(getCameraEventOccurrenceTime(b)).getTime() - new Date(getCameraEventOccurrenceTime(a)).getTime()).slice(0, 80));
+      const mediaRows = cameraResults.flatMap((result) => result.media) as CameraMediaReference[];
+      setMediaSummary({ count: mediaRows.length, bytes: mediaRows.reduce((sum, item) => sum + Number(item.sizeBytes || 0), 0), evidence: mediaRows.filter((item) => item.retention === "evidence" || item.preservedAt).length });
+      const eventRows = cameraResults.flatMap((result) => result.events).sort((a, b) => new Date(getCameraEventOccurrenceTime(b)).getTime() - new Date(getCameraEventOccurrenceTime(a)).getTime()).slice(0, 40);
+      const hydratedEvents = await Promise.all(eventRows.slice(0, 8).map(async (event) => {
+        const media = event.media?.find((item: CameraMediaReference) => item.available && ["thumbnail", "snapshot", "event_snapshot"].includes(item.kind));
+        if (!media) return event;
+        const access = media.accessUrl ? media : await cameraService.createMediaAccess(media.id).catch(() => null);
+        return { ...event, thumbnail_url: access?.accessUrl || null };
+      }));
+      setEvents([...hydratedEvents, ...eventRows.slice(8)]);
     } catch (requestError: any) {
       setError(requestError?.response?.data?.error || requestError?.message || "Unable to load cameras.");
     } finally {
@@ -262,17 +283,11 @@ export default function CamerasPage() {
 
   return (
     <div className="space-y-6">
-      <Topbar title="Camera Operations" subtitle="Cameras and stream health" strip={[{ label: "DVRs", value: loading ? "Loading" : summary.dvrs, detail: "Registered sources", tone: "attention" }, { label: "Cameras", value: summary.cameras, detail: "Imported channels", tone: "attention" }, { label: "Attention", value: summary.offline_streams, detail: "Offline streams", tone: summary.offline_streams ? "warning" : "stable" }, { label: "AI", value: summary.ai_enabled_cameras, detail: "Profiles enabled", tone: "info" }]} rightSlot={<Button onClick={() => { resetImport(); setImportOpen(true); }} className="gap-2"><Plus className="h-4 w-4" /> Import DVR/NVR</Button>} />
+      <Topbar title="Security" subtitle="Camera intelligence, events, health and media" rightSlot={<Button onClick={() => { resetImport(); setImportOpen(true); }} className="gap-2"><Plus className="h-4 w-4" /> Import DVR/NVR</Button>} />
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
-      <OisCard className="p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-white">Camera Inventory</h2><p className="mt-1 text-xs text-zinc-500">DVR channels, standalone IP cameras, privacy scope, stream state, and Edge assignment.</p></div><Button variant="ghost" onClick={() => setScanOpen(true)} className="gap-2"><Search className="h-4 w-4" /> Import Camera</Button></div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search camera, IP, DVR, location" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none md:col-span-2" /><select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value as any)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"><option value="all">All scopes</option><option value="facility">Estate</option><option value="home">Home</option><option value="office">Office</option></select><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"><option value="all">All status</option><option value="online">Online / healthy</option><option value="offline">Offline / failed</option></select></div>
-        <div className="mt-4 overflow-hidden rounded-2xl border border-white/10"><div className="hidden grid-cols-7 gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-3 text-[10px] uppercase tracking-[0.16em] text-zinc-500 md:grid"><span>DVR</span><span>Channel</span><span>Location</span><span>Status</span><span>Privacy</span><span>Edge</span><span>Last seen</span></div>{filtered.map((camera) => { const s = state(camera); return <article key={camera.id} className="grid gap-3 border-b border-white/5 px-4 py-3 text-sm last:border-b-0 md:grid-cols-7"><span className="hidden text-zinc-300 md:block">{text(dvrs.find((dvr) => dvr.id === camera.nvrId)?.name || camera.nvrId, "Standalone")}</span><span className="text-white">{camera.channel ? `CH ${camera.channel}` : text(camera.name, "IP Camera")}</span><span className="text-zinc-300">{text(camera.location || camera.name, "Unmapped")}</span><span><OisStatusBadge status={tone(s)} label={s} className="uppercase" /></span><span className="hidden text-zinc-300 md:block">{privacyLabel(camera.scope)}</span><span className="hidden text-zinc-300 md:block">{text(camera.edgeNodeId, "No Edge")}</span><span className="text-xs text-zinc-500">{when(camera.health?.lastSeenAt)}</span><div className="flex flex-wrap gap-2 md:col-span-7"><Button variant="ghost" onClick={() => void openPlayback(camera)} className="gap-2"><PlayCircle className="h-4 w-4" /> Playback</Button><Button variant="ghost" onClick={() => void validate(camera)} className="gap-2"><TestTube2 className="h-4 w-4" /> Validate</Button><Button variant="ghost" onClick={() => void openProfile(camera)} className="gap-2"><Brain className="h-4 w-4" /> AI</Button>{validation[camera.id] ? <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-xs text-sky-100">{validation[camera.id]}</span> : null}</div></article>; })}{!filtered.length && !loading ? <p className="p-5 text-sm text-zinc-500">No cameras match this inventory view.</p> : null}</div>
-      </OisCard>
-
-      <section className="grid gap-4 lg:grid-cols-2"><OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Registered DVR/NVR Sources</h2><div className="mt-4 space-y-2">{dvrs.map((dvr) => <OisListItem key={dvr.id} title={dvr.name} description={`${dvr.brand} · ${dvr.ip_address}:${dvr.port} · ${dvr.channel_count} channels · ${dvr.edge_node_id || "No Edge node"}`} status={tone(String(dvr.status || "pending").toLowerCase())} />)}{!dvrs.length ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No DVR/NVR source imported yet.</p> : null}</div></OisCard><OisCard className="p-5"><h2 className="text-sm font-semibold text-white">Recent camera events</h2><div className="mt-4 space-y-2">{events.slice(0, 8).map((event) => <OisListItem key={event.id} title={text(event.type).replace(/_/g, " ")} description={`${event.camera_name || event.cameraId} · ${when(getCameraEventOccurrenceTime(event))}`} meta={`confidence ${event.confidence ?? "n/a"}`} />)}{!events.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-3 text-sm text-zinc-500">No recent camera events from backend.</p> : null}</div></OisCard></section>
+      <CameraCenterDashboard cameras={items} dvrs={dvrs} events={events} edgeNodes={edgeNodes} media={mediaSummary} loading={loading} query={query} scopeFilter={scopeFilter} statusFilter={statusFilter} filtered={filtered} validation={validation} onQuery={setQuery} onScope={(value) => setScopeFilter(value as "all" | CameraPrivacyScope)} onStatus={(value) => setStatusFilter(value as "all" | "online" | "offline")} onOpenCamera={(camera) => void openPlayback(camera)} onValidate={(camera) => void validate(camera)} onProfile={(camera) => void openProfile(camera)} onImportCamera={() => setScanOpen(true)} />
 
       {importOpen ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex justify-between gap-3"><div><h2 className="text-lg font-semibold text-white">Import camera source</h2><p className="mt-1 text-sm text-zinc-500">Import DVR/NVR channels or a standalone camera. Raw passwords are cleared after save.</p></div><button type="button" onClick={() => setImportOpen(false)}><X className="h-4 w-4 text-zinc-400" /></button></header><div className="mt-5 flex flex-wrap gap-2">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={`rounded-full border px-3 py-1 text-xs ${step === n ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 text-zinc-500"}`}>Step {n}</span>)}</div>{step === 1 ? <div className="mt-6 grid gap-3 sm:grid-cols-2"><button type="button" onClick={() => { setSource("dvr"); setStep(2); }} className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-left hover:border-sky-400/30"><Server className="h-6 w-6 text-sky-200" /><p className="mt-4 text-base font-semibold text-white">Import DVR/NVR</p><p className="mt-2 text-sm text-zinc-500">Create DVR record, channel cameras, credential reference, and Edge registry entries.</p></button><button type="button" onClick={() => { setSource("camera"); setImportOpen(false); setScanOpen(true); }} className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-left hover:border-sky-400/30"><Camera className="h-6 w-6 text-sky-200" /><p className="mt-4 text-base font-semibold text-white">Import Camera</p><p className="mt-2 text-sm text-zinc-500">Scan ONVIF/RTSP cameras or bind a standalone source.</p></button></div> : null}{step === 2 && source === "dvr" ? <div className="mt-6 grid gap-3 sm:grid-cols-2"><input value={dvrName} onChange={(e) => setDvrName(e.target.value)} placeholder="DVR Name" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" /><select value={brand} onChange={(e) => setBrand(e.target.value as DvrBrand)} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none">{brands.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><input value={dvrIp} onChange={(e) => setDvrIp(e.target.value)} placeholder="IP Address" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" /><input value={dvrPort} onChange={(e) => setDvrPort(e.target.value)} placeholder="Port" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" /><input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" /><input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" /><input value={channelCount} onChange={(e) => setChannelCount(e.target.value)} placeholder="Channel count" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" /><input value={edgeNodeId} onChange={(e) => setEdgeNodeId(e.target.value)} placeholder="Edge node ID" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" /><div className="sm:col-span-2 flex justify-end gap-2"><Button variant="ghost" onClick={() => setStep(1)}>Back</Button><Button onClick={() => void runDvrTest()} disabled={working || !dvrIp || !channelCount} className="gap-2"><TestTube2 className="h-4 w-4" /> {working ? "Testing" : "Test Connection"}</Button></div>{testResult ? <p className="sm:col-span-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">{testResult}</p> : null}</div> : null}{step === 3 ? <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] p-5"><div className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 text-emerald-300" /><div><p className="text-sm font-semibold text-white">DVR discovery result</p><p className="text-xs text-zinc-500">Channels found: {channels.length} · ONVIF: provided by source · RTSP: prepared</p></div></div><div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => setStep(2)}>Back</Button><Button onClick={() => setStep(4)}>Import channels</Button></div></div> : null}{step === 4 ? <div className="mt-6 space-y-3"><p className="text-sm text-zinc-400">Name channels and assign privacy scope before saving.</p>{channels.map((channel, index) => <div key={channel.channel_number} className="grid gap-2 rounded-xl border border-white/10 bg-black/15 p-3 sm:grid-cols-5"><span className="py-3 text-sm text-white">Channel {channel.channel_number}</span><input value={channel.camera_name} onChange={(e) => setChannels((prev) => prev.map((item, i) => i === index ? { ...item, camera_name: e.target.value } : item))} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none sm:col-span-2" /><input value={channel.location || ""} onChange={(e) => setChannels((prev) => prev.map((item, i) => i === index ? { ...item, location: e.target.value } : item))} placeholder="Location" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" /><select value={channel.privacy_scope} onChange={(e) => setChannels((prev) => prev.map((item, i) => i === index ? { ...item, privacy_scope: e.target.value as CameraPrivacyScope } : item))} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"><option value="facility">Estate</option><option value="home">Home</option><option value="office">Office</option></select></div>)}<div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setStep(3)}>Back</Button><Button onClick={() => setStep(5)}>Review</Button></div></div> : null}{step === 5 ? <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] p-5"><Shield className="h-5 w-5 text-sky-200" /><p className="mt-3 text-sm text-white">Ready to save {channels.length} channels for {dvrName}.</p><p className="mt-2 text-xs text-zinc-500">The backend will store a credential reference only. Password fields will be cleared from this screen after save.</p><div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => setStep(4)}>Back</Button><Button onClick={() => void saveDvr()} disabled={working}>{working ? "Saving" : "Save DVR and Channels"}</Button></div></div> : null}</section></div> : null}
 
