@@ -1,0 +1,23 @@
+.workspace {
+  font-family: var(--ois-font-sans);
+}
+
+.workspace :global([role="dialog"]) {
+  --ois-drawer-width: min(430px, 100vw);
+}
+
+.workspace table th,
+.workspace table td {
+  vertical-align: middle;
+}
+
+.workspace table tbody tr {
+  min-height: 54px;
+}
+
+@media (max-width: 767px) {
+  .workspace :global([role="dialog"]) {
+    width: 100vw;
+    max-width: 100vw;
+  }
+}
