@@ -1,23 +1,31 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Camera,
   ChevronRight,
   CircleDot,
   Cpu,
+  Gauge,
+  Lightbulb,
+  Lock,
   LocateFixed,
+  MoreVertical,
   Network,
   RefreshCw,
   Search,
+  Server,
   SlidersHorizontal,
+  Thermometer,
+  Wifi,
 } from "lucide-react";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import { OisPageToolbar, OisRegistryHeader } from "@/components/ois";
-import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import {
   facilityService,
@@ -29,16 +37,15 @@ import {
 } from "@/services/facilityService";
 import { iconForTab } from "@/lib/oisIconRegistry";
 import { activitySummary, healthLabel, onlineLabel, providerHealthLabel, statusLabel, toneFromDevice } from "@/lib/deviceRuntimePresentation";
+import styles from "./AssetsWorkspace.module.css";
 
 type Tab = "registry" | "discovery" | "assignments" | "providers" | "edge" | "telemetry";
+type DetailTab = "overview" | "controls" | "settings" | "telemetry" | "history";
 
 const TABS: Array<{ key: Tab; label: string; icon: typeof Cpu }> = [
   { key: "registry", label: "Registry", icon: iconForTab("registry") },
   { key: "discovery", label: "Discovery", icon: iconForTab("discovery") },
-  { key: "assignments", label: "Ownership", icon: iconForTab("assignments") },
-  { key: "providers", label: "Provider Readiness", icon: iconForTab("providers") },
-  { key: "edge", label: "Oyi Edge", icon: iconForTab("edge") },
-  { key: "telemetry", label: "Telemetry", icon: iconForTab("telemetry") },
+  { key: "edge", label: "Edge", icon: iconForTab("edge") },
 ];
 
 function text(value: any, fallback = "Unavailable") {
@@ -51,6 +58,38 @@ function date(value?: string | null) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "No live timestamp";
   return parsed.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function relativeDate(value?: string | null) {
+  if (!value) return "Unavailable";
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return "Unavailable";
+  const minutes = Math.max(0, Math.round((Date.now() - time) / 60_000));
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / 1440)}d ago`;
+}
+
+function deviceIcon(device: InfrastructureDevice) {
+  const kind = `${device.category} ${device.type} ${device.device_family}`.toLowerCase();
+  if (/camera/.test(kind)) return Camera;
+  if (/meter|gauge/.test(kind)) return Gauge;
+  if (/lock|access|door/.test(kind)) return Lock;
+  if (/hvac|air|climate|therm/.test(kind)) return Thermometer;
+  if (/light|lamp/.test(kind)) return Lightbulb;
+  if (/edge|gateway|server/.test(kind)) return Server;
+  if (/network|wifi|router/.test(kind)) return Wifi;
+  return Cpu;
+}
+
+function specialistRoute(device: InfrastructureDevice) {
+  const kind = `${device.category} ${device.type} ${device.device_family}`.toLowerCase();
+  if (/camera/.test(kind)) return { href: "/cameras", label: "Open Camera Center" };
+  if (/meter|water|electric|utility/.test(kind)) return { href: "/services", label: "Open Utilities" };
+  if (/lock|access|door/.test(kind)) return { href: "/traffic", label: "Open Access" };
+  if (/sensor|environment|climate|air/.test(kind)) return { href: "/environment", label: "Open Environment" };
+  return null;
 }
 
 function tone(status?: string | null) {
@@ -99,6 +138,12 @@ export default function HardwareDevicesPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<InfrastructureDevice | null>(null);
   const [detail, setDetail] = useState<InfrastructureDevice | null>(null);
+  const [detailTab, setDetailTab] = useState<DetailTab>("overview");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [healthFilter, setHealthFilter] = useState("all");
+  const [assignmentFilter, setAssignmentFilter] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [commanding, setCommanding] = useState<string | null>(null);
   const [homeId, setHomeId] = useState("");
   const [roomId, setRoomId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -112,12 +157,9 @@ export default function HardwareDevicesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [operations, onboardingState] = await Promise.all([
-        facilityService.infrastructureOperations(),
-        facilityService.infrastructureOnboardingOverview().catch(() => null),
-      ]);
+      const operations = await facilityService.infrastructureOperations();
       setData(operations);
-      setOnboarding(onboardingState);
+      void facilityService.infrastructureOnboardingOverview().then(setOnboarding).catch(() => setOnboarding(null));
     } catch (requestError: any) {
       setError(requestError?.response?.data?.error || requestError?.message || "Unable to load infrastructure operations.");
     } finally {
@@ -144,17 +186,25 @@ export default function HardwareDevicesPage() {
   const registry = data?.registry || [];
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return registry;
-    return registry.filter((device) =>
-      [device.name, device.type, device.provider, device.external_id, device.oyi_id, location(device)]
+    return registry.filter((device) => {
+      const matchesQuery = !needle || [device.name, device.type, device.category, device.provider, device.external_id, device.oyi_id, device.metadata?.serial, device.metadata?.model, location(device)]
         .map((value) => text(value, "").toLowerCase())
-        .some((value) => value.includes(needle))
-    );
-  }, [query, registry]);
+        .some((value) => value.includes(needle));
+      const matchesType = typeFilter === "all" || text(device.category || device.type, "unknown").toLowerCase() === typeFilter;
+      const deviceTone = toneFromDevice(device);
+      const matchesHealth = healthFilter === "all" || (healthFilter === "attention" ? ["critical", "pending"].includes(deviceTone) : deviceTone === healthFilter);
+      const matchesAssignment = assignmentFilter === "all" || (assignmentFilter === "assigned" ? Boolean(device.home_id || device.room_id) : !device.home_id && !device.room_id);
+      return matchesQuery && matchesType && matchesHealth && matchesAssignment;
+    });
+  }, [assignmentFilter, healthFilter, query, registry, typeFilter]);
   const rooms = useMemo(() => (data?.rooms || []).filter((room) => String(room.home_id || "") === homeId), [data, homeId]);
   const assigned = registry.filter((device) => Boolean(device.home_id));
   const pending = registry.filter((device) => !device.home_id);
   const attention = registry.filter((device) => toneFromDevice(device) === "critical" || toneFromDevice(device) === "pending");
+  const online = registry.filter((device) => device.online === true || /online|connected/.test(text(device.status, "").toLowerCase()));
+  const offline = registry.filter((device) => device.online === false || /offline|unreachable/.test(text(device.status, "").toLowerCase()));
+  const degraded = registry.filter((device) => /degraded|warning|battery_low/.test(`${device.health_status} ${device.provider_health}`.toLowerCase()));
+  const categories = [...new Set(registry.map(device => text(device.category || device.type, "unknown").toLowerCase()))].sort();
   const onboardingCandidates = onboarding?.latest?.candidates || [];
   const onboardingProviders = onboarding?.providers || [];
   const activeSession = onboarding?.latest?.session || null;
@@ -252,80 +302,47 @@ export default function HardwareDevicesPage() {
     }
   }
 
+  async function runControl(device: InfrastructureDevice, control: string) {
+    if (!device.supported_controls?.includes(control)) return;
+    if (!window.confirm(`Send ${control.replace(/_/g, " ")} to ${device.name}?`)) return;
+    setCommanding(control); setError(null);
+    try { await facilityService.sendDeviceCommand(device.id, { action: control }); setNotice(`${control.replace(/_/g, " ")} sent to ${device.name}.`); await load(); }
+    catch (requestError: any) { setError(requestError?.response?.data?.error || requestError?.message || "Unable to send this device command."); }
+    finally { setCommanding(null); }
+  }
+
   return (
-    <div className="space-y-6">
-      <Topbar
-        title="Assets"
-        subtitle="Registry, discovery and edge operations"
-        strip={[
-          { label: "Registry", value: loading ? "Loading" : registry.length },
-          { label: "Assigned", value: loading ? "Loading" : assigned.length },
-          { label: "Pending", value: loading ? "Loading" : pending.length },
-          { label: "Attention", value: loading ? "Loading" : attention.length },
-          { label: "Edge", value: loading ? "Loading" : data?.edge_nodes?.length || 0 },
-          { label: "Health", value: attention.length ? "Review" : "Stable" },
-        ]}
-      />
+    <div className={`${styles.workspace} space-y-3.5 pb-6`}>
+      <header className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-[20px] font-semibold tracking-[-.025em] text-white">Assets</h1><p className="mt-1 text-[11px] text-zinc-500">Asset registry and edge operations</p></div><div className="flex gap-2"><Button variant="ghost" className="h-9 gap-2 rounded-md px-3 text-xs" onClick={() => setFiltersOpen(value => !value)}><SlidersHorizontal className="h-3.5 w-3.5"/>Filters</Button><Button variant="ghost" className="h-9 gap-2 rounded-md px-3 text-xs" onClick={() => void load()}><RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}/>Refresh</Button></div></header>
+
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">{[
+        [Cpu, "Registry", registry.length, "All assets", "text-sky-400"],
+        [CircleDot, "Online", online.length, "Canonical connectivity", "text-emerald-400"],
+        [AlertTriangle, "Degraded", degraded.length, "Needs attention", "text-amber-400"],
+        [CircleDot, "Offline", offline.length, "Not reporting", "text-rose-400"],
+        [LocateFixed, "Unassigned", pending.length, "No Home / room", "text-zinc-400"],
+        [AlertTriangle, "Attention", attention.length, "Needs review", "text-amber-400"],
+      ].map(([Icon, label, value, caption, colour]: any) => <article key={label} className="rounded-[9px] border border-[var(--ois-border-subtle)] bg-[var(--ois-surface)] px-3 py-3"><div className="flex items-center gap-2.5"><span className={`grid h-8 w-8 place-items-center rounded-md bg-black/20 ${colour}`}><Icon className="h-[15px] w-[15px] stroke-[1.6]"/></span><span><small className="block text-[8.5px] font-medium uppercase tracking-[.075em] text-zinc-500">{label}</small><b className="block text-[18px] font-semibold leading-5 text-white">{loading ? "—" : value}</b><small className="text-[8.5px] text-zinc-600">{caption}</small></span></div></article>)}</section>
 
       {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
 
-      <nav className="flex gap-2 overflow-x-auto pb-1">
+      <nav className="flex gap-5 overflow-x-auto border-b border-[var(--ois-border-subtle)] px-1">
         {TABS.map(({ key, label, icon: Icon }) => (
-          <button key={key} type="button" onClick={() => setTab(key)} className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs transition ${tab === key ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/[0.035] text-zinc-400 hover:text-white"}`}>
-            <Icon className="h-4 w-4" /> {label}
+          <button key={key} type="button" onClick={() => setTab(key)} className={`relative inline-flex shrink-0 items-center gap-1.5 px-1 pb-2.5 text-[10px] transition ${tab === key ? "text-sky-200 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-sky-400" : "text-zinc-500 hover:text-white"}`}>
+            <Icon className="h-3.5 w-3.5" /> {label}{key === "discovery" && onboardingCandidates.length ? <span className="rounded-full bg-sky-500/15 px-1.5 text-[8px] text-sky-300">{onboardingCandidates.length}</span> : null}{key === "edge" && data?.edge_nodes?.length ? <span className="rounded-full bg-emerald-500/15 px-1.5 text-[8px] text-emerald-300">{data.edge_nodes.length}</span> : null}
           </button>
         ))}
       </nav>
 
       {tab === "registry" ? (
-        <OisCard className="p-5">
-          <header>
-            <OisRegistryHeader title="Device Registry" caption={loading ? "Loading records" : `${filtered.length} records`} />
-          </header>
-          <div className="mt-4">
-            <OisPageToolbar
-              searchValue={query}
-              onSearchChange={setQuery}
-              searchPlaceholder="Search device, provider, location, or registry ID..."
-              filterSlot={<div className="flex min-w-max flex-nowrap gap-2">{TABS.slice(0, 4).map(({ key, label }) => <button key={key} type="button" onClick={() => setTab(key)} className={`rounded-xl border px-3 py-2 text-xs transition ${tab === key ? "border-sky-400/30 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white"}`}>{label}</button>)}</div>}
-              bulkSlot={<Button variant="ghost" onClick={() => setTab("assignments")} className="gap-2"><SlidersHorizontal className="h-4 w-4" />Ownership</Button>}
-              onRefresh={() => void load()}
-              refreshing={loading}
-            />
-          </div>
-          <div className="mt-4 hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[1100px] text-left text-xs">
-              <thead className="text-[10px] uppercase tracking-[0.14em] text-zinc-600"><tr><th className="pb-3">Device</th><th>Type</th><th>Provider</th><th>Oyi ID</th><th>External ID</th><th>Location</th><th>Status</th><th>Last seen</th><th /></tr></thead>
-              <tbody className="divide-y divide-white/5">
-                {filtered.map((device) => (
-                  <tr key={device.id} className="text-zinc-300">
-                    <td className="py-3 pr-3 font-medium text-white">{device.name}</td><td>{device.type}</td><td>{device.provider}</td>
-                    <td className="max-w-36 truncate font-mono text-[11px] text-zinc-500">{device.oyi_id}</td><td className="max-w-40 truncate font-mono text-[11px] text-zinc-500">{device.external_id || "Unavailable"}</td>
-                    <td>{location(device)}</td><td><Status value={device.status} device={device} /></td><td>{date(device.last_seen_at)}</td>
-                    <td><button type="button" onClick={() => setDetail(device)} className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-zinc-300 hover:text-white">Review</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!filtered.length && !loading ? <p className="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No registered devices match this view.</p> : null}
-          </div>
-          <div className="mt-4 space-y-2 md:hidden">
-            {filtered.map((device) => (
-              <OisListItem
-                key={device.id}
-                title={device.name}
-                description={`${location(device)} · ${activitySummary(device, text(device.provider, "Provider unavailable"))}`}
-                meta={`Last seen ${date(device.last_seen_at)} · ${providerHealthLabel(device.provider_health, onlineLabel(device, "Unknown"))}`}
-                status={toneFromDevice(device) as any}
-                action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />}
-                onClick={() => setDetail(device)}
-                className="w-full text-left"
-              />
-            ))}
-            {!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No registered devices match this view.</p> : null}
-          </div>
-        </OisCard>
+        <section className="overflow-hidden rounded-[10px] border border-[var(--ois-border-default)] bg-[var(--ois-surface)]">
+          <div className="flex flex-wrap items-center gap-2 border-b border-[var(--ois-border-subtle)] p-3"><label className="flex h-9 min-w-[240px] flex-1 items-center gap-2 rounded-md border border-[var(--ois-border-subtle)] bg-black/20 px-3"><Search className="h-3.5 w-3.5 text-zinc-600"/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search assets by name, type, provider, location, or ID…" className="min-w-0 flex-1 bg-transparent text-[10.5px] text-white outline-none"/></label><button onClick={() => setFiltersOpen(value => !value)} className={`h-9 rounded-md border px-3 text-[10px] ${filtersOpen ? "border-sky-400/30 bg-sky-500/10 text-sky-200" : "border-[var(--ois-border-subtle)] text-zinc-400"}`}><SlidersHorizontal className="mr-1.5 inline h-3.5 w-3.5"/>Filters</button><span className="text-[9px] text-zinc-600">{filtered.length} of {registry.length}</span></div>
+          {filtersOpen ? <div className="grid gap-2 border-b border-[var(--ois-border-subtle)] bg-black/10 p-3 sm:grid-cols-3"><select value={typeFilter} onChange={event => setTypeFilter(event.target.value)} className="h-9 rounded-md border border-[var(--ois-border-subtle)] bg-[#09121b] px-3 text-[10px] text-zinc-300"><option value="all">All asset types</option>{categories.map(category => <option key={category} value={category}>{category.replace(/_/g," ")}</option>)}</select><select value={healthFilter} onChange={event => setHealthFilter(event.target.value)} className="h-9 rounded-md border border-[var(--ois-border-subtle)] bg-[#09121b] px-3 text-[10px] text-zinc-300"><option value="all">All health states</option><option value="stable">Healthy</option><option value="attention">Degraded / attention</option><option value="critical">Offline / critical</option></select><select value={assignmentFilter} onChange={event => setAssignmentFilter(event.target.value)} className="h-9 rounded-md border border-[var(--ois-border-subtle)] bg-[#09121b] px-3 text-[10px] text-zinc-300"><option value="all">All assignments</option><option value="assigned">Assigned</option><option value="unassigned">Unassigned</option></select></div> : null}
+          <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[980px] table-fixed text-left"><thead className="bg-black/10 text-[8px] uppercase tracking-[.08em] text-zinc-600"><tr><th className="w-[21%] px-3 py-2.5">Asset / type</th><th className="w-[15%]">Location</th><th className="w-[13%]">Provider</th><th className="w-[12%]">Connectivity</th><th className="w-[12%]">Health</th><th className="w-[12%]">Edge / assignment</th><th className="w-[10%]">Last seen</th><th className="w-[5%]"/></tr></thead><tbody>{filtered.map(device => { const Icon = deviceIcon(device); const selected = detail?.id === device.id; return <tr key={device.id} onClick={() => { setDetail(device); setDetailTab("overview"); }} className={`cursor-pointer border-t border-[var(--ois-border-subtle)] text-[9.5px] text-zinc-400 transition hover:bg-white/[.025] ${selected ? "bg-sky-500/[.045] outline outline-1 -outline-offset-1 outline-sky-400/35" : ""}`}><td className="px-3 py-2.5"><div className="flex items-center gap-2.5"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-white/[.035]"><Icon className="h-3.5 w-3.5 stroke-[1.55] text-sky-300"/></span><span className="min-w-0"><b className="block truncate font-medium text-zinc-100">{device.name}</b><small className="block truncate text-[8px] text-zinc-600">{text(device.device_type || device.category || device.type,"Asset")}</small></span></div></td><td><b className="block truncate font-normal text-zinc-300">{location(device)}</b><small className="text-[8px] text-zinc-600">{device.room?.name || device.home?.name || "Assignment pending"}</small></td><td><b className="block truncate font-normal text-zinc-300">{text(device.provider,"Unavailable")}</b><small className="block truncate text-[8px] text-zinc-600">{text(device.metadata?.model || device.adapter,"Model unavailable")}</small></td><td><Status value={device.status} device={device}/><small className="mt-1 block text-[8px] text-zinc-600">{device.protocols?.[0] || text(device.adapter,"Protocol unavailable")}</small></td><td><span className={`text-[9px] ${toneFromDevice(device)==="stable"?"text-emerald-400":toneFromDevice(device)==="critical"?"text-rose-400":"text-amber-300"}`}>{healthLabel(device.health_status || device.provider_health, "Unknown")}</span><small className="block truncate text-[8px] text-zinc-600">{activitySummary(device,"No health explanation")}</small></td><td><span className="text-zinc-300">{device.metadata?.edge_node_name || device.metadata?.edge_node_id || (device.home_id ? "Assigned" : "Unassigned")}</span><small className="block truncate text-[8px] text-zinc-600">{device.room?.name || device.home?.name || "No location"}</small></td><td>{relativeDate(device.last_seen_at)}</td><td><MoreVertical className="h-3.5 w-3.5 text-zinc-600"/></td></tr>})}</tbody></table></div>
+          <div className="divide-y divide-[var(--ois-border-subtle)] md:hidden">{filtered.map(device => { const Icon=deviceIcon(device); return <button key={device.id} onClick={() => { setDetail(device); setDetailTab("overview"); }} className="flex w-full items-center gap-3 p-3 text-left"><span className="grid h-8 w-8 place-items-center rounded-md bg-white/[.04]"><Icon className="h-4 w-4 text-sky-300"/></span><span className="min-w-0 flex-1"><b className="block truncate text-[11px] font-medium text-white">{device.name}</b><small className="block truncate text-[8.5px] text-zinc-600">{location(device)} · {text(device.provider)}</small></span><Status value={device.status} device={device}/><ChevronRight className="h-3.5 w-3.5 text-zinc-600"/></button>})}</div>
+          {!filtered.length && !loading ? <div className="grid min-h-40 place-items-center p-6 text-center"><div><Cpu className="mx-auto h-5 w-5 text-zinc-700"/><p className="mt-2 text-[11px] text-zinc-500">No registered assets match this view.</p><button onClick={() => { setQuery(""); setTypeFilter("all"); setHealthFilter("all"); setAssignmentFilter("all"); }} className="mt-2 text-[9px] text-sky-400">Clear filters</button></div></div> : null}
+        </section>
       ) : null}
 
       {tab === "discovery" ? (
@@ -397,12 +414,18 @@ export default function HardwareDevicesPage() {
       <OisDrawer
         open={Boolean(detail)}
         onClose={() => setDetail(null)}
-        title={detail?.name || "Infrastructure overview"}
+        title={detail?.name || "Asset overview"}
         subtitle={detail ? `${detail.provider} · ${detail.type}` : undefined}
         width="md"
-        footer={detail ? <div className="flex flex-wrap gap-2"><Button variant="ghost" disabled className="gap-2"><LocateFixed className="h-4 w-4" /> Locate unavailable</Button><Button onClick={() => { setDetail(null); openAssignment(detail); }} className="gap-2"><SlidersHorizontal className="h-4 w-4" /> Ownership</Button></div> : null}
+        footer={detail ? <div className="flex w-full flex-wrap justify-between gap-2"><div>{specialistRoute(detail) ? <Link href={specialistRoute(detail)!.href} className="inline-flex h-9 items-center rounded-md border border-[var(--ois-border-subtle)] px-3 text-[10px] text-sky-300">{specialistRoute(detail)!.label}</Link> : null}</div><Button onClick={() => { setDetail(null); openAssignment(detail); }} className="h-9 gap-2 rounded-md text-[10px]"><SlidersHorizontal className="h-3.5 w-3.5"/>Assign location</Button></div> : null}
       >
-        {detail ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-white">{location(detail)}</p><p className="mt-2 text-xs text-zinc-500">{activitySummary(detail, `Last seen ${date(detail.last_seen_at)}`)}</p></div><OisStatusBadge status={toneFromDevice(detail) as any} label={healthLabel(detail.health_status || detail.status, text(detail.status, "unknown"))} className="uppercase" /></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Oyi ID</span><span className="mt-1 block break-all font-mono text-xs text-zinc-300">{detail.oyi_id}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">External ID</span><span className="mt-1 block break-all font-mono text-xs text-zinc-300">{detail.external_id || "Unavailable"}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Location</span><span className="mt-1 block text-zinc-300">{location(detail)}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Last seen</span><span className="mt-1 block text-zinc-300">{date(detail.last_seen_at)}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Primary state</span><span className="mt-1 block text-zinc-300">{statusLabel(detail.primary_state, "Unknown")}</span></OisCard><OisCard variant="evidence" className="p-3"><span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">Provider health</span><span className="mt-1 block text-zinc-300">{providerHealthLabel(detail.provider_health, "Unknown")}</span></OisCard></div></div> : null}
+        {detail ? <div className="space-y-3"><div className="flex items-center gap-3 rounded-md border border-[var(--ois-border-subtle)] bg-black/15 p-3">{(() => { const Icon=deviceIcon(detail); return <span className="grid h-9 w-9 place-items-center rounded-md bg-sky-500/10"><Icon className="h-4 w-4 text-sky-300"/></span>; })()}<span className="min-w-0 flex-1"><b className="block truncate text-[11px] font-medium text-white">{detail.name}</b><small className="text-[8.5px] text-zinc-600">{text(detail.device_type || detail.category || detail.type)} · {text(detail.provider)}</small></span><Status value={detail.status} device={detail}/></div><nav className="flex gap-4 overflow-x-auto border-b border-[var(--ois-border-subtle)]">{(["overview", ...(detail.projection?.controllable && detail.supported_controls?.length ? ["controls"] : []), "settings", "telemetry", "history"] as DetailTab[]).map(item => <button key={item} onClick={() => setDetailTab(item)} className={`relative shrink-0 px-1 pb-2 text-[9px] capitalize ${detailTab===item?"text-sky-300 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-sky-400":"text-zinc-500"}`}>{item}</button>)}</nav>
+          {detailTab === "overview" ? <div className="space-y-3"><section className="rounded-md border border-[var(--ois-border-subtle)] p-3"><h3 className="text-[10px] font-semibold text-zinc-200">General</h3><dl className="mt-2 space-y-1.5 text-[9px]">{[["Location",location(detail)],["Provider",text(detail.provider)],["Model",text(detail.metadata?.model)],["Oyi ID",detail.oyi_id],["External ID",text(detail.external_id)],["Ownership",text(detail.ownership_class || detail.assignment_scope,"Unassigned")],["Status",statusLabel(detail.primary_state || detail.status)]].map(([label,value])=><div key={label} className="flex justify-between gap-4"><dt className="text-zinc-600">{label}</dt><dd className="max-w-[65%] break-all text-right text-zinc-300">{value}</dd></div>)}</dl></section><section className="rounded-md border border-[var(--ois-border-subtle)] p-3"><h3 className="text-[10px] font-semibold text-zinc-200">Connectivity</h3><dl className="mt-2 space-y-1.5 text-[9px]">{[["Oyi Edge",detail.metadata?.edge_node_name || detail.metadata?.edge_node_id || "Unassigned"],["Protocol",detail.protocols?.join(", ") || text(detail.adapter)],["Provider state",providerHealthLabel(detail.provider_health,"Unavailable")],["Last seen",relativeDate(detail.last_seen_at)],["Telemetry freshness",text(detail.telemetry_summary?.freshness || detail.last_signal,"Unavailable")]].map(([label,value])=><div key={label} className="flex justify-between gap-4"><dt className="text-zinc-600">{label}</dt><dd className="max-w-[65%] text-right text-zinc-300">{value}</dd></div>)}</dl></section><section className="rounded-md border border-[var(--ois-border-subtle)] p-3"><h3 className="text-[10px] font-semibold text-zinc-200">Current status</h3><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{Object.entries(detail.normalized_state || {}).filter(([key])=>!/password|token|secret|credential|ip/i.test(key)).slice(0,6).map(([key,value])=><div key={key} className="rounded-md bg-white/[.025] p-2"><small className="block text-[8px] capitalize text-zinc-600">{key.replace(/_/g," ")}</small><b className="mt-1 block truncate text-[10px] font-medium text-zinc-200">{String(value)}</b></div>)}{!Object.keys(detail.normalized_state || {}).length ? <p className="col-span-full text-[9px] text-zinc-600">No current state reported.</p> : null}</div></section></div> : null}
+          {detailTab === "controls" ? <section className="rounded-md border border-[var(--ois-border-subtle)] p-3"><h3 className="text-[10px] font-semibold text-zinc-200">Supported controls</h3><p className="mt-1 text-[8.5px] text-zinc-600">Commands come from this asset’s canonical capability projection.</p><div className="mt-3 flex flex-wrap gap-2">{(detail.supported_controls || []).map(control => <Button key={control} variant="ghost" disabled={commanding !== null} onClick={() => void runControl(detail,control)} className="h-8 rounded-md px-3 text-[9px] capitalize">{commanding===control?"Sending…":control.replace(/_/g," ")}</Button>)}</div></section> : null}
+          {detailTab === "settings" ? <section className="rounded-md border border-[var(--ois-border-subtle)] p-3"><h3 className="text-[10px] font-semibold text-zinc-200">Assignment & configuration</h3><p className="mt-1 text-[9px] leading-4 text-zinc-600">Location assignment uses the existing Home and Room mutation. Provider configuration remains governed by its canonical onboarding connection.</p><Button className="mt-3 h-8 rounded-md text-[9px]" onClick={() => { setDetail(null); openAssignment(detail); }}>Assign Home / Room</Button></section> : null}
+          {detailTab === "telemetry" ? <section className="rounded-md border border-[var(--ois-border-subtle)] p-3"><h3 className="text-[10px] font-semibold text-zinc-200">Latest telemetry</h3><div className="mt-2 grid grid-cols-2 gap-2">{Object.entries(detail.telemetry_summary || {}).filter(([key])=>!/password|token|secret|credential|ip/i.test(key)).slice(0,8).map(([key,value])=><div key={key} className="rounded-md bg-white/[.025] p-2"><small className="block text-[8px] capitalize text-zinc-600">{key.replace(/_/g," ")}</small><b className="text-[10px] text-zinc-200">{String(value)}</b></div>)}{!Object.keys(detail.telemetry_summary || {}).length ? <p className="col-span-full py-4 text-center text-[9px] text-zinc-600">No bounded telemetry is available for this asset.</p> : null}</div></section> : null}
+          {detailTab === "history" ? <section className="rounded-md border border-[var(--ois-border-subtle)] p-3"><h3 className="text-[10px] font-semibold text-zinc-200">Operational history</h3><div className="mt-2 space-y-2">{(data?.assignment_history || []).filter(event => !event.device_id || event.device_id === detail.id).slice(0,8).map(event => <div key={event.id} className="border-l border-sky-400/20 pl-2"><p className="text-[9px] text-zinc-300">{text(event.action).replace(/\./g," ")}</p><small className="text-[8px] text-zinc-600">{date(event.created_at)}</small></div>)}{!(data?.assignment_history || []).length ? <p className="py-4 text-center text-[9px] text-zinc-600">No bounded audit history is available.</p> : null}</div></section> : null}
+        </div> : null}
       </OisDrawer>
     </div>
   );
