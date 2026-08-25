@@ -12,7 +12,7 @@ const DOMAIN_SUBTITLES: Record<string, string> = {
   overview: "Real-time facility operations at a glance",
   "estate-structure": "Homes and building registry",
   "hardware-devices": "Asset registry and edge operations",
-  "security-access": "Visitors, incidents, and gates",
+  "security-access": "Cameras, incidents and emergency operations",
   utilities: "Infrastructure services and providers",
   "environment-sensors": "Sensors and comfort signals",
   "traffic-mobility": "Movement and access telemetry",

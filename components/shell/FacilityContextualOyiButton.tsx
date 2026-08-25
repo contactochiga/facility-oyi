@@ -13,7 +13,8 @@ function starterFor(module: string, target?: string) {
   if (/hardware|live-infrastructure|utilities|water|environment/.test(module)) return `Who is affected by ${target || "this infrastructure posture"}?`;
   if (/camera/.test(module)) return `Summarize camera evidence for ${target || "this camera context"}.`;
   if (/maintenance/.test(module)) return `Who owns ${target || "this maintenance item"} and what is overdue?`;
-  if (/visitor|traffic|security-access/.test(module)) return `What is the access state for ${target || "this visitor/access queue"}?`;
+  if (/security-access/.test(module)) return `Summarize security conditions and response priorities for ${target || "this facility"}.`;
+  if (/visitor|traffic/.test(module)) return `What is the access state for ${target || "this visitor/access queue"}?`;
   if (/digital-twin/.test(module)) return `Explain the selected digital twin object and active incidents.`;
   if (/facility-intelligence|overview/.test(module)) return "Summarize current operational attention and safest next actions.";
   return `Explain the current ${module.replace(/-/g, " ")} context.`;
