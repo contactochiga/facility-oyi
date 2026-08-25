@@ -42,6 +42,39 @@
   background: linear-gradient(to bottom, rgba(56, 189, 248, 0.32), rgba(71, 85, 105, 0.34));
 }
 
+.structureRow {
+  display: grid;
+  width: 100%;
+  min-height: 48px;
+  grid-template-columns: minmax(180px, 1fr) 64px 48px 48px 16px;
+  align-items: center;
+  column-gap: 8px;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.structureIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.structureMetric {
+  display: grid;
+  justify-items: center;
+  color: rgb(212 212 216);
+  font-size: 10px;
+  line-height: 12px;
+}
+
+.structureMetric small {
+  color: rgb(82 82 91);
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
 .workspace :global([data-floor-row]) {
   position: relative;
   border-radius: 6px;
@@ -99,6 +132,12 @@
   background: rgba(71, 85, 105, 0.42);
 }
 
+.workspace :global([data-building-row] > div > :last-child::before),
+.workspace :global([data-floor-row] > div > :last-child::before) {
+  bottom: auto;
+  height: 22px;
+}
+
 .workspace :global([data-floor-row] > div > [data-home-row]::before) {
   content: "";
   position: absolute;
@@ -146,6 +185,16 @@
 }
 
 @media (max-width: 639px) {
+  .structureRow {
+    grid-template-columns: minmax(0, 1fr) 48px 16px;
+    min-height: 44px;
+    padding: 5px 8px;
+  }
+
+  .structureMetric:nth-of-type(3),
+  .structureMetric:nth-of-type(4) {
+    display: none;
+  }
   .workspace :global([data-building-row] > div) {
     margin-left: 9px;
     padding-left: 15px;
