@@ -6,13 +6,14 @@ import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
+import FacilityMetricCard from "@/components/ois/FacilityMetricCard";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { formatMoney } from "@/lib/format";
 import { iconForTab } from "@/lib/oisIconRegistry";
 import { facilityService, type InfrastructureServiceAccountRow, type InfrastructureServiceEventRow, type InfrastructureServiceTransactionRow } from "@/services/facilityService";
 import { serviceConfigService, type ServiceConfig } from "@/services/serviceConfigService";
-import { ArrowUpDown, ClipboardList, CloudCog, FileText, Plus, ShieldAlert, Zap } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, ClipboardList, CloudCog, Droplets, FileText, Flame, Gauge, Globe2, Landmark, Plus, Search, ShieldAlert, Wifi, Zap } from "lucide-react";
 
 const SERVICE_LABELS: Record<string, string> = {
   utility_token: "Electricity",
@@ -165,6 +166,51 @@ function inputClassName() {
   return "h-11 w-full rounded-[14px] border border-white/10 bg-white/[0.03] px-3 text-sm text-white outline-none transition focus:border-sky-400/35";
 }
 
+function UtilityIcon({ serviceKey }: { serviceKey: string }) {
+  const Icon = serviceKey === "water_service" ? Droplets : serviceKey === "gas_service" ? Flame : /internet|fiber/.test(serviceKey) ? Wifi : serviceKey === "service_charge" ? Landmark : Zap;
+  return <Icon className="h-4 w-4" />;
+}
+
+function UtilitiesRegistryWorkspace({ accounts, configs, transactions, providers, filtered, activeDomain, setActiveDomain, search, setSearch, loading, attentionCount, onRefresh, onSelectAccount, onSelectPolicy }: {
+  accounts: InfrastructureServiceAccountRow[];
+  configs: ServiceConfig[];
+  transactions: InfrastructureServiceTransactionRow[];
+  providers: Array<{ name: string; health: string; connected: number; provisioning: number }>;
+  filtered: InfrastructureServiceAccountRow[];
+  activeDomain: (typeof DOMAIN_FILTERS)[number];
+  setActiveDomain: (value: (typeof DOMAIN_FILTERS)[number]) => void;
+  search: string;
+  setSearch: (value: string) => void;
+  loading: boolean;
+  attentionCount: number;
+  onRefresh: () => void;
+  onSelectAccount: (account: InfrastructureServiceAccountRow) => void;
+  onSelectPolicy: (policy: ServiceConfig) => void;
+}) {
+  const active = accounts.filter((item) => /ready|active|stable/.test(`${item.status} ${item.vending_readiness}`.toLowerCase())).length;
+  const pending = Math.max(0, accounts.length - active - attentionCount);
+  const configuredProviders = new Set(accounts.map((item) => item.provider).filter(Boolean)).size;
+  const categories = ["All", "Power & Energy", "Water", "Internet", "Gas", "Estate Fees", "Facility Services"] as const;
+  return (
+    <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="rounded-xl border border-white/[0.075] bg-white/[0.025] p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div><h2 className="text-[15px] font-semibold text-white">Services Overview</h2><p className="mt-0.5 text-[11px] text-zinc-500">Canonical utility accounts, meters, providers and billing state.</p></div>
+          <div className="flex gap-2"><label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-white/[0.07] bg-black/10 px-3 lg:w-[280px]"><Search className="h-3.5 w-3.5 text-zinc-600" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search services, providers or accounts…" className="min-w-0 flex-1 bg-transparent text-[11px] text-white outline-none placeholder:text-zinc-600" /></label><Button variant="ghost" className="h-9 px-3" onClick={onRefresh}>Refresh</Button></div>
+        </div>
+        <div className="mt-3 flex gap-1 overflow-x-auto pb-1">{categories.map((category) => <button key={category} type="button" onClick={() => setActiveDomain(category)} className={`whitespace-nowrap rounded-md border px-2.5 py-1.5 text-[10.5px] ${activeDomain === category ? "border-sky-400/25 bg-sky-500/15 text-sky-200" : "border-white/[0.07] text-zinc-500"}`}>{category === "All" ? "All Utilities" : category}</button>)}</div>
+        <div className="mt-4 hidden grid-cols-[1.3fr_1fr_.85fr_.75fr_.8fr_.75fr_52px] gap-3 border-b border-white/[0.06] px-2 pb-2 text-[9px] uppercase tracking-[0.12em] text-zinc-600 lg:grid"><span>Service / Meter</span><span>Location</span><span>Provider</span><span>Status</span><span>Billing</span><span>Last activity</span><span>Action</span></div>
+        <div className="divide-y divide-white/[0.055]">{filtered.map((account) => <button key={account.id} type="button" onClick={() => onSelectAccount(account)} className="grid w-full gap-2 px-2 py-3 text-left hover:bg-white/[0.02] lg:grid-cols-[1.3fr_1fr_.85fr_.75fr_.8fr_.75fr_52px] lg:items-center lg:gap-3"><span className="flex min-w-0 items-center gap-2.5"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/[0.07] bg-white/[0.025] text-sky-300"><UtilityIcon serviceKey={account.service_key} /></span><span className="min-w-0"><b className="block truncate text-[11.5px] font-medium text-white">{SERVICE_LABELS[account.service_key] || account.service_title}</b><small className="block truncate text-[9.5px] text-zinc-600">{textFor(account.identifier || account.meter_number || account.account_number)}</small></span></span><span className="text-[10.5px] text-zinc-400">{textFor(account.home_label)}</span><span className="truncate text-[10.5px] text-zinc-300">{textFor(account.provider)}</span><span><OisStatusBadge status={toneFor(account.status || account.vending_readiness)} label={textFor(account.status || account.vending_readiness, "Pending")} /></span><span className="text-[10.5px] text-zinc-400">{textFor(account.billing_profile)}</span><span className="text-[10px] text-zinc-500">{when(account.last_activity_at)}</span><span className="text-[10px] text-sky-300">View</span></button>)}{!filtered.length && !loading ? <div className="py-16 text-center"><Gauge className="mx-auto h-6 w-6 text-zinc-700" /><p className="mt-3 text-xs text-zinc-400">No utility services match this view</p><p className="mt-1 text-[10px] text-zinc-600">Configured service accounts will appear here.</p></div> : null}</div>
+      </div>
+      <aside className="grid gap-4">
+        <OisCard className="p-4"><OisRegistryHeader title="Provider Readiness" caption="Canonical provider and integration state." /><div className="mt-3 space-y-1.5">{providers.slice(0, 6).map((provider) => <div key={provider.name} className="flex items-center gap-2 rounded-lg border border-white/[0.06] px-3 py-2.5"><Globe2 className={`h-3.5 w-3.5 ${toneFor(provider.health) === "stable" ? "text-emerald-300" : "text-amber-300"}`} /><span className="min-w-0 flex-1 truncate text-[10.5px] text-zinc-300">{provider.name}</span><OisStatusBadge status={toneFor(provider.health)} label={textFor(provider.health)} /></div>)}{!providers.length ? <p className="py-8 text-center text-[10.5px] text-zinc-600">No providers configured</p> : null}</div></OisCard>
+        <OisCard className="p-4"><OisRegistryHeader title="Utility Status" caption="Operational state across all services." /><div className="mt-4 grid grid-cols-3 gap-2">{[["Active", active, "text-emerald-300"], ["Pending", pending, "text-amber-300"], ["Attention", attentionCount, "text-rose-300"]].map(([label, value, color]) => <div key={String(label)} className="rounded-lg border border-white/[0.06] p-2.5 text-center"><b className={`block text-lg ${color}`}>{value}</b><span className="text-[9px] text-zinc-600">{label}</span></div>)}</div></OisCard>
+        <OisCard className="p-4"><OisRegistryHeader title="Quick Actions" caption="Common utility operations." /><div className="mt-3 grid grid-cols-2 gap-1.5"><button type="button" disabled={!configs.length} onClick={() => configs[0] && onSelectPolicy(configs[0])} className="flex h-10 items-center gap-2 rounded-lg border border-white/[0.07] px-2.5 text-[9.5px] text-zinc-300 disabled:opacity-40"><CloudCog className="h-3.5 w-3.5 text-sky-300" />Configure Service</button><button type="button" onClick={() => setActiveDomain("Power & Energy")} className="flex h-10 items-center gap-2 rounded-lg border border-white/[0.07] px-2.5 text-[9.5px] text-zinc-300"><Gauge className="h-3.5 w-3.5 text-sky-300" />View Meters</button><button type="button" onClick={() => setActiveDomain("All")} className="flex h-10 items-center gap-2 rounded-lg border border-white/[0.07] px-2.5 text-[9.5px] text-zinc-300"><ClipboardList className="h-3.5 w-3.5 text-sky-300" />All Services</button><div className="flex h-10 items-center gap-2 rounded-lg border border-white/[0.07] px-2.5 text-[9.5px] text-zinc-500"><FileText className="h-3.5 w-3.5" />{transactions.length} Transactions</div></div><p className="mt-3 text-[9px] text-zinc-600">{configuredProviders} configured provider lanes</p></OisCard>
+      </aside>
+    </section>
+  );
+}
+
 export default function FacilityInfrastructureServicesPage() {
   const [loading, setLoading] = useState(false);
   const [savingPolicy, setSavingPolicy] = useState(false);
@@ -232,6 +278,15 @@ export default function FacilityInfrastructureServicesPage() {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  useEffect(() => {
+    const onRealtime = (event: Event) => {
+      const name = String((event as CustomEvent)?.detail?.event || "");
+      if (/utility|service|wallet|provider/.test(name)) void load();
+    };
+    window.addEventListener("facility:realtime-event", onRealtime);
+    return () => window.removeEventListener("facility:realtime-event", onRealtime);
   }, []);
 
   useEffect(() => {
@@ -374,19 +429,16 @@ export default function FacilityInfrastructureServicesPage() {
   }), [transactions]);
 
   const strip = useMemo(() => {
-    const providers = new Set(accounts.map((item) => item.provider).filter(Boolean));
+    const active = accounts.filter((item) => /ready|active|stable/.test(`${item.status} ${item.vending_readiness}`.toLowerCase())).length;
+    const pending = Math.max(0, accounts.length - active - attentionCount);
     return [
-      { label: "Attention", value: attentionCount, detail: "Operational review", tone: attentionCount ? "warning" : "stable" },
-      { label: "Approvals", value: transactions.filter((item) => String(item.status) === "manual_review").length, detail: "Manual review queue", tone: "attention" },
-      { label: "Escalated", value: transactions.filter((item) => String(item.status) === "failed").length, detail: "Failed service ops", tone: transactions.some((item) => String(item.status) === "failed") ? "warning" : "stable" },
-      { label: "Provisioned", value: accounts.filter((item) => item.linked).length, detail: "Resident-bound services", tone: "stable" },
-      { label: "Accounts", value: accounts.length, detail: "Canonical records", tone: "stable" },
-      { label: "Providers", value: providers.size, detail: "Configured lanes", tone: "pending" },
-      { label: "Transactions", value: transactions.length, detail: "Runtime records", tone: "pending" },
-      { label: "Ready", value: accounts.filter((item) => item.vending_readiness === "ready").length, detail: "Vending-ready", tone: "stable" },
-      { label: "Issues", value: attentionCount, detail: "Needs intervention", tone: attentionCount ? "warning" : "stable" },
+      { label: "Total Services", value: accounts.length, detail: "Canonical accounts", tone: "stable" },
+      { label: "Active Services", value: active, detail: "Operational", tone: "stable" },
+      { label: "Pending Setup", value: pending, detail: "Requires setup", tone: "attention" },
+      { label: "Service Policies", value: configs.length, detail: "Billing profiles", tone: "pending" },
+      { label: "Attention", value: attentionCount, detail: "Needs review", tone: attentionCount ? "warning" : "stable" },
     ] as Array<{ label: string; value: string | number; detail: string; tone: "attention" | "stable" | "warning" }>;
-  }, [accounts, attentionCount, transactions]);
+  }, [accounts, attentionCount, configs.length]);
 
   async function savePolicy() {
     if (!selectedPolicy) return;
@@ -438,16 +490,21 @@ export default function FacilityInfrastructureServicesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <Topbar
-        title="Utilities"
-        subtitle="Provisioning • Operations • Providers • Billing • Transactions • Intelligence"
-        strip={strip}
-      />
+    <div className="space-y-4">
+      <Topbar title="Utilities" subtitle="Infrastructure services and providers" />
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
+        <FacilityMetricCard icon={<Gauge />} label={strip[0].label} value={strip[0].value} detail={strip[0].detail} accent="text-sky-400" />
+        <FacilityMetricCard icon={<Zap />} label={strip[1].label} value={strip[1].value} detail={strip[1].detail} accent="text-emerald-400" />
+        <FacilityMetricCard icon={<ShieldAlert />} label={strip[2].label} value={strip[2].value} detail={strip[2].detail} accent="text-amber-400" />
+        <FacilityMetricCard icon={<FileText />} label={strip[3].label} value={strip[3].value} detail={strip[3].detail} accent="text-violet-400" />
+        <FacilityMetricCard icon={<AlertTriangle />} label={strip[4].label} value={strip[4].value} detail={strip[4].detail} accent={attentionCount ? "text-rose-400" : "text-zinc-400"} />
+      </section>
 
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
 
-      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
+      <UtilitiesRegistryWorkspace accounts={accounts} configs={configs} transactions={transactions} providers={providerRows} filtered={filteredAccounts} activeDomain={activeDomain} setActiveDomain={setActiveDomain} search={search} setSearch={setSearch} loading={loading} attentionCount={attentionCount} onRefresh={() => void load()} onSelectAccount={setSelectedAccount} onSelectPolicy={setSelectedPolicy} />
+
+      <section className="hidden">
         <OisCard className="p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -481,7 +538,7 @@ export default function FacilityInfrastructureServicesPage() {
         </OisCard>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className="hidden">
         {groupedDomainCards.map((domain) => {
           const Icon = iconForTab(domain.iconKey);
           return (
@@ -524,7 +581,7 @@ export default function FacilityInfrastructureServicesPage() {
         })}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <section className="hidden">
         <OisRegistryPanel
           title="Infrastructure Policies"
           caption="Estate tariffs, billing rules, and provider-linked policy profiles. Service accounts bind to these active policies."
@@ -631,7 +688,7 @@ export default function FacilityInfrastructureServicesPage() {
             refreshing={loading}
           />
         }
-        className="p-5"
+        className="hidden p-5"
       >
         <div className="mb-3 hidden grid-cols-[1.05fr_0.95fr_0.9fr_0.85fr_0.9fr_0.7fr_0.7fr_0.7fr_0.65fr_0.85fr] gap-3 px-3 text-[10px] uppercase tracking-[0.16em] text-zinc-500 lg:grid">
           <span>Resident</span>
@@ -679,7 +736,7 @@ export default function FacilityInfrastructureServicesPage() {
         </div>
       </OisRegistryPanel>
 
-      <section className="grid gap-4 xl:grid-cols-[0.95fr_0.95fr_1.1fr]">
+      <section className="hidden">
         <OisCard className="p-5">
           <OisRegistryHeader title="Transactions" caption="Pending, completed, failed, manual review, unsupported, and settlement status." />
           <div className="mt-4 grid gap-2">
@@ -822,6 +879,10 @@ export default function FacilityInfrastructureServicesPage() {
               <Field label="Domain" value={serviceDomainFor(selectedAccount.service_key).title} />
               <Field label="Service" value={textFor(SERVICE_LABELS[selectedAccount.service_key] || selectedAccount.service_title)} />
               <Field label="Identifier" value={textFor(selectedAccount.identifier)} />
+              <Field label="Meter ID" value={textFor(selectedAccount.meter_number)} />
+              <Field label="Account ID" value={textFor(selectedAccount.account_number)} />
+              <Field label="KCT" value={textFor(selectedAccount.kct)} />
+              <Field label="KCTN" value={textFor(selectedAccount.kctn)} />
               <Field label="Provider" value={textFor(selectedAccount.provider)} />
               <Field label="Tariff" value={textFor(selectedAccount.tariff_profile)} />
               <Field label="Billing" value={textFor(selectedAccount.billing_profile)} />
@@ -830,6 +891,8 @@ export default function FacilityInfrastructureServicesPage() {
               <Field label="Last activity" value={when(selectedAccount.last_activity_at)} />
               <Field label="Transaction state" value={textFor(selectedAccount.last_transaction_status, "No transaction yet")} />
             </div>
+            <OisCard className="p-4"><OisRegistryHeader title="Transactions" caption="Bounded history for this service account." /><div className="mt-3 space-y-2">{transactions.filter((item) => item.home_id === selectedAccount.home_id && item.service_key === selectedAccount.service_key).slice(0, 6).map((item) => <OisListItem key={item.id} title={textFor(item.transaction_type, "Service transaction")} description={item.amount != null ? formatMoney(Number(item.amount), item.currency || "NGN") : "No amount recorded"} meta={`${textFor(item.settlement_status || item.status)} • ${when(item.created_at)}`} status={toneFor(item.status)} />)}{!transactions.some((item) => item.home_id === selectedAccount.home_id && item.service_key === selectedAccount.service_key) ? <p className="py-5 text-center text-xs text-zinc-500">No transactions recorded for this service account.</p> : null}</div></OisCard>
+            <OisCard className="p-4"><OisRegistryHeader title="History" caption="Canonical service runtime events." /><div className="mt-3 space-y-2">{events.filter((item) => item.home_id === selectedAccount.home_id && item.service_key === selectedAccount.service_key).slice(0, 6).map((item) => <OisListItem key={item.id} title={eventLabel(item.event_type)} description={textFor((item.payload as any)?.reason || (item.payload as any)?.status, "Runtime event")} meta={when(item.created_at)} status={toneFor(item.event_type)} />)}{!events.some((item) => item.home_id === selectedAccount.home_id && item.service_key === selectedAccount.service_key) ? <p className="py-5 text-center text-xs text-zinc-500">No service runtime events recorded.</p> : null}</div></OisCard>
           </div>
         ) : null}
       </OisDrawer>

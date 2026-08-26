@@ -23,6 +23,8 @@ assert.match(page, /facility-intelligence\?module=attention/);
 assert.doesNotMatch(page, /Verify visitor|View gate flow|Visitor verification queue|Open visitor queue/);
 assert.doesNotMatch(page, /visitorService\.listToday|visitorService\.list\(/);
 assert.match(page, /facility:realtime-event/);
+assert.match(page, /FacilityMetricCard/);
+assert.doesNotMatch(page, /<Topbar[^>]+strip=/);
 assert.match(attention, /security_exception/);
 assert.match(attention, /href: "\/cameras"/);
 assert.match(camera, /createCameraMediaReadClient/);
