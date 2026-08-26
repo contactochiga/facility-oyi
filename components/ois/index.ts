@@ -1,4 +1,5 @@
 export { default as OisCard } from "./OisCard";
+export { default as FacilityMetricCard } from "./FacilityMetricCard";
 export { default as OisStatusBadge } from "./OisStatusBadge";
 export type { OisStatus } from "./OisStatusBadge";
 export { default as OisDrawer } from "./OisDrawer";

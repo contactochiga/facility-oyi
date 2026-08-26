@@ -6,13 +6,14 @@ import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
 import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
+import FacilityMetricCard from "@/components/ois/FacilityMetricCard";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { formatMoney } from "@/lib/format";
 import { iconForTab } from "@/lib/oisIconRegistry";
 import { facilityService, type InfrastructureServiceAccountRow, type InfrastructureServiceEventRow, type InfrastructureServiceTransactionRow } from "@/services/facilityService";
 import { serviceConfigService, type ServiceConfig } from "@/services/serviceConfigService";
-import { ArrowUpDown, ClipboardList, CloudCog, Droplets, FileText, Flame, Gauge, Globe2, Landmark, Plus, Search, ShieldAlert, Wifi, Zap } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, ClipboardList, CloudCog, Droplets, FileText, Flame, Gauge, Globe2, Landmark, Plus, Search, ShieldAlert, Wifi, Zap } from "lucide-react";
 
 const SERVICE_LABELS: Record<string, string> = {
   utility_token: "Electricity",
@@ -490,11 +491,14 @@ export default function FacilityInfrastructureServicesPage() {
 
   return (
     <div className="space-y-4">
-      <Topbar
-        title="Utilities"
-        subtitle="Infrastructure services and providers"
-        strip={strip}
-      />
+      <Topbar title="Utilities" subtitle="Infrastructure services and providers" />
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
+        <FacilityMetricCard icon={<Gauge />} label={strip[0].label} value={strip[0].value} detail={strip[0].detail} accent="text-sky-400" />
+        <FacilityMetricCard icon={<Zap />} label={strip[1].label} value={strip[1].value} detail={strip[1].detail} accent="text-emerald-400" />
+        <FacilityMetricCard icon={<ShieldAlert />} label={strip[2].label} value={strip[2].value} detail={strip[2].detail} accent="text-amber-400" />
+        <FacilityMetricCard icon={<FileText />} label={strip[3].label} value={strip[3].value} detail={strip[3].detail} accent="text-violet-400" />
+        <FacilityMetricCard icon={<AlertTriangle />} label={strip[4].label} value={strip[4].value} detail={strip[4].detail} accent={attentionCount ? "text-rose-400" : "text-zinc-400"} />
+      </section>
 
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, Camera, ChevronRight, CircleCheck, Clock3, LockKeyhole, Radar, ShieldAlert, ShieldCheck, Siren } from "lucide-react";
 import Topbar from "@/components/shell/Topbar";
+import FacilityMetricCard from "@/components/ois/FacilityMetricCard";
 import Button from "@/components/ui/Button";
 import cameraService, { type BoundCamera, type CameraEvent } from "@/services/cameraService";
 import { facilityService } from "@/services/facilityService";
@@ -102,9 +103,14 @@ export default function SecurityAccessPage() {
   }
 
   return <div className="space-y-4">
-    <Topbar title="Security" subtitle="Cameras, incidents, critical attention and emergency response" strip={[
-      { label: "Security alerts", value: loading ? "Loading" : securityAlerts.length }, { label: "Open incidents", value: loading ? "Loading" : openIncidents.length }, { label: "Cameras online", value: loading ? "Loading" : cameras.length ? `${camerasOnline}/${cameras.length}` : 0 }, { label: "Critical attention", value: loading ? "Loading" : criticalCount }, { label: "Security health", value: overallHealth },
-    ]} />
+    <Topbar title="Security" subtitle="Cameras, incidents, critical attention and emergency response" />
+    <section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
+      <FacilityMetricCard icon={<ShieldAlert />} label="Security alerts" value={loading ? "—" : securityAlerts.length} detail="Active conditions" accent="text-sky-400" />
+      <FacilityMetricCard icon={<Siren />} label="Open incidents" value={loading ? "—" : openIncidents.length} detail="Requires review" accent="text-amber-400" />
+      <FacilityMetricCard icon={<Camera />} label="Cameras online" value={loading ? "—" : cameras.length ? `${camerasOnline}/${cameras.length}` : 0} detail="Canonical runtime" accent="text-emerald-400" />
+      <FacilityMetricCard icon={<AlertTriangle />} label="Critical attention" value={loading ? "—" : criticalCount} detail="Needs action" accent={criticalCount ? "text-rose-400" : "text-zinc-400"} />
+      <FacilityMetricCard icon={<ShieldCheck />} label="Security health" value={loading ? "—" : overallHealth} detail="Overall posture" accent={overallHealth === "Stable" ? "text-emerald-400" : overallHealth === "Critical" ? "text-rose-400" : "text-amber-400"} />
+    </section>
     {error ? <div role="alert" className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3.5 py-2.5 text-xs text-rose-100">{error}</div> : null}
     {notice ? <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-2.5 text-xs text-emerald-100">{notice}</div> : null}
     <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.9fr)]">
