@@ -61,6 +61,14 @@ export type MaintenanceUpdatePayload = {
   visit_notes?: string | null;
 };
 
+export type MaintenanceCreatePayload = {
+  home_id?: string;
+  title: string;
+  description?: string;
+  priority?: string;
+  category?: string;
+};
+
 function pickError(err: any, fallback: string) {
   return err?.response?.data?.error || err?.response?.data?.message || err?.message || fallback;
 }
@@ -71,6 +79,15 @@ export const maintenanceService = {
       params: params?.status ? { status: params.status } : undefined,
     });
     return Array.isArray(res.data?.requests) ? res.data.requests : [];
+  },
+
+  async create(payload: MaintenanceCreatePayload): Promise<{ request?: MaintenanceItem; error?: string }> {
+    try {
+      const res = await API.post("/maintenance", payload);
+      return { request: res.data?.request };
+    } catch (err: any) {
+      return { error: pickError(err, "Failed to create maintenance request") };
+    }
   },
 
   async update(id: string, payload: MaintenanceUpdatePayload): Promise<{ request?: MaintenanceItem; error?: string }> {
