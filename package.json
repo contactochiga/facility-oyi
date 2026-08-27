@@ -11,6 +11,7 @@
     "smoke:facility-utilities": "node scripts/facility-utilities-workspace-smoke.mjs",
     "smoke:facility-maintenance": "node scripts/facility-maintenance-workspace-smoke.mjs",
     "smoke:facility-environment": "node scripts/facility-environment-workspace-smoke.mjs",
+    "smoke:facility-finance": "node scripts/facility-finance-workspace-smoke.mjs",
     "smoke:camera-center": "node scripts/camera-center-dashboard-smoke.mjs",
     "smoke:camera-runtime-canonicalization": "node scripts/camera-runtime-canonicalization-smoke.mjs",
     "verify:camera-core-distribution": "node scripts/verify-camera-core-distribution.mjs",
