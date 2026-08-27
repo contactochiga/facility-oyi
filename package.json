@@ -7,6 +7,7 @@
     "smoke:facility-overview": "node scripts/facility-overview-dashboard-smoke.mjs",
     "smoke:facility-buildings": "node scripts/facility-buildings-workspace-smoke.mjs",
     "smoke:facility-security": "node scripts/facility-security-workspace-smoke.mjs",
+    "smoke:facility-access": "node scripts/facility-access-workspace-smoke.mjs",
     "smoke:facility-utilities": "node scripts/facility-utilities-workspace-smoke.mjs",
     "smoke:camera-center": "node scripts/camera-center-dashboard-smoke.mjs",
     "smoke:camera-runtime-canonicalization": "node scripts/camera-runtime-canonicalization-smoke.mjs",
