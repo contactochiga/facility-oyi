@@ -18,7 +18,7 @@ const DOMAIN_SUBTITLES: Record<string, string> = {
   "traffic-mobility": "Access control, visitors, gates and entry management",
   maintenance: "Work order management, preventive maintenance and asset reliability",
   community: "Notices, posts, and moderation",
-  wallets: "Transactions and payment review",
+  wallets: "Wallet activity, service payments, and financial operations",
 };
 
 export default function ShellTopbar() {
