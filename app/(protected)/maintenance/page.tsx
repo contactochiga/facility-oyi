@@ -1,341 +1,93 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { OisPageToolbar, OisRegistryHeader, OisRegistryPanel, OisRuntimeCard } from "@/components/ois";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { CalendarDays, CheckCircle2, ChevronRight, ClipboardList, Clock3, Gauge, Package, Plus, Search, Settings2, UserRound, UsersRound, Wrench } from "lucide-react";
+import Topbar from "@/components/shell/Topbar";
+import FacilityMetricCard from "@/components/ois/FacilityMetricCard";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
-import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
-import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { DataTable } from "@/components/ui/DataTable";
 import { maintenanceService, type MaintenanceItem, type MaintenanceStatus } from "@/services/maintenanceService";
-import VerificationBadge from "@/components/modules/VerificationBadge";
-import { facilityService, type EstateMembershipRow } from "@/services/facilityService";
-import type { ColumnDef } from "@tanstack/react-table";
-import { ChevronRight, MessageSquare, RefreshCw } from "lucide-react";
+import { facilityService, type EstateMembershipRow, type InfrastructureDevice } from "@/services/facilityService";
+import { useContextStore } from "@/store/useContextStore";
+import { loadOperationalRecommendations } from "@/services/operationalRecommendationService";
+import { loadAutomationPlans } from "@/services/safeAutomationService";
+import type { OperationalRecommendation } from "@/lib/operationalRecommendations";
+import type { AutomationPlan } from "@/lib/safeAutomationRuntime";
 
-type Lane = "active" | "unassigned" | "scheduled" | "waiting" | "completed" | "all";
+type View = "overview" | "work-orders" | "preventive" | "schedules" | "assets" | "technicians" | "parts" | "reports";
+type Filter = "all" | "open" | "in_progress" | "waiting" | "completed" | "cancelled";
+type Form = { title:string; description:string; home_id:string; category:string; priority:string };
+const VIEWS:Array<[View,string]> = [["overview","Overview"],["work-orders","Work Orders"],["preventive","Preventive Maintenance"],["schedules","Schedules"],["assets","Assets"],["technicians","Technicians"],["parts","Parts & Inventory"],["reports","Reports"]];
+const FILTERS:Array<[Filter,string]> = [["all","All"],["open","Open"],["in_progress","In Progress"],["waiting","On Hold"],["completed","Done"],["cancelled","Cancelled"]];
+const CLOSED=new Set(["completed","verified","resolved","closed","cancelled"]);
+const STATUSES:MaintenanceStatus[]=["new","open","assigned","accepted","scheduled","in_progress","waiting_for_resident","waiting_for_parts","completed","verified","closed","cancelled"];
+const PRIORITIES=["critical","high","medium","low"] as const;
+const COLORS:Record<string,string>={critical:"#fb5b5b",urgent:"#fb5b5b",high:"#ff981f",medium:"#facc15",low:"#2583f7"};
+const EMPTY:Form={title:"",description:"",home_id:"",category:"repair",priority:"medium"};
+const low=(v:unknown)=>String(v||"").toLowerCase();
+const title=(v:unknown)=>String(v||"Unavailable").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+const closed=(x:MaintenanceItem)=>CLOSED.has(low(x.status));
+const progressing=(x:MaintenanceItem)=>["assigned","accepted","scheduled","in_progress"].includes(low(x.status));
+const schedule=(x:MaintenanceItem)=>x.scheduled_at||x.schedule_date||x.metadata?.scheduled_at||x.metadata?.schedule_date||null;
+const finished=(x:MaintenanceItem)=>(x as any).completed_at||(x as any).closed_at||x.verified_at||(closed(x)?x.updated_at:null)||null;
+const due=(x:MaintenanceItem)=>{const raw=schedule(x);if(!raw)return null;const d=new Date(raw);return Number.isNaN(d.getTime())?null:d};
+const date=(v?:string|null,withTime=false)=>{if(!v)return "Not recorded";const d=new Date(v);return Number.isNaN(d.getTime())?"Not recorded":d.toLocaleDateString([],{month:"short",day:"numeric",year:withTime?undefined:"numeric",...(withTime?{hour:"2-digit",minute:"2-digit"}:{})})};
+const location=(x:MaintenanceItem)=>[x.home_name,x.room_name].filter(Boolean).join(" / ")||(x.home_id?`Home ${x.home_id.slice(0,8)}`:"Location not recorded");
+const asset=(x:MaintenanceItem)=>x.metadata?.asset_name||x.metadata?.device_name||"Not linked";
+const pct=(n:number,t:number)=>t?Math.round(n/t*100):0;
+function owner(x:MaintenanceItem,users:EstateMembershipRow[]){const u=users.find(row=>row.users?.id===x.assigned_to);return u?.users?.full_name||u?.users?.username||u?.users?.email||x.assigned_operator||x.metadata?.assigned_operator||(x.assigned_to?`Operator ${x.assigned_to.slice(0,8)}`:"Unassigned")}
+function statusTone(s?:string){const v=low(s);if(["completed","verified","resolved","closed"].includes(v))return "completed";if(v.startsWith("waiting"))return "warning";if(v==="cancelled")return "blocked";if(v==="in_progress")return "attention";return "pending"}
+function priorityTone(p?:string|null){const v=low(p);if(["critical","urgent"].includes(v))return "critical";if(v==="high")return "warning";if(v==="low")return "stable";return "attention"}
 
-type WorkOrderForm = {
-  status: string;
-  assigned_to: string;
-  schedule_date: string;
-  schedule_time: string;
-  note: string;
-};
+function Section({title:heading,caption,action,children}:{title:string;caption?:string;action?:React.ReactNode;children:React.ReactNode}){return <OisCard className="overflow-hidden"><header className="flex items-start justify-between gap-3 px-4 pb-3 pt-4"><div><h2 className="text-[13px] font-semibold text-white">{heading}</h2>{caption?<p className="mt-0.5 text-[10px] text-zinc-500">{caption}</p>:null}</div>{action}</header>{children}</OisCard>}
+function EmptyState({icon:Icon=ClipboardList,heading,body}:{icon?:typeof ClipboardList;heading:string;body:string}){return <div className="grid min-h-44 place-items-center px-5 py-8 text-center"><div><Icon className="mx-auto h-7 w-7 stroke-[1.4] text-zinc-600"/><p className="mt-3 text-sm font-medium text-zinc-300">{heading}</p><p className="mt-1 max-w-md text-xs leading-5 text-zinc-600">{body}</p></div></div>}
+function Field({label,wide=false,children}:{label:string;wide?:boolean;children:React.ReactNode}){return <label className={`${wide?"sm:col-span-2":""} block text-[10px] font-medium text-zinc-500`}>{label}<div className="mt-1 [&_input]:h-10 [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-white/10 [&_input]:bg-black/20 [&_input]:px-3 [&_input]:text-sm [&_input]:text-white [&_select]:h-10 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-white/10 [&_select]:bg-zinc-950 [&_select]:px-3 [&_select]:text-sm [&_select]:text-white [&_textarea]:w-full [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-white/10 [&_textarea]:bg-black/20 [&_textarea]:p-3 [&_textarea]:text-sm [&_textarea]:text-white">{children}</div></label>}
+function Fact({label,value}:{label:string;value:React.ReactNode}){return <div><dt className="text-[9px] uppercase tracking-[.08em] text-zinc-600">{label}</dt><dd className="mt-1 break-words text-zinc-300">{value}</dd></div>}
 
-const STATUS_OPTIONS: Array<{ value: MaintenanceStatus; label: string }> = [
-  { value: "new", label: "New" },
-  { value: "assigned", label: "Assigned" },
-  { value: "accepted", label: "Accepted" },
-  { value: "scheduled", label: "Scheduled" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "waiting_for_resident", label: "Waiting For Resident" },
-  { value: "waiting_for_parts", label: "Waiting For Parts" },
-  { value: "completed", label: "Completed" },
-  { value: "verified", label: "Verified" },
-  { value: "closed", label: "Closed" },
-  { value: "cancelled", label: "Cancelled" },
-];
+export default function MaintenancePage(){
+ const params=useSearchParams();const {context}=useContextStore();const requested=params.get("view") as View|null;
+ const [view,setView]=useState<View>(VIEWS.some(([k])=>k===requested)?requested!:"overview");
+ const [items,setItems]=useState<MaintenanceItem[]>([]),[users,setUsers]=useState<EstateMembershipRow[]>([]),[devices,setDevices]=useState<InfrastructureDevice[]>([]),[homes,setHomes]=useState<any[]>([]),[recommendations,setRecommendations]=useState<OperationalRecommendation[]>([]),[plans,setPlans]=useState<AutomationPlan[]>([]);
+ const [loading,setLoading]=useState(true),[error,setError]=useState<string|null>(null),[notice,setNotice]=useState<string|null>(null),[filter,setFilter]=useState<Filter>("all"),[query,setQuery]=useState("");
+ const [selected,setSelected]=useState<MaintenanceItem|null>(null),[timeline,setTimeline]=useState<Array<Record<string,any>>>([]),[createOpen,setCreateOpen]=useState(false),[form,setForm]=useState<Form>(EMPTY),[saving,setSaving]=useState(false),[edit,setEdit]=useState({status:"",assigned_to:"",note:""});
+ const load=useCallback(async()=>{setLoading(true);setError(null);try{const estateId=String(context?.estate_id||"");const intelligence=Promise.all([loadOperationalRecommendations().catch(()=>[]),loadAutomationPlans().catch(()=>[])]).then(([recs,automation])=>{setRecommendations(recs.filter(x=>x.domain==="maintenance"));setPlans(automation.filter(x=>x.domain==="maintenance"))});const [requests,members,ops,homeRows]=await Promise.all([maintenanceService.list(),facilityService.listEstateUsers().catch(()=>({users:[]} as any)),facilityService.infrastructureOperations().catch(()=>null),estateId?facilityService.listHomes(estateId).catch(()=>({homes:[]})):Promise.resolve({homes:[]})]);setItems(requests);setUsers((members.users||[]).filter((m:EstateMembershipRow)=>!["disabled","suspended","removed"].includes(low(m.status))));setDevices(ops?.registry||[]);setHomes(homeRows.homes||[]);void intelligence}catch(e:any){setError(e?.response?.data?.error||e?.message||"Unable to load Maintenance.")}finally{setLoading(false)}},[context?.estate_id]);
+ useEffect(()=>{void load();const listener=(event:Event)=>{const name=String((event as CustomEvent)?.detail?.event||"");if(/maintenance|device|asset|notification|audit/.test(name))void load()};window.addEventListener("facility:realtime-event",listener);return()=>window.removeEventListener("facility:realtime-event",listener)},[load]);
+ const active=useMemo(()=>items.filter(x=>!closed(x)),[items]);const today=new Date();today.setHours(0,0,0,0);const tomorrow=new Date(today);tomorrow.setDate(today.getDate()+1);
+ const dueToday=active.filter(x=>{const d=due(x);return d&&d>=today&&d<tomorrow}),overdue=active.filter(x=>{const d=due(x);return d&&d<today});
+ const repairs=items.map(x=>{const a=new Date(x.created_at).getTime(),b=finished(x)?new Date(finished(x)!).getTime():NaN;return Number.isFinite(a)&&Number.isFinite(b)&&b>=a?(b-a)/86400000:null}).filter((x):x is number=>x!==null);const mttr=repairs.length?`${(repairs.reduce((a,b)=>a+b,0)/repairs.length).toFixed(1)}d`:"—";
+ const assetIds=new Set(active.map(x=>String(x.metadata?.asset_id||x.metadata?.device_id||"")).filter(Boolean));
+ const priorities=useMemo(()=>PRIORITIES.map(priority=>({priority,count:items.filter(x=>low(x.priority)===priority||(priority==="critical"&&low(x.priority)==="urgent")).length})),[items]);
+ const filtered=useMemo(()=>items.filter(x=>{const s=low(x.status);const state=filter==="all"||(filter==="open"&&!closed(x)&&!progressing(x))||(filter==="in_progress"&&progressing(x))||(filter==="waiting"&&s.startsWith("waiting"))||(filter==="completed"&&["completed","verified","resolved","closed"].includes(s))||(filter==="cancelled"&&s==="cancelled");const hay=[x.title,x.description,x.category,x.priority,x.status,location(x),asset(x),owner(x,users)].join(" ").toLowerCase();return state&&(!query||hay.includes(query.toLowerCase()))}),[items,filter,query,users]);
+ const health=useMemo(()=>({healthy:devices.filter(d=>d.online===true||["online","healthy","good"].includes(low(d.health_status||d.status))).length,attention:devices.filter(d=>["degraded","attention","error"].includes(low(d.health_status||d.status))).length,offline:devices.filter(d=>d.online===false||low(d.status)==="offline").length}),[devices]);
+ async function openItem(item:MaintenanceItem){setSelected(item);setEdit({status:String(item.status||"open"),assigned_to:String(item.assigned_to||""),note:""});setTimeline(await maintenanceService.timeline(item.id))}
+ async function saveItem(){if(!selected)return;setSaving(true);const r=await maintenanceService.update(selected.id,{status:edit.status,assigned_to:edit.assigned_to||null,note:edit.note||undefined});setSaving(false);if(r.error){setError(r.error);return}setNotice("Work order updated.");setSelected(r.request||selected);await load()}
+ async function createItem(){if(!form.title.trim())return;setSaving(true);const r=await maintenanceService.create({...form,home_id:form.home_id||undefined,description:form.description||undefined});setSaving(false);if(r.error){setError(r.error);return}setCreateOpen(false);setForm(EMPTY);setNotice("Work order created and added to Maintenance.");await load();if(r.request)void openItem(r.request)}
+ function switchView(next:View){setView(next);window.history.replaceState(null,"",next==="overview"?"/maintenance":`/maintenance?view=${next}`)}
 
-function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
+ return <div className="space-y-3.5 overflow-x-hidden pb-6"><Topbar title="Maintenance" subtitle="Work order management, preventive maintenance and asset reliability" rightSlot={<Button onClick={()=>setCreateOpen(true)} className="gap-2"><Plus className="h-4 w-4"/>Create Work Order</Button>}/>
+ {error?<div role="alert" className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{error}</div>:null}{notice?<div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">{notice}</div>:null}
+ <section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6"><FacilityMetricCard icon={<ClipboardList/>} label="Open work orders" value={loading?"—":active.length} detail="Active requests" accent="text-sky-400"/><FacilityMetricCard icon={<CheckCircle2/>} label="In progress" value={loading?"—":active.filter(progressing).length} detail="Ongoing work" accent="text-emerald-400"/><FacilityMetricCard icon={<Clock3/>} label="Due today" value={loading?"—":dueToday.length} detail="Scheduled today" accent="text-amber-400"/><FacilityMetricCard icon={<CalendarDays/>} label="Overdue" value={loading?"—":overdue.length} detail="Past scheduled date" accent={overdue.length?"text-rose-400":"text-zinc-400"}/><FacilityMetricCard icon={<Wrench/>} label="Assets under maintenance" value={loading?"—":assetIds.size} detail="Canonically linked" accent="text-violet-400"/><FacilityMetricCard icon={<Gauge/>} label="MTTR" value={loading?"—":mttr} detail={repairs.length?`${repairs.length} completed records`:"Timestamps unavailable"} accent="text-sky-400"/></section>
+ <nav aria-label="Maintenance workspace" className="overflow-x-auto rounded-[9px] border border-[var(--ois-border-subtle)] bg-[var(--ois-surface)] px-2"><div className="flex min-w-max">{VIEWS.map(([key,label])=><button key={key} onClick={()=>switchView(key)} className={`border-b-2 px-3 py-3 text-[10px] font-medium ${view===key?"border-sky-500 text-white":"border-transparent text-zinc-500 hover:text-zinc-300"}`}>{label}</button>)}</div></nav>
+ {(view==="overview"||view==="work-orders")?<div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]"><main className="space-y-3">{view==="overview"?<Section title="Work Order Overview" caption="Summary of maintenance activities across the facility"><div className="flex gap-2 overflow-x-auto border-t border-white/[.055] px-4 py-3">{FILTERS.map(([key,label])=><button key={key} onClick={()=>setFilter(key)} className={`min-w-max rounded-md border px-3 py-2 text-[10px] ${filter===key?"border-sky-500/40 bg-sky-500/15 text-sky-200":"border-white/[.07] bg-black/10 text-zinc-500"}`}>{label}</button>)}</div><div className="grid gap-3 border-t border-white/[.055] p-3 lg:grid-cols-[.8fr_1.2fr]"><PriorityChart rows={priorities} total={items.length}/><Trend items={items}/></div></Section>:null}<WorkOrders items={filtered} users={users} loading={loading} query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} openItem={openItem} full={view==="work-orders"}/></main><aside className="space-y-3"><PriorityRail rows={priorities} total={items.length} onSelect={p=>{setFilter("all");setQuery(p);switchView("work-orders")}}/><QuickActions onCreate={()=>setCreateOpen(true)} onAssets={()=>switchView("assets")} onAssign={()=>{switchView("work-orders");setQuery("unassigned")}} onCalendar={()=>switchView("schedules")}/>{view==="overview"?<Intelligence recommendations={recommendations} plans={plans}/>:null}<AssetHealth total={devices.length} health={health} onOpen={()=>switchView("assets")}/></aside></div>:null}
+ {view==="preventive"?<Unavailable heading="Preventive Maintenance" body="Recurring preventive-maintenance plans are not exposed by the current canonical Maintenance contract. Existing work orders and asset signals remain available; no parallel scheduler was created." icon={CalendarDays}/>:null}
+ {view==="schedules"?<Schedules items={items} onOpen={openItem}/>:null}{view==="assets"?<MaintenanceAssets devices={devices} items={items}/>:null}{view==="technicians"?<Technicians users={users} items={items}/>:null}{view==="parts"?<Unavailable heading="Parts & Inventory" body="The current Maintenance backend does not expose a canonical parts, stock, reservation, or procurement store. This workspace intentionally avoids fabricated inventory." icon={Package}/>:null}{view==="reports"?<Reports items={items} priorities={priorities} mttr={mttr}/>:null}
+ <OisDrawer open={Boolean(selected)} onClose={()=>setSelected(null)} title={selected?.title||"Work order"} subtitle={selected?`${location(selected)} · ${date(selected.created_at,true)}`:undefined} width="lg" footer={selected?<Button onClick={()=>void saveItem()} disabled={saving}>{saving?"Saving…":"Save update"}</Button>:null}>{selected?<div className="space-y-3"><div className="flex flex-wrap gap-2"><OisStatusBadge status={statusTone(selected.status)} label={title(selected.status)}/><OisStatusBadge status={priorityTone(selected.priority)} label={`${title(selected.priority||"medium")} priority`}/></div><OisCard className="p-4"><p className="text-sm leading-6 text-zinc-300">{selected.description||"No description recorded."}</p><dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2"><Fact label="Work order ID" value={selected.id}/><Fact label="Asset" value={asset(selected)}/><Fact label="Category" value={title(selected.category)}/><Fact label="Location" value={location(selected)}/><Fact label="Assigned to" value={owner(selected,users)}/><Fact label="Created" value={date(selected.created_at,true)}/><Fact label="Scheduled / due" value={date(schedule(selected),true)}/><Fact label="Completed" value={date(finished(selected),true)}/></dl></OisCard><OisCard className="p-4"><h3 className="text-xs font-semibold text-white">Lifecycle & assignment</h3><div className="mt-3 grid gap-3 sm:grid-cols-2"><Field label="Status"><select value={edit.status} onChange={e=>setEdit(x=>({...x,status:e.target.value}))}>{STATUSES.map(s=><option key={s} value={s}>{title(s)}</option>)}</select></Field><Field label="Assigned technician"><select value={edit.assigned_to} onChange={e=>setEdit(x=>({...x,assigned_to:e.target.value}))}><option value="">Unassigned</option>{users.map(u=><option key={u.id} value={u.users?.id}>{u.users?.full_name||u.users?.email||"Facility user"}</option>)}</select></Field></div><Field label="Activity note" wide><textarea rows={3} value={edit.note} onChange={e=>setEdit(x=>({...x,note:e.target.value}))} placeholder="Add a canonical timeline note"/></Field></OisCard><Section title="Activity & history" caption="Canonical maintenance timeline">{timeline.length?<div className="divide-y divide-white/[.055]">{timeline.map((row,i)=><div key={row.id||i} className="px-4 py-3"><p className="text-xs font-medium text-zinc-300">{title(row.action||row.event_type||"Updated")}</p><p className="mt-1 text-[10px] text-zinc-500">{row.note||`${title(row.from_status)} → ${title(row.to_status)}`} · {date(row.created_at,true)}</p></div>)}</div>:<EmptyState heading="No history recorded" body="No canonical timeline events are available for this work order."/>}</Section></div>:null}</OisDrawer>
+ <OisDrawer open={createOpen} onClose={()=>setCreateOpen(false)} title="Create Work Order" subtitle="Log a canonical Facility maintenance request" width="md" footer={<div className="flex justify-end gap-2"><Button variant="ghost" onClick={()=>setCreateOpen(false)}>Cancel</Button><Button disabled={saving||!form.title.trim()} onClick={()=>void createItem()}>{saving?"Creating…":"Create Work Order"}</Button></div>}><div className="grid gap-3 sm:grid-cols-2"><Field label="Title" wide><input value={form.title} onChange={e=>setForm(x=>({...x,title:e.target.value}))} placeholder="Describe the required work"/></Field><Field label="Home / location"><select value={form.home_id} onChange={e=>setForm(x=>({...x,home_id:e.target.value}))}><option value="">Facility level</option>{homes.map(home=><option key={home.id} value={home.id}>{home.name||home.unit||`Home ${String(home.id).slice(0,8)}`}</option>)}</select></Field><Field label="Category"><select value={form.category} onChange={e=>setForm(x=>({...x,category:e.target.value}))}>{["repair","inspection","electrical","plumbing","hvac","safety","general"].map(x=><option key={x} value={x}>{title(x)}</option>)}</select></Field><Field label="Priority"><select value={form.priority} onChange={e=>setForm(x=>({...x,priority:e.target.value}))}>{PRIORITIES.map(x=><option key={x} value={x}>{title(x)}</option>)}</select></Field><Field label="Description / problem" wide><textarea rows={5} value={form.description} onChange={e=>setForm(x=>({...x,description:e.target.value}))} placeholder="Add the operational details available to the maintenance team"/></Field></div><p className="mt-4 text-[10px] leading-5 text-zinc-600">Creation uses the existing Maintenance mutation, notification, audit, intelligence-event, and realtime architecture.</p></OisDrawer>
+ </div>
 }
 
-function lower(value: unknown) {
-  return String(value || "").toLowerCase();
-}
-
-function titleCase(value: unknown) {
-  return String(value || "pending source").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function isClosed(item: MaintenanceItem) {
-  return ["completed", "closed", "cancelled", "resolved"].includes(lower(item.status));
-}
-
-function isWaiting(item: MaintenanceItem) {
-  return ["waiting_for_resident", "waiting_for_parts"].includes(lower(item.status));
-}
-
-function isAssigned(item: MaintenanceItem) {
-  return Boolean(item.assigned_to || item.assigned_operator || item.metadata?.assigned_operator);
-}
-
-function scheduledAt(item: MaintenanceItem) {
-  const explicit = item.scheduled_at || item.metadata?.scheduled_at;
-  if (explicit) return explicit;
-  const date = item.schedule_date || item.metadata?.schedule_date;
-  const time = item.schedule_time || item.metadata?.schedule_time;
-  return date ? `${date}${time ? `T${time}` : ""}` : null;
-}
-
-function isScheduledToday(item: MaintenanceItem) {
-  const dateValue = scheduledAt(item);
-  if (!dateValue) return false;
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return false;
-  const today = new Date();
-  return date.toDateString() === today.toDateString();
-}
-
-function dateLabel(value?: string | null) {
-  if (!value) return "Time unavailable";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Time unavailable";
-  return date.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-
-function statusTone(status?: string) {
-  const value = lower(status);
-  if (["completed", "closed", "resolved"].includes(value)) return "completed";
-  if (["assigned", "scheduled", "in_progress"].includes(value)) return "attention";
-  if (["waiting_for_resident", "waiting_for_parts"].includes(value)) return "warning";
-  if (value === "cancelled") return "blocked";
-  return "pending";
-}
-
-function priorityTone(priority?: string | null) {
-  const value = lower(priority || "medium");
-  if (value === "urgent") return "critical";
-  if (value === "high") return "warning";
-  if (value === "low") return "stable";
-  return "attention";
-}
-
-function locationOf(item: MaintenanceItem) {
-  return [item.home_name, item.room_name, item.home_id ? `Home ${String(item.home_id).slice(0, 6)}...` : null]
-    .filter(Boolean)
-    .join(" / ") || "Location pending";
-}
-
-function requesterOf(item: MaintenanceItem) {
-  return item.resident_name || item.user_name || item.resident_email || item.user_email || item.resident_id || item.user_id || "Resident pending";
-}
-
-function ownerOf(item: MaintenanceItem) {
-  return item.assigned_operator || item.metadata?.assigned_operator || item.assigned_to || "No operator assigned";
-}
-
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <OisCard variant="evidence" className="p-3">
-      <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">{label}</div>
-      <div className="mt-1 text-sm text-[var(--ois-text-primary)]">{value}</div>
-    </OisCard>
-  );
-}
-
-export default function MaintenancePage() {
-  const [items, setItems] = useState<MaintenanceItem[]>([]);
-  const [operators, setOperators] = useState<EstateMembershipRow[]>([]);
-  const [lane, setLane] = useState<Lane>("active");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [selected, setSelected] = useState<MaintenanceItem | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<WorkOrderForm>({ status: "assigned", assigned_to: "", schedule_date: "", schedule_time: "", note: "" });
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      const [requests, estateUsers] = await Promise.all([maintenanceService.list(), facilityService.listEstateUsers().catch(() => ({ users: [] }))]);
-      setItems(requests);
-      setOperators((estateUsers.users || []).filter((member) => !["disabled", "suspended", "removed"].includes(lower(member.status))));
-    } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Failed to load maintenance requests");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-    const onRealtime = (event: Event) => {
-      const name = (event as CustomEvent)?.detail?.event || "";
-      if (/maintenance|notification|audit/.test(name)) void load();
-    };
-    window.addEventListener("facility:realtime-event", onRealtime);
-    return () => window.removeEventListener("facility:realtime-event", onRealtime);
-  }, []);
-
-  function open(item: MaintenanceItem) {
-    setSelected(item);
-    const schedule = scheduledAt(item);
-    const date = schedule && !Number.isNaN(new Date(schedule).getTime()) ? new Date(schedule) : null;
-    setForm({
-      status: String(item.status || "assigned"),
-      assigned_to: String(item.assigned_to || ""),
-      schedule_date: date ? date.toISOString().slice(0, 10) : "",
-      schedule_time: date ? date.toTimeString().slice(0, 5) : "",
-      note: "",
-    });
-  }
-
-  async function saveWorkOrder() {
-    if (!selected) return;
-    setSaving(true);
-    setError(null);
-    setNotice(null);
-    const scheduled_at = form.schedule_date ? `${form.schedule_date}T${form.schedule_time || "09:00"}:00` : undefined;
-    const result = await maintenanceService.update(selected.id, {
-      status: form.status,
-      assigned_to: form.assigned_to.trim() || null,
-      note: form.note.trim() || undefined,
-      scheduled_at,
-      schedule_date: form.schedule_date || undefined,
-      schedule_time: form.schedule_time || undefined,
-      visit_notes: form.note.trim() || undefined,
-    });
-    setSaving(false);
-    if (result.error) {
-      setError(result.error);
-      return;
-    }
-    setNotice("Maintenance request updated.");
-    setSelected(result.request || selected);
-    await load();
-  }
-
-  const filtered = useMemo(() => {
-    if (lane === "all") return items;
-    if (lane === "unassigned") return items.filter((item) => !isClosed(item) && !isAssigned(item));
-    if (lane === "scheduled") return items.filter((item) => !isClosed(item) && Boolean(scheduledAt(item)));
-    if (lane === "waiting") return items.filter(isWaiting);
-    if (lane === "completed") return items.filter(isClosed);
-    return items.filter((item) => !isClosed(item));
-  }, [items, lane]);
-
-  const stats = useMemo(() => {
-    const active = items.filter((item) => !isClosed(item));
-    return {
-      open: active.length,
-      assigned: active.filter(isAssigned).length,
-      completed: items.filter(isClosed).length,
-      unassigned: active.filter((item) => !isAssigned(item)).length,
-      escalated: active.filter((item) => ["urgent", "high"].includes(lower(item.priority))).length,
-      waiting: active.filter(isWaiting).length,
-      scheduledToday: active.filter(isScheduledToday).length,
-    };
-  }, [items]);
-
-  const timeline = selected
-    ? [
-        { label: "Original request", body: selected.description || selected.title || "Maintenance request created.", time: selected.created_at },
-        ...(selected.assigned_to ? [{ label: "Assigned operator", body: ownerOf(selected), time: selected.updated_at || selected.created_at }] : []),
-        ...(scheduledAt(selected) ? [{ label: "Scheduled visit", body: "Visit window recorded for facility follow-up.", time: scheduledAt(selected) }] : []),
-        ...(selected.note || selected.notes ? [{ label: "Operator notes", body: selected.note || selected.notes || "", time: selected.updated_at || selected.created_at }] : []),
-        ...(selected.completion_notes ? [{ label: "Completion notes", body: selected.completion_notes, time: selected.updated_at || selected.created_at }] : []),
-      ]
-    : [];
-
-  const columns = useMemo<ColumnDef<MaintenanceItem>[]>(() => [
-    {
-      accessorKey: "title",
-      header: "Work order",
-      cell: ({ row }) => {
-        const item = row.original;
-        return (
-          <div className="min-w-[260px]">
-            <div className="font-medium text-white">{item.title || "Maintenance request"}</div>
-            <div className="mt-1 text-xs text-zinc-500">{locationOf(item)} · {dateLabel(item.created_at)}</div>
-          </div>
-        );
-      },
-    },
-    { header: "Requester", cell: ({ row }) => <span className="text-sm text-zinc-300">{requesterOf(row.original)}</span> },
-    { header: "Owner", cell: ({ row }) => <span className="text-sm text-zinc-300">{ownerOf(row.original)}</span> },
-    {
-      accessorKey: "priority",
-      header: "Priority",
-      cell: ({ row }) => <OisStatusBadge status={priorityTone(row.original.priority)} label={titleCase(row.original.priority || "medium")} />,
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => <OisStatusBadge status={statusTone(row.original.status)} label={titleCase(row.original.status)} />,
-    },
-    { header: "Schedule", cell: ({ row }) => <span className="text-xs text-zinc-400">{scheduledAt(row.original) ? dateLabel(scheduledAt(row.original)) : "Not scheduled"}</span> },
-    { id: "actions", header: "", cell: ({ row }) => <Button variant="ghost" onClick={() => open(row.original)}>Open</Button> },
-  ], []);
-
-  return (
-    <div className="space-y-6">
-      <Topbar title="Maintenance" subtitle="Work orders and ownership" strip={[{ label: "Healthy", value: stats.unassigned || stats.escalated ? "Review" : "Stable", detail: "Queue posture", tone: stats.unassigned || stats.escalated ? "warning" : "stable" }, { label: "Open", value: stats.open, detail: "Active requests", tone: "attention" }, { label: "Attention", value: stats.unassigned + stats.escalated, detail: "Unassigned or escalated", tone: "warning" }, { label: "Updated", value: loading ? "Refreshing" : "Now", detail: "Queue sync", tone: "info" }]} />
-      {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
-      {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
-
-      <OisRegistryPanel
-        title="Maintenance Queue"
-        caption={loading ? "Loading records" : `${filtered.length} records`}
-        toolbar={<OisPageToolbar
-          filterSlot={
-            <div className="flex min-w-max flex-nowrap gap-2">
-              {([
-                ["active", "Active"],
-                ["unassigned", "Unassigned"],
-                ["scheduled", "Scheduled"],
-                ["waiting", "Waiting"],
-                ["completed", "Completed"],
-                ["all", "All"],
-              ] as Array<[Lane, string]>).map(([key, label]) => (
-                <button key={key} type="button" onClick={() => setLane(key)} className={cn("rounded-full border px-3 py-2 text-xs transition", lane === key ? "border-sky-400/40 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white")}>{label}</button>
-              ))}
-            </div>
-          }
-          onRefresh={() => void load()}
-          refreshing={loading}
-          searchPlaceholder="Search maintenance queue..."
-        />}
-        className="p-4"
-      >
-        <div className="hidden md:block">
-          <DataTable data={filtered} columns={columns} title="Maintenance Queue" searchKey="title" />
-        </div>
-        <div className="space-y-2 md:hidden">{filtered.map((item) => <OisListItem key={item.id} title={item.title || "Maintenance request"} description={`${locationOf(item)} · ${titleCase(item.priority || "medium")} priority`} meta={scheduledAt(item) ? `Visit ${dateLabel(scheduledAt(item))}` : ownerOf(item)} status={statusTone(item.status)} action={<ChevronRight className="h-4 w-4 text-[var(--ois-text-muted)]" />} onClick={() => open(item)} className="w-full text-left" />)}{!filtered.length && !loading ? <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-zinc-500">No maintenance items in this lane.</p> : null}</div>
-      </OisRegistryPanel>
-
-      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <OisCard className="p-4">
-          <h2 className="text-sm font-semibold text-white">Attention lanes</h2>
-          <div className="mt-3 space-y-2 text-sm">
-            <Field label="Unassigned requests" value={stats.unassigned} />
-            <Field label="Waiting for resident" value={items.filter((item) => lower(item.status) === "waiting_for_resident").length} />
-            <Field label="Waiting for parts" value={items.filter((item) => lower(item.status) === "waiting_for_parts").length} />
-            <Field label="Escalated requests" value={stats.escalated} />
-            <Field label="SLA visibility" value="Awaiting SLA readiness" />
-          </div>
-        </OisCard>
-        <OisCard className="p-4">
-          <h2 className="text-sm font-semibold text-white">Resident Continuity</h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Resident-submitted maintenance requests appear here. Status changes notify the requester through the existing backend maintenance update route.</p>
-          <Link href="/overview" className="mt-3 inline-flex text-sm text-sky-200">Return to overview</Link>
-        </OisCard>
-      </section>
-
-      <OisRuntimeCard
-        title="Runtime Insights"
-        items={[
-          { label: "Scheduled today", value: stats.scheduledToday, delta: "visit windows recorded" },
-          { label: "Waiting items", value: stats.waiting, delta: "resident or parts dependency" },
-          { label: "Escalated", value: stats.escalated, delta: "urgent or high priority" },
-        ]}
-      />
-
-      <OisDrawer
-        open={Boolean(selected)}
-        onClose={() => setSelected(null)}
-        title={selected?.title || "Maintenance request"}
-        subtitle={selected ? `${locationOf(selected)} · ${dateLabel(selected.created_at)}` : undefined}
-        width="lg"
-        footer={selected ? <div className="space-y-3"><Button onClick={() => void saveWorkOrder()} disabled={saving}>{saving ? "Saving" : "Save update"}</Button><p className="text-xs leading-5 text-zinc-500">Backend persists status and assigned operator. Technician acknowledgement and completion proof remain pending backend workflow support.</p></div> : null}
-      >
-        {selected ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{selected.description || selected.title || "Maintenance request created."}</p><p className="mt-2 text-xs text-zinc-500">Requester {requesterOf(selected)}</p></div><div className="flex flex-wrap gap-2"><OisStatusBadge status={statusTone(selected.status)} label={titleCase(selected.status)} /><OisStatusBadge status={priorityTone(selected.priority)} label={titleCase(selected.priority || "medium")} /></div></div></OisCard><div className="grid gap-3 sm:grid-cols-2"><Field label="Requester" value={requesterOf(selected)} /><Field label="Current owner" value={ownerOf(selected)} /><Field label="Scheduled visit" value={scheduledAt(selected) ? dateLabel(scheduledAt(selected)) : "Not scheduled"} /><Field label="Ownership activity" value={selected.assigned_to ? `Assigned to ${ownerOf(selected)} on ${dateLabel(selected.updated_at || selected.created_at)}` : "No ownership activity recorded"} /><Field label="Request age" value={dateLabel(selected.created_at)} />{selected.verified_at || selected.verified_by_resident !== undefined || selected.resident_rating !== undefined || selected.resident_feedback ? <><Field label="Verification status" value={<VerificationBadge state={selected.verified_at || selected.verified_by_resident ? "verified" : "pending"} />} /><Field label="Resident confirmation" value={selected.verified_by_resident ? "Confirmed" : "Not recorded"} />{selected.resident_rating !== undefined && selected.resident_rating !== null ? <Field label="Resident rating" value={`${selected.resident_rating}/5`} /> : null}{selected.resident_feedback ? <Field label="Resident feedback" value={selected.resident_feedback} /> : null}</> : null}</div><OisCard variant="evidence" className="p-4"><h3 className="text-sm font-semibold text-white">Resident Communication Activity</h3><div className="mt-4 space-y-3">{timeline.map((item, index) => <div key={`${item.label}-${index}`} className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3"><MessageSquare className="mt-0.5 h-4 w-4 text-sky-200" /><div><div className="text-sm text-white">{item.label}</div><div className="mt-1 text-sm text-zinc-400">{item.body}</div><div className="mt-1 text-xs text-zinc-600">{dateLabel(item.time)}</div></div></div>)}{!timeline.length ? <p className="text-sm text-zinc-500">No communication activity is available for this request.</p> : null}</div></OisCard><OisCard variant="evidence" className="p-4"><h3 className="text-sm font-semibold text-white">Lifecycle Readiness</h3><div className="mt-4 grid gap-3"><label className="text-xs text-zinc-400">Status<select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none">{STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="text-xs text-zinc-400">Assigned operator<select value={form.assigned_to} onChange={(event) => setForm((current) => ({ ...current, assigned_to: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none"><option value="">Unassigned</option>{operators.map((operator) => <option key={operator.id} value={operator.users?.id || ""}>{operator.users?.full_name || operator.users?.username || operator.users?.email || "Unnamed operator"} · {String(operator.role || "operator").replace(/_/g, " ")}</option>)}</select></label><div className="grid grid-cols-2 gap-2"><label className="text-xs text-zinc-400">Schedule date<input type="date" value={form.schedule_date} onChange={(event) => setForm((current) => ({ ...current, schedule_date: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label><label className="text-xs text-zinc-400">Time<input type="time" value={form.schedule_time} onChange={(event) => setForm((current) => ({ ...current, schedule_time: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label></div><label className="text-xs text-zinc-400">Resident / operator note<textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} rows={4} placeholder="Visible update note if backend supports it" className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm text-white outline-none" /></label></div></OisCard></div> : null}
-      </OisDrawer>
-    </div>
-  );
-}
+function PriorityChart({rows,total}:{rows:Array<{priority:string;count:number}>;total:number}){const state=rows.reduce<{parts:string[];offset:number}>((a,r)=>{const share=pct(r.count,total);a.parts.push(`${COLORS[r.priority]} ${a.offset}% ${a.offset+share}%`);a.offset+=share;return a},{parts:[],offset:0});return <div className="rounded-lg border border-white/[.055] bg-black/10 p-4"><h3 className="text-xs font-semibold text-white">Work Orders by Priority</h3>{total?<div className="mt-4 flex items-center gap-5"><div className="grid h-24 w-24 shrink-0 place-items-center rounded-full" style={{background:`conic-gradient(${state.parts.join(",")})`}}><div className="grid h-16 w-16 place-items-center rounded-full bg-[var(--ois-surface)] text-center"><span><b className="block text-lg text-white">{total}</b><small className="text-[8px] text-zinc-500">Total</small></span></div></div><div className="min-w-0 flex-1 space-y-2">{rows.map(r=><div key={r.priority} className="flex items-center gap-2 text-[10px]"><i className="h-2 w-2 rounded-full" style={{background:COLORS[r.priority]}}/><span className="flex-1 text-zinc-400">{title(r.priority)}</span><b className="text-zinc-300">{r.count} ({pct(r.count,total)}%)</b></div>)}</div></div>:<EmptyState heading="No priority data" body="Priority analytics will appear when work orders exist."/>}</div>}
+function Trend({items}:{items:MaintenanceItem[]}){const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-(6-i));const end=new Date(d);end.setDate(d.getDate()+1);return{label:d.toLocaleDateString([],{weekday:"short"}),created:items.filter(x=>{const t=new Date(x.created_at);return t>=d&&t<end}).length,completed:items.filter(x=>{const raw=finished(x);if(!raw)return false;const t=new Date(raw);return t>=d&&t<end}).length}});const max=Math.max(1,...days.flatMap(x=>[x.created,x.completed]));return <div className="rounded-lg border border-white/[.055] bg-black/10 p-4"><div className="flex justify-between"><h3 className="text-xs font-semibold text-white">Work Orders Trend</h3><span className="text-[9px] text-zinc-600">Last 7 days</span></div>{items.length?<div className="mt-5 flex h-28 items-end gap-2 border-b border-white/[.06]">{days.map(day=><div key={day.label} className="relative flex h-full flex-1 items-end justify-center gap-0.5"><i className="w-1.5 rounded-t bg-sky-500" style={{height:`${Math.max(day.created/max*100,3)}%`}}/><i className="w-1.5 rounded-t bg-emerald-500" style={{height:`${Math.max(day.completed/max*100,3)}%`}}/><span className="absolute -bottom-5 text-[8px] text-zinc-600">{day.label}</span></div>)}</div>:<EmptyState heading="No trend history" body="Historical work-order activity is not yet available."/>}<div className="mt-7 flex justify-center gap-4 text-[9px] text-zinc-500"><span><i className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-sky-500"/>Created</span><span><i className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"/>Completed</span></div></div>}
+function WorkOrders({items,users,loading,query,setQuery,filter,setFilter,openItem,full}:{items:MaintenanceItem[];users:EstateMembershipRow[];loading:boolean;query:string;setQuery:(v:string)=>void;filter:Filter;setFilter:(v:Filter)=>void;openItem:(v:MaintenanceItem)=>void;full:boolean}){const rows=full?items:items.slice(0,6);return <Section title={full?"Work Orders":"Recent Work Orders"} caption={loading?"Loading canonical maintenance records":`${items.length} maintenance records`} action={<div className="relative"><Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-zinc-600"/><input aria-label="Search work orders" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search" className="h-8 w-36 rounded-md border border-white/[.08] bg-black/20 pl-8 pr-2 text-[10px] text-white outline-none"/></div>}>{full?<div className="flex gap-2 overflow-x-auto border-y border-white/[.055] px-4 py-3">{FILTERS.map(([key,label])=><button key={key} onClick={()=>setFilter(key)} className={`min-w-max rounded-md border px-3 py-2 text-[10px] ${filter===key?"border-sky-500/40 bg-sky-500/15 text-sky-200":"border-white/[.07] text-zinc-500"}`}>{label}</button>)}</div>:null}<div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[820px] text-left"><thead><tr className="border-b border-white/[.055] text-[8px] uppercase tracking-[.06em] text-zinc-600">{["Work order","Asset","Type","Priority","Status","Assigned to","Due date","Location",""] .map(x=><th key={x} className="px-3 py-2.5 font-medium">{x}</th>)}</tr></thead><tbody>{rows.map(x=><tr key={x.id} className="border-b border-white/[.045] text-[10px] last:border-0 hover:bg-white/[.02]"><td className="px-3 py-3"><b className="block max-w-48 truncate text-zinc-200">{x.title||"Maintenance request"}</b><span className="text-[9px] text-zinc-600">{x.id.slice(0,10)}</span></td><td className="px-3 py-3 text-zinc-400">{asset(x)}</td><td className="px-3 py-3 text-zinc-400">{title(x.category)}</td><td className="px-3 py-3"><OisStatusBadge status={priorityTone(x.priority)} label={title(x.priority||"medium")}/></td><td className="px-3 py-3"><OisStatusBadge status={statusTone(x.status)} label={title(x.status)}/></td><td className="px-3 py-3 text-zinc-400">{owner(x,users)}</td><td className="px-3 py-3 text-zinc-400">{date(schedule(x))}</td><td className="px-3 py-3 text-zinc-400">{location(x)}</td><td className="px-3 py-3"><button onClick={()=>void openItem(x)} className="rounded-md border border-white/[.08] px-2.5 py-1.5 text-[9px] text-zinc-300">View</button></td></tr>)}</tbody></table></div><div className="space-y-2 p-3 md:hidden">{rows.map(x=><button key={x.id} onClick={()=>void openItem(x)} className="flex w-full items-center gap-3 rounded-lg border border-white/[.06] bg-black/10 p-3 text-left"><span className="grid h-8 w-8 place-items-center rounded-md bg-sky-500/10 text-sky-400"><Wrench className="h-4 w-4"/></span><span className="min-w-0 flex-1"><b className="block truncate text-xs text-white">{x.title}</b><small className="block truncate text-[9px] text-zinc-500">{location(x)} · {title(x.status)}</small></span><ChevronRight className="h-4 w-4 text-zinc-600"/></button>)}</div>{!rows.length&&!loading?<EmptyState heading="No work orders" body="Create a work order when maintenance is required. No demo records are shown."/>:null}</Section>}
+function PriorityRail({rows,total,onSelect}:{rows:Array<{priority:string;count:number}>;total:number;onSelect:(v:string)=>void}){return <Section title="Priority Breakdown" caption="Open work orders by priority"><div className="space-y-4 px-4 pb-4 pt-2">{rows.map(r=><button key={r.priority} onClick={()=>onSelect(r.priority)} className="grid w-full grid-cols-[52px_1fr_52px] items-center gap-2 text-left text-[10px]"><span className="text-zinc-400">{title(r.priority)}</span><i className="h-1.5 overflow-hidden rounded-full bg-white/[.055]"><b className="block h-full rounded-full" style={{width:`${pct(r.count,total)}%`,background:COLORS[r.priority]}}/></i><span className="text-right text-zinc-300">{r.count} ({pct(r.count,total)}%)</span></button>)}</div></Section>}
+function QuickActions({onCreate,onAssets,onAssign,onCalendar}:{onCreate:()=>void;onAssets:()=>void;onAssign:()=>void;onCalendar:()=>void}){const actions=[[Plus,"Create Work Order",onCreate],[Search,"Find Asset",onAssets],[UserRound,"Assign Technician",onAssign],[CalendarDays,"View Calendar",onCalendar]] as const;return <Section title="Quick Actions" caption="Supported maintenance operations"><div className="grid grid-cols-2 gap-2 px-4 pb-4">{actions.map(([Icon,label,action])=><button key={label} onClick={action} className="flex items-center gap-2 rounded-lg border border-white/[.07] bg-black/10 px-3 py-2.5 text-left text-[9px] text-zinc-300"><Icon className="h-3.5 w-3.5 text-sky-400"/>{label}</button>)}</div></Section>}
+function AssetHealth({total,health,onOpen}:{total:number;health:{healthy:number;attention:number;offline:number};onOpen:()=>void}){return <Section title="Assets Health Overview" caption="Canonical maintainable asset projection"><div className="space-y-3 px-4 pb-4">{total?[["Healthy",health.healthy,"bg-emerald-500"],["Attention",health.attention,"bg-amber-500"],["Offline",health.offline,"bg-rose-500"]].map(([label,count,color])=><div key={String(label)} className="flex items-center text-[10px]"><i className={`mr-2 h-2 w-2 rounded-full ${color}`}/><span className="flex-1 text-zinc-400">{label}</span><b className="text-zinc-300">{count}</b></div>):<p className="text-xs text-zinc-600">No canonical asset health records are available.</p>}<button onClick={onOpen} className="w-full pt-2 text-center text-[10px] text-sky-400">View maintenance assets →</button></div></Section>}
+function Intelligence({recommendations,plans}:{recommendations:OperationalRecommendation[];plans:AutomationPlan[]}){return <Section title="Oyi Maintenance Intelligence" caption="Existing reasoning and safe-automation runtime"><div className="space-y-2 px-4 pb-4">{recommendations.slice(0,3).map(item=><div key={item.id} className="rounded-lg border border-white/[.06] bg-black/10 p-3"><p className="text-[10px] font-medium text-zinc-300">{item.title}</p><p className="mt-1 text-[9px] leading-4 text-zinc-600">{item.summary}</p></div>)}{!recommendations.length?<p className="text-xs text-zinc-600">No maintenance recommendations require review.</p>:null}<p className="pt-1 text-[9px] text-zinc-600">{plans.length} governed automation {plans.length===1?"plan":"plans"} available. Consequential actions retain approval and audit controls.</p></div></Section>}
+function Unavailable({heading,body,icon:Icon}:{heading:string;body:string;icon:typeof CalendarDays}){return <Section title={heading} caption="Canonical capability status"><EmptyState icon={Icon} heading={`${heading} is not yet available`} body={body}/></Section>}
+function Schedules({items,onOpen}:{items:MaintenanceItem[];onOpen:(v:MaintenanceItem)=>void}){const rows=items.filter(x=>due(x)).sort((a,b)=>due(a)!.getTime()-due(b)!.getTime());return <Section title="Schedules" caption="Scheduled work from canonical maintenance records">{rows.length?<div className="divide-y divide-white/[.055]">{rows.map(x=><button key={x.id} onClick={()=>void onOpen(x)} className="flex w-full items-center gap-3 px-4 py-3 text-left"><CalendarDays className="h-4 w-4 text-sky-400"/><span className="min-w-0 flex-1"><b className="block truncate text-xs text-zinc-200">{x.title}</b><small className="text-[9px] text-zinc-500">{location(x)}</small></span><span className="text-[10px] text-zinc-400">{date(schedule(x),true)}</span><ChevronRight className="h-4 w-4 text-zinc-600"/></button>)}</div>:<EmptyState icon={CalendarDays} heading="No scheduled maintenance" body="The current records contain no canonical schedule dates."/>}</Section>}
+function MaintenanceAssets({devices,items}:{devices:InfrastructureDevice[];items:MaintenanceItem[]}){return <Section title="Maintenance Assets" caption="Maintenance projection of the canonical Assets registry">{devices.length?<div className="grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-3">{devices.map(d=>{const linked=items.filter(x=>String(x.metadata?.asset_id||x.metadata?.device_id||"")===d.id);return <div key={d.id} className="rounded-lg border border-white/[.06] bg-black/10 p-3"><div className="flex items-start gap-3"><span className="grid h-8 w-8 place-items-center rounded-md bg-sky-500/10 text-sky-400"><Settings2 className="h-4 w-4"/></span><span className="min-w-0 flex-1"><b className="block truncate text-xs text-white">{d.name}</b><small className="text-[9px] text-zinc-500">{d.type||d.category} · {d.home?.name||d.room?.name||"Facility"}</small></span><OisStatusBadge status={d.online===false?"blocked":d.health_status==="degraded"?"warning":"stable"} label={title(d.health_status||d.status)}/></div><p className="mt-3 text-[10px] text-zinc-500">{linked.filter(x=>!closed(x)).length} open work orders · {linked.length} total</p></div>})}</div>:<EmptyState icon={Settings2} heading="No maintenance assets" body="No canonical asset registry projection is available for this facility."/>}</Section>}
+function Technicians({users,items}:{users:EstateMembershipRow[];items:MaintenanceItem[]}){return <Section title="Technicians" caption="Facility people eligible for maintenance assignment">{users.length?<div className="grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-3">{users.map(u=>{const count=items.filter(x=>x.assigned_to===u.users?.id&&!closed(x)).length;return <div key={u.id} className="flex items-center gap-3 rounded-lg border border-white/[.06] bg-black/10 p-3"><span className="grid h-9 w-9 place-items-center rounded-full bg-sky-500/10 text-sky-400"><UserRound className="h-4 w-4"/></span><span className="min-w-0 flex-1"><b className="block truncate text-xs text-white">{u.users?.full_name||u.users?.username||u.users?.email||"Facility user"}</b><small className="block text-[9px] text-zinc-500">{title(u.role)} · {count} open assignments</small></span></div>})}</div>:<EmptyState icon={UsersRound} heading="No assignable people" body="No active Facility memberships are available for assignment."/>}</Section>}
+function Reports({items,priorities,mttr}:{items:MaintenanceItem[];priorities:Array<{priority:string;count:number}>;mttr:string}){const complete=items.filter(closed).length;return <div className="grid gap-3 lg:grid-cols-3"><Section title="Completion" caption="Canonical lifecycle records"><div className="px-4 pb-5"><b className="text-3xl text-white">{pct(complete,items.length)}%</b><p className="mt-1 text-xs text-zinc-500">{complete} of {items.length} work orders closed</p></div></Section><Section title="Mean Time To Repair" caption="Defensible completed timestamps"><div className="px-4 pb-5"><b className="text-3xl text-white">{mttr}</b><p className="mt-1 text-xs text-zinc-500">Unavailable when completion timestamps are absent</p></div></Section><Section title="Priority profile" caption="Canonical work-order priorities"><div className="space-y-2 px-4 pb-5">{priorities.map(r=><div key={r.priority} className="flex text-xs"><span className="flex-1 text-zinc-500">{title(r.priority)}</span><b className="text-zinc-300">{r.count}</b></div>)}</div></Section></div>}

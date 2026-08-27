@@ -16,7 +16,7 @@ const DOMAIN_SUBTITLES: Record<string, string> = {
   utilities: "Infrastructure services and providers",
   "environment-sensors": "Sensors and comfort signals",
   "traffic-mobility": "Access control, visitors, gates and entry management",
-  maintenance: "Work orders and ownership",
+  maintenance: "Work order management, preventive maintenance and asset reliability",
   community: "Notices, posts, and moderation",
   wallets: "Transactions and payment review",
 };
