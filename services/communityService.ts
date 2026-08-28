@@ -28,6 +28,11 @@ export type CommunityPost = {
   audience_ref?: string | null;
   scheduled_at?: string | null;
   priority?: string | null;
+  author_avatar_url?: string | null;
+  author_role?: string | null;
+  source_type?: string | null;
+  source_label?: string | null;
+  is_official?: boolean;
 };
 
 export type CommunityComment = {
@@ -95,11 +100,12 @@ export const communityService = {
 
   async updatePost(
     postId: string,
-    input: { title?: string | null; content?: string | null; status?: string | null; category?: string | null; is_pinned?: boolean | null; pinned_until?: string | null; audience?: { type?: string | null; ref?: string | null } | null; scheduled_at?: string | null; priority?: string | null }
+    input: { title?: string | null; content?: string | null; media?: any; status?: string | null; category?: string | null; is_pinned?: boolean | null; pinned_until?: string | null; audience?: { type?: string | null; ref?: string | null } | null; scheduled_at?: string | null; priority?: string | null }
   ): Promise<CommunityPost> {
     const res = await API.put(`/community/post/${postId}`, {
       title: input.title,
       content: input.content,
+      media: input.media,
       status: input.status,
       category: input.category,
       is_pinned: input.is_pinned,

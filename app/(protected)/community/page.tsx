@@ -1,237 +1,76 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, BarChart3, CalendarDays, ChevronRight, FileImage, Flag, Heart, Image as ImageIcon, Megaphone, MessageSquare, Paperclip, Plus, Search, Settings, ShieldAlert, Users, Video } from "lucide-react";
+import FacilityMetricCard from "@/components/ois/FacilityMetricCard";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
-import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
-import { OisOperationalStrip, OisRegistryHeader } from "@/components/ois";
-import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { communityService, type CommunityPost } from "@/services/communityService";
+import { communityService, type CommunityComment, type CommunityPost } from "@/services/communityService";
 import messagesService, { type ModerationReport } from "@/services/messagesService";
-import { facilityService } from "@/services/facilityService";
+import { facilityService, type EstateMembershipRow } from "@/services/facilityService";
 import { hasPermission } from "@/lib/oyiFoundation";
 import { useSessionStore } from "@/store/useSessionStore";
-import { Edit, Eye, ShieldAlert } from "lucide-react";
 
-type Tab = "announcements" | "posts" | "reports" | "media" | "pinned" | "moderation";
-type ComposeState = { title: string; content: string; category: string; status: string; scheduled_at: string; audienceType: string; pinned: boolean };
+type View="overview"|"posts"|"members"|"groups"|"announcements"|"events"|"reports"|"settings";
+type Compose={title:string;content:string;category:string;status:string;audience:string;pinned:boolean;scheduled:string;media:Array<{url:string;type:string;name?:string|null}>};
+const VIEWS:Array<[View,string]>=[["overview","Overview"],["posts","Posts"],["members","Members"],["groups","Groups"],["announcements","Announcements"],["events","Events"],["reports","Reports"],["settings","Settings"]];
+const EMPTY:Compose={title:"",content:"",category:"resident",status:"active",audience:"all_estate",pinned:false,scheduled:"",media:[]};
+const text=(v:unknown,f="")=>String(v??f).trim();
+const lower=(v:unknown)=>text(v).toLowerCase();
+const titleOf=(p:CommunityPost)=>text(p.title,p.content?.slice(0,80)||"Community post");
+const bodyOf=(p:CommunityPost)=>text(p.content||p.body,"No content supplied.");
+const authorOf=(p:CommunityPost)=>text(p.author_name||p.created_by_name||p.created_by_email||p.user_id,"Operator / resident");
+const count=(v:unknown)=>Number.isFinite(Number(v))?Number(v):0;
+const date=(v?:string|null)=>{if(!v)return "Time unavailable";const d=new Date(v);return Number.isNaN(d.getTime())?"Time unavailable":d.toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})};
+const relative=(v?:string|null)=>{if(!v)return "Unknown";const ms=Date.now()-Date.parse(v);if(!Number.isFinite(ms))return "Unknown";if(ms<60000)return "Just now";if(ms<3600000)return `${Math.max(1,Math.floor(ms/60000))}m ago`;if(ms<86400000)return `${Math.floor(ms/3600000)}h ago`;return `${Math.floor(ms/86400000)}d ago`};
+const statusTone=(v?:string|null)=>/active|published|resolved/.test(lower(v))?"stable":/flagged|reported|review|open/.test(lower(v))?"attention":/denied|archived|hidden|deleted/.test(lower(v))?"blocked":/scheduled|draft|pending/.test(lower(v))?"pending":"unavailable";
+const mediaOf=(p:CommunityPost)=>Array.isArray(p.media)?p.media.filter((x:any)=>x?.url):[];
+const announcement=(p:CommunityPost)=>Boolean(p.is_pinned)||/announcement|notice|maintenance|security|service/.test(lower(p.category));
 
-const EMPTY_COMPOSE: ComposeState = { title: "", content: "", category: "notice", status: "active", scheduled_at: "", audienceType: "all_estate", pinned: false };
+function Section({title,caption,action,children,className=""}:{title:string;caption?:string;action?:React.ReactNode;children:React.ReactNode;className?:string}){return <OisCard className={`overflow-hidden ${className}`}><header className="flex items-start justify-between gap-3 px-4 pb-3 pt-4"><div><h2 className="text-[13px] font-semibold text-white">{title}</h2>{caption?<p className="mt-0.5 text-[10px] text-zinc-500">{caption}</p>:null}</div>{action}</header>{children}</OisCard>}
+function EmptyState({title,body,icon:Icon=MessageSquare}:{title:string;body:string;icon?:typeof MessageSquare}){return <div className="grid min-h-36 place-items-center px-5 py-8 text-center"><div><Icon className="mx-auto h-7 w-7 stroke-[1.4] text-zinc-600"/><p className="mt-3 text-sm font-medium text-zinc-300">{title}</p><p className="mt-1 max-w-md text-xs leading-5 text-zinc-600">{body}</p></div></div>}
 
-function cn(...classes: Array<string | false | null | undefined>) { return classes.filter(Boolean).join(" "); }
-function lower(value: unknown) { return String(value || "").toLowerCase(); }
-function dateLabel(value?: string | null) { if (!value) return "Time unavailable"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Time unavailable" : d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
-function titleOf(post: CommunityPost) { return post.title || post.content?.slice(0, 80) || "Community post"; }
-function bodyOf(post: CommunityPost) { return post.content || post.body || "No content supplied."; }
-function authorOf(post: CommunityPost) { return post.author_name || post.created_by_name || post.created_by_email || post.user_id || "Operator / resident"; }
-function isModerationReport(target: CommunityPost | ModerationReport | null): target is ModerationReport { return Boolean(target && "message_id" in target); }
-function statusTone(status?: string | null) { const value = lower(status || "active"); if (/active|published/.test(value)) return "stable"; if (/scheduled|draft|pending/.test(value)) return "pending"; if (/flagged|reported|review/.test(value)) return "attention"; if (/denied|archived|hidden|dismissed/.test(value)) return "blocked"; return "unavailable"; }
-function mediaFrom(post: CommunityPost): Array<{ url: string; type: string }> { return Array.isArray(post.media) ? post.media.map((item: any) => ({ url: String(item?.url || ""), type: String(item?.type || item?.mediaType || "image") })).filter((item) => item.url) : []; }
-
-function Field({ label, value }: { label: string; value: React.ReactNode }) { return <OisCard variant="evidence" className="p-3"><div className="text-[10px] uppercase tracking-[0.14em] text-[var(--ois-text-muted)]">{label}</div><div className="mt-1 text-sm text-[var(--ois-text-primary)]">{value}</div></OisCard>; }
-
-export default function CommunityPage() {
-  const { user } = useSessionStore();
-  const [tab, setTab] = useState<Tab>("announcements");
-  const [estateId, setEstateId] = useState<string | null>(null);
-  const [posts, setPosts] = useState<CommunityPost[]>([]);
-  const [reports, setReports] = useState<ModerationReport[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [compose, setCompose] = useState<ComposeState>(EMPTY_COMPOSE);
-  const [composeExpanded, setComposeExpanded] = useState(false);
-  const [editTarget, setEditTarget] = useState<CommunityPost | null>(null);
-  const [moderationTarget, setModerationTarget] = useState<CommunityPost | ModerationReport | null>(null);
-  const [moderationNote, setModerationNote] = useState("");
-  const [moderationAction, setModerationAction] = useState<"active" | "flagged" | "denied" | "archived" | "dismiss">("active");
-
-  const canRead = hasPermission(user, "community.read");
-  const canWrite = hasPermission(user, "community.write");
-  const canBroadcast = hasPermission(user, "community.broadcast") || hasPermission(user, "community.manage_announcements");
-  const canModerate = hasPermission(user, "community.moderate") || hasPermission(user, "support.assign");
-
-  async function resolveEstate() {
-    const overview = await facilityService.overview();
-    const id = String((overview as any)?.estate?.id || (overview as any)?.estate_id || user?.estate_id || "").trim();
-    if (!id) throw new Error("No estate context linked to this operator.");
-    setEstateId(id);
-    return id;
-  }
-
-  async function load() {
-    setLoading(true); setError(null);
-    try {
-      const id = estateId || await resolveEstate();
-      const [postRows, reportRows] = await Promise.all([
-        communityService.listByEstate(id).catch(() => []),
-        canModerate ? messagesService.listReports("open", 80).catch((err) => ({ error: err?.message || "Failed to load reports" })) : Promise.resolve([]),
-      ]);
-      setPosts(Array.isArray(postRows) ? postRows : []);
-      setReports(Array.isArray(reportRows) ? reportRows : []);
-    } catch (err: any) { setError(err?.message || "Failed to load community operations"); }
-    finally { setLoading(false); }
-  }
-
-  useEffect(() => { void load(); }, []);
-
-  function openCompose(post?: CommunityPost) {
-    setEditTarget(post || null);
-    setComposeExpanded(true);
-    setCompose(post ? { title: post.title || "", content: bodyOf(post), category: post.category || "notice", status: post.status || "active", scheduled_at: post.scheduled_at || "", audienceType: post.audience_type || "all_estate", pinned: Boolean(post.is_pinned) } : EMPTY_COMPOSE);
-  }
-
-  async function saveAnnouncement() {
-    if (!canWrite && !canBroadcast) { setError("Permission required: community.write or community.broadcast."); return; }
-    if (!compose.title.trim() && !compose.content.trim()) { setError("Announcement title or body is required."); return; }
-    setSaving(true); setError(null); setNotice(null);
-    try {
-      const id = estateId || await resolveEstate();
-      const payload = { title: compose.title.trim() || compose.content.trim().slice(0, 80) || "Announcement", content: compose.content.trim() || null, category: compose.category, status: compose.status, is_pinned: compose.pinned, scheduled_at: compose.scheduled_at || null, audience: { type: compose.audienceType } };
-      if (editTarget) await communityService.updatePost(String(editTarget.id), payload);
-      else await communityService.createPost({ estateId: id, ...payload });
-      setNotice(editTarget ? "Announcement updated." : "Announcement created.");
-      setEditTarget(null); setCompose(EMPTY_COMPOSE); setComposeExpanded(false);
-      await load();
-    } catch (err: any) { setError(err?.message || "Failed to save announcement"); }
-    finally { setSaving(false); }
-  }
-
-  async function moderatePost(post: CommunityPost, status: string) {
-    if (!canModerate) { setError("Permission required: community.moderate."); return; }
-    setSaving(true); setError(null); setNotice(null);
-    try {
-      await communityService.updatePost(String(post.id), { status });
-      setNotice(`Content marked ${status}.`);
-      setModerationTarget(null);
-      await load();
-    } catch (err: any) { setError(err?.message || "Failed to update moderation state"); }
-    finally { setSaving(false); }
-  }
-
-  async function resolveReport(report: ModerationReport, action: "dismiss" | "hide_message" | "mute_sender") {
-    if (!canModerate) { setError("Permission required: community.moderate/support.assign."); return; }
-    setSaving(true); setError(null); setNotice(null);
-    const result: any = await messagesService.resolveReport(String(report.id), { action, note: moderationNote.trim() || undefined, mute_hours: action === "mute_sender" ? 24 : undefined });
-    setSaving(false);
-    if (result?.error) { setError(result.error); return; }
-    setNotice("Moderation report resolved.");
-    setModerationTarget(null); setModerationNote("");
-    await load();
-  }
-
-  const announcements = posts.filter((post) => /notice|announcement|maintenance|security|amenity|service/.test(lower(post.category)) || post.is_pinned);
-  const pinned = posts.filter((post) => post.is_pinned || lower(post.status) === "pinned");
-  const flagged = posts.filter((post) => /flagged|reported|review/.test(lower(post.status)));
-  const mediaPosts = posts.filter((post) => mediaFrom(post).length);
-  const pendingReview = [...flagged, ...reports].length;
-
-  const visibleRows = tab === "announcements" ? announcements : tab === "posts" ? posts : tab === "media" ? mediaPosts : tab === "pinned" ? pinned : tab === "moderation" ? flagged : [];
-
-  if (!canRead) {
-    return <div className="space-y-6"><Topbar title="Community" subtitle="Community access required" /><div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div></div>;
-  }
-
-  return (
-    <div className="space-y-6">
-      <Topbar title="Community" subtitle="Notices, posts and moderation" />
-      {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
-      {notice ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{notice}</div> : null}
-
-      <OisOperationalStrip
-        items={[
-          { label: "Announcements", value: announcements.length, tone: "attention" },
-          { label: "Pinned", value: pinned.length, tone: "stable" },
-          { label: "Reports", value: reports.length, tone: pendingReview ? "warning" : "stable" },
-          { label: "Moderation", value: pendingReview ? "Review" : "Stable", tone: pendingReview ? "warning" : "stable" },
-        ]}
-      />
-
-      <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex gap-2 pb-1">
-          {(["announcements", "posts", "reports", "media", "pinned", "moderation"] as Tab[]).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setTab(item)}
-              className={cn(
-                "shrink-0 rounded-full border px-3 py-1.5 text-xs capitalize transition",
-                tab === item ? "border-sky-400/40 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white"
-              )}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <OisCard className="p-4">
-        {!composeExpanded ? (
-          <button
-            type="button"
-            onClick={() => setComposeExpanded(true)}
-            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition hover:bg-white/[0.045]"
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white">Announcement title</p>
-              <p className="mt-1 truncate text-xs text-zinc-500">Write announcement...</p>
-            </div>
-            <span className="rounded-full border border-sky-300/14 bg-sky-400/[0.08] px-3 py-1 text-[11px] text-sky-100">Compose</span>
-          </button>
-        ) : (
-          <div className="grid gap-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-white">{editTarget ? "Edit announcement" : "Announcement composer"}</h2>
-                <p className="mt-1 text-xs text-zinc-500">Write and publish the next estate update.</p>
-              </div>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setEditTarget(null);
-                  setCompose(EMPTY_COMPOSE);
-                  setComposeExpanded(false);
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-            <input value={compose.title} onChange={(e) => setCompose((c) => ({ ...c, title: e.target.value }))} placeholder="Announcement title" className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-base text-white outline-none md:text-sm" />
-            <textarea value={compose.content} onChange={(e) => setCompose((c) => ({ ...c, content: e.target.value }))} placeholder="Write announcement..." rows={4} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-base text-white outline-none md:text-sm" />
-            <div className="grid gap-2 sm:grid-cols-3">
-              <select value={compose.status} onChange={(e) => setCompose((c) => ({ ...c, status: e.target.value }))} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-base text-white md:text-sm"><option value="draft">Draft</option><option value="active">Published</option><option value="scheduled">Scheduled</option><option value="archived">Archived</option></select>
-              <select value={compose.audienceType} onChange={(e) => setCompose((c) => ({ ...c, audienceType: e.target.value }))} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-base text-white md:text-sm"><option value="all_estate">Entire Estate</option><option value="home">Specific Homes</option><option value="resident_group">Resident Groups</option></select>
-              <input type="datetime-local" value={compose.scheduled_at} onChange={(e) => setCompose((c) => ({ ...c, scheduled_at: e.target.value }))} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-base text-white md:text-sm" />
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={compose.pinned} onChange={(e) => setCompose((c) => ({ ...c, pinned: e.target.checked }))} /> Pin this notice</label>
-              <Button onClick={() => void saveAnnouncement()} disabled={saving || (!canWrite && !canBroadcast)}>{saving ? "Saving..." : editTarget ? "Update announcement" : "Publish announcement"}</Button>
-            </div>
-          </div>
-        )}
-      </OisCard>
-
-      <OisCard className="p-4">
-        <OisRegistryHeader title="Community Feed" caption={loading ? "Loading records" : `${visibleRows.length || reports.length} records`} />
-        <div className="mt-4">
-          {tab === "reports" ? <ReportList reports={reports} canModerate={canModerate} onOpen={(report) => { setModerationTarget(report); setModerationAction("dismiss"); }} /> : <PostList rows={visibleRows} canModerate={canModerate} canWrite={canWrite || canBroadcast} onEdit={openCompose} onModerate={(post) => { setModerationTarget(post); setModerationAction("active"); }} />}
-        </div>
-      </OisCard>
-
-      <OisDrawer open={Boolean(moderationTarget)} onClose={() => setModerationTarget(null)} title={isModerationReport(moderationTarget) ? "Review moderation report" : "Review content"} subtitle={moderationTarget ? (isModerationReport(moderationTarget) ? "Community moderation report" : titleOf(moderationTarget)) : undefined} width="md" footer={moderationTarget ? (isModerationReport(moderationTarget) ? <div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => void resolveReport(moderationTarget, "dismiss")} disabled={saving}>Dismiss</Button><Button onClick={() => void resolveReport(moderationTarget, "hide_message")} disabled={saving}>Hide message</Button><Button variant="danger" onClick={() => void resolveReport(moderationTarget, "mute_sender")} disabled={saving}>Mute sender</Button></div> : <Button onClick={() => void moderatePost(moderationTarget, moderationAction)} disabled={saving}>Apply moderation</Button>) : null}>
-        {moderationTarget ? <div className="space-y-4"><OisCard variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-300">{isModerationReport(moderationTarget) ? (moderationTarget.action || "Pending review") : bodyOf(moderationTarget)}</p><p className="mt-2 text-xs text-zinc-500">{isModerationReport(moderationTarget) ? dateLabel(moderationTarget.created_at) : authorOf(moderationTarget)}</p></div><OisStatusBadge status={isModerationReport(moderationTarget) ? statusTone(moderationTarget.status || "open") : statusTone(moderationTarget.status)} label={isModerationReport(moderationTarget) ? (moderationTarget.status || "open") : (moderationTarget.status || "active")} className="uppercase" /></div></OisCard><select value={moderationAction} onChange={(e) => setModerationAction(e.target.value as any)} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-base text-white md:text-sm"><option value="active">Resolve / Publish</option><option value="flagged">Escalate / Flag</option><option value="denied">Dismiss / Deny</option><option value="archived">Archive</option></select><textarea value={moderationNote} onChange={(e) => setModerationNote(e.target.value)} rows={4} placeholder="Moderation note" className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-base text-white outline-none md:text-sm" /></div> : null}
-      </OisDrawer>
-    </div>
-  );
+export default function CommunityPage(){
+ const {user}=useSessionStore();const canRead=hasPermission(user,"community.read"),canWrite=hasPermission(user,"community.write"),canBroadcast=hasPermission(user,"community.broadcast")||hasPermission(user,"community.manage_announcements"),canModerate=hasPermission(user,"community.moderate")||hasPermission(user,"support.assign");
+ const [view,setView]=useState<View>("overview"),[estateId,setEstateId]=useState(""),[posts,setPosts]=useState<CommunityPost[]>([]),[members,setMembers]=useState<EstateMembershipRow[]>([]),[reports,setReports]=useState<ModerationReport[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState<string|null>(null),[selected,setSelected]=useState<CommunityPost|null>(null),[comments,setComments]=useState<CommunityComment[]>([]),[composeOpen,setComposeOpen]=useState(false),[compose,setCompose]=useState<Compose>(EMPTY),[editing,setEditing]=useState<CommunityPost|null>(null),[saving,setSaving]=useState(false),[query,setQuery]=useState(""),[filter,setFilter]=useState("all"),[moderation,setModeration]=useState<CommunityPost|ModerationReport|null>(null),[note,setNote]=useState("");
+ const load=useCallback(async()=>{setLoading(true);setError(null);try{const overview=await facilityService.overview();const id=text((overview as any)?.estate?.id||(overview as any)?.estate_id||user?.estate_id);if(!id)throw new Error("No estate context linked to this operator.");setEstateId(id);const [p,m,r]=await Promise.all([communityService.listByEstate(id),facilityService.listEstateUsers().catch(()=>({users:[]})),canModerate?messagesService.listReports("open",80).catch(()=>[]):Promise.resolve([])]);setPosts(Array.isArray(p)?p:[]);setMembers(Array.isArray((m as any)?.users)?(m as any).users:[]);setReports(Array.isArray(r)?r:[])}catch(e:any){setError(e?.response?.data?.error||e?.message||"Unable to load Community.")}finally{setLoading(false)}},[canModerate,user?.estate_id]);
+ useEffect(()=>{if(canRead)void load()},[canRead,load]);useEffect(()=>{const listener=(event:Event)=>{const name=text((event as CustomEvent)?.detail?.event);if(/community|comment|reaction|moderation|membership|notification/.test(name))void load()};window.addEventListener("facility:realtime-event",listener);return()=>window.removeEventListener("facility:realtime-event",listener)},[load]);
+ const announcements=posts.filter(announcement),events=posts.filter(p=>lower(p.category)==="event"),flagged=posts.filter(p=>/flagged|reported|review/.test(lower(p.status))),pending=flagged.length+reports.length,monthStart=new Date(new Date().getFullYear(),new Date().getMonth(),1).getTime(),monthPosts=posts.filter(p=>Date.parse(p.created_at||"")>=monthStart),activeMembers=members.filter(m=>lower(m.status)==="active"),engagement=posts.reduce((s,p)=>s+count(p.like_count)+count(p.comment_count),0);
+ const top=useMemo(()=>posts.slice().sort((a,b)=>(count(b.like_count)+count(b.comment_count))-(count(a.like_count)+count(a.comment_count))).slice(0,5),[posts]);
+ const filtered=useMemo(()=>posts.filter(p=>(filter==="all"||lower(p.status)===filter||lower(p.category)===filter)&&(!query||`${titleOf(p)} ${bodyOf(p)} ${authorOf(p)} ${p.category} ${p.audience_type}`.toLowerCase().includes(query.toLowerCase()))),[posts,filter,query]);
+ function startCompose(category="resident",post?:CommunityPost){setEditing(post||null);setCompose(post?{title:text(post.title),content:bodyOf(post),category:text(post.category,"resident"),status:text(post.status,"active"),audience:text(post.audience_type,"all_estate"),pinned:Boolean(post.is_pinned),scheduled:text(post.scheduled_at),media:mediaOf(post)}:{...EMPTY,category});setComposeOpen(true)}
+ async function upload(file:File){if(!/^image\/(jpeg|jpg|png|webp|gif)$|^video\/(mp4|webm|ogg|quicktime)$/.test(file.type)){setError("Only canonical image and video attachments are supported.");return}setSaving(true);try{const base64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||"").split(",")[1]||"");reader.onerror=()=>reject(reader.error);reader.readAsDataURL(file)});const row=await communityService.uploadMedia({base64,mime:file.type,filename:file.name,mediaType:file.type.startsWith("video")?"video":"image"});setCompose(c=>({...c,media:[...c.media,{url:row.url,type:row.mediaType||"image",name:file.name}]}))}catch(e:any){setError(e?.message||"Media upload failed.")}finally{setSaving(false)}}
+ async function save(){if(!compose.content.trim()&&!compose.media.length){setError("Post text or media is required.");return}setSaving(true);setError(null);try{const payload={title:compose.title.trim()||compose.content.trim().slice(0,80)||"Community update",content:compose.content.trim()||null,category:compose.category,status:compose.status,is_pinned:compose.pinned,scheduled_at:compose.scheduled||null,audience:{type:compose.audience},media:compose.media};if(editing)await communityService.updatePost(String(editing.id),payload);else await communityService.createPost({estateId,...payload});setComposeOpen(false);setEditing(null);setCompose(EMPTY);await load()}catch(e:any){setError(e?.response?.data?.error||e?.message||"Unable to publish Community post.")}finally{setSaving(false)}}
+ async function openPost(post:CommunityPost){setSelected(post);setComments([]);void communityService.trackView(String(post.id)).catch(()=>null);void communityService.listComments(String(post.id)).then(setComments).catch(()=>setComments([]))}
+ async function moderatePost(post:CommunityPost,status:string){setSaving(true);try{await communityService.updatePost(String(post.id),{status});setModeration(null);setNote("");await load()}catch(e:any){setError(e?.message||"Moderation action failed.")}finally{setSaving(false)}}
+ async function resolveReport(report:ModerationReport,action:"dismiss"|"hide_message"|"mute_sender"){setSaving(true);const result:any=await messagesService.resolveReport(String(report.id),{action,note:note||undefined,mute_hours:action==="mute_sender"?24:undefined});setSaving(false);if(result?.error){setError(result.error);return}setModeration(null);setNote("");await load()}
+ if(!canRead)return <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-5 text-sm text-amber-100">Permission required: community.read.</div>;
+ return <div className="space-y-3.5 overflow-x-hidden pb-6">
+  <div className="flex justify-end">{canWrite||canBroadcast?<Button onClick={()=>startCompose()} className="gap-2"><Plus className="h-4 w-4"/>Create Post</Button>:null}</div>{error?<div role="alert" className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{error}</div>:null}
+  <section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6"><FacilityMetricCard icon={<Users/>} label="Total members" value={loading?"—":members.length} detail="Canonical estate memberships"/><FacilityMetricCard icon={<Users/>} label="Active members" value={loading?"—":activeMembers.length} detail="Active memberships" accent="text-emerald-400"/><FacilityMetricCard icon={<MessageSquare/>} label="Posts this month" value={loading?"—":monthPosts.length} detail="Canonical posts" accent="text-violet-400"/><FacilityMetricCard icon={<Heart/>} label="Engagement" value={loading?"—":engagement} detail="Reactions + comments" accent="text-amber-400"/><FacilityMetricCard icon={<Flag/>} label="Reports" value={loading?"—":reports.length} detail="Open message reports" accent="text-rose-400"/><FacilityMetricCard icon={<ShieldAlert/>} label="Pending moderation" value={loading?"—":pending} detail={pending?"Requires review":"Queue clear"} accent={pending?"text-orange-400":"text-zinc-400"}/></section>
+  <nav aria-label="Community workspace" className="overflow-x-auto rounded-[9px] border border-[var(--ois-border-subtle)] bg-[var(--ois-surface)] px-2"><div className="flex min-w-max">{VIEWS.map(([key,label])=><button key={key} onClick={()=>setView(key)} className={`border-b-2 px-4 py-3 text-[10px] font-medium ${view===key?"border-emerald-400 text-white":"border-transparent text-zinc-500 hover:text-zinc-300"}`}>{label}</button>)}</div></nav>
+  {view==="overview"?<Overview posts={posts} top={top} announcements={announcements} pending={pending} engagement={engagement} loading={loading} openPost={openPost} switchView={setView} compose={startCompose}/>:null}
+  {view==="posts"?<PostRegistry posts={filtered} query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} open={openPost} edit={startCompose} moderate={setModeration} canWrite={canWrite||canBroadcast} canModerate={canModerate}/>:null}
+  {view==="members"?<Members rows={members} loading={loading}/>:null}
+  {view==="announcements"?<CategoryView title="Announcements" caption="Facility notices projected from canonical Community posts" rows={announcements} open={openPost} action={canBroadcast?<Button onClick={()=>startCompose("announcement")} className="gap-2"><Megaphone className="h-4 w-4"/>Create Announcement</Button>:null}/>:null}
+  {view==="events"?<CategoryView title="Events" caption="Event-category Community posts" rows={events} open={openPost} action={canWrite?<Button onClick={()=>startCompose("event")} className="gap-2"><CalendarDays className="h-4 w-4"/>Create Event</Button>:null}/>:null}
+  {view==="reports"?<ModerationQueue posts={flagged} reports={reports} canModerate={canModerate} open={setModeration}/>:null}
+  {view==="groups"?<Unavailable title="Groups" body="The canonical Community backend exposes audience targeting, but no persisted group-management contract. No group records or controls are fabricated." icon={Users}/>:null}
+  {view==="settings"?<Unavailable title="Community Settings" body="Community permissions and notification policy remain owned by canonical RBAC and account settings. No duplicate settings store is introduced." icon={Settings}/>:null}
+  <PostDrawer post={selected} comments={comments} onClose={()=>setSelected(null)} edit={startCompose} moderate={setModeration} canWrite={canWrite||canBroadcast} canModerate={canModerate}/><Composer open={composeOpen} value={compose} setValue={setCompose} onClose={()=>setComposeOpen(false)} onSave={save} onUpload={upload} saving={saving} editing={Boolean(editing)}/><ModerationDrawer target={moderation} note={note} setNote={setNote} onClose={()=>setModeration(null)} postAction={moderatePost} reportAction={resolveReport} saving={saving}/>
+ </div>
 }
 
-function PostList({ rows, canWrite, canModerate, onEdit, onModerate }: { rows: CommunityPost[]; canWrite: boolean; canModerate: boolean; onEdit: (post: CommunityPost) => void; onModerate: (post: CommunityPost) => void }) {
-  return <div className="mt-4 space-y-2">{rows.map((post) => { const media = mediaFrom(post); return <OisCard key={post.id} variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-white">{titleOf(post)}</h3><p className="mt-1 text-xs text-zinc-500">{authorOf(post)} · {dateLabel(post.created_at)}</p></div><OisStatusBadge status={statusTone(post.status)} label={post.status || "active"} className="uppercase" /></div><p className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-400">{bodyOf(post)}</p>{media.length ? <div className="mt-3 grid grid-cols-3 gap-2">{media.slice(0, 3).map((item) => <div key={item.url} className="overflow-hidden rounded-xl border border-white/10 bg-black/20">{item.type.startsWith("video") ? <div className="flex aspect-[4/3] items-center justify-center text-[11px] text-zinc-500">Video attached</div> : <img src={item.url} alt={titleOf(post)} className="aspect-[4/3] w-full object-cover" />}</div>)}</div> : null}<div className="mt-4 grid gap-2 sm:grid-cols-4"><Field label="Created by" value={authorOf(post)} /><Field label="Created" value={dateLabel(post.created_at)} /><Field label="Last edited" value={dateLabel(post.updated_at)} /><Field label="Audience" value={post.audience_type || "Entire Estate"} /></div><div className="mt-3 flex flex-wrap gap-2">{canWrite ? <Button variant="ghost" onClick={() => onEdit(post)} className="gap-2"><Edit className="h-4 w-4" />Edit</Button> : null}{canModerate ? <Button variant="ghost" onClick={() => onModerate(post)} className="gap-2"><ShieldAlert className="h-4 w-4" />Moderate</Button> : null}</div></OisCard>; })}{!rows.length ? <div className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No signals in this lane.</div> : null}</div>;
-}
-
-function ReportList({ reports, canModerate, onOpen }: { reports: ModerationReport[]; canModerate: boolean; onOpen: (report: ModerationReport) => void }) {
-  return <div className="mt-4 space-y-2">{reports.map((report) => <OisCard key={report.id} variant="evidence" className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-white">{report.reason || "Reported message"}</h3><p className="mt-1 text-xs text-zinc-500">{dateLabel(report.created_at)} · {report.status || "open"}</p></div><OisStatusBadge status={statusTone(report.status || "open")} label={report.status || "open"} className="uppercase" /></div><div className="mt-4 grid gap-2 sm:grid-cols-3"><Field label="Moderator" value={report.moderator_id || "Awaiting moderation data"} /><Field label="Action taken" value={report.action || "Pending review"} /><Field label="Timestamp" value={dateLabel(report.resolved_at || report.created_at)} /></div>{canModerate ? <Button className="mt-3 gap-2" variant="ghost" onClick={() => onOpen(report)}><Eye className="h-4 w-4" />Review</Button> : null}</OisCard>)}{!reports.length ? <div className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No open moderation reports.</div> : null}</div>;
-}
+function Overview({posts,top,announcements,pending,engagement,loading,openPost,switchView,compose}:{posts:CommunityPost[];top:CommunityPost[];announcements:CommunityPost[];pending:number;engagement:number;loading:boolean;openPost:(p:CommunityPost)=>void;switchView:(v:View)=>void;compose:(category?:string)=>void}){return <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]"><main className="space-y-3"><Section title="Community Overview" caption="Canonical activity and engagement from the last 30 days"><div className="grid gap-2 border-t border-white/[.055] p-3 lg:grid-cols-[1.25fr_.75fr]"><Activity posts={posts}/><div className="rounded-lg border border-white/[.055] bg-black/10 p-3"><h3 className="text-[11px] font-semibold text-zinc-200">Top Engagement</h3><p className="mt-0.5 text-[9px] text-zinc-600">Ranked by canonical reactions and comments</p><div className="mt-3 divide-y divide-white/[.05]">{top.map((p,i)=><button key={p.id} onClick={()=>openPost(p)} className="flex w-full items-center gap-2 py-2 text-left"><span className="w-4 text-[9px] text-zinc-600">{i+1}</span>{mediaOf(p)[0]?.url?<img src={mediaOf(p)[0].url} alt="" className="h-8 w-11 rounded object-cover"/>:<span className="grid h-8 w-11 place-items-center rounded bg-white/[.03]"><MessageSquare className="h-3.5 w-3.5 text-zinc-600"/></span>}<span className="min-w-0 flex-1"><b className="block truncate text-[10px] text-zinc-300">{titleOf(p)}</b><small className="text-[8px] text-zinc-600">{count(p.like_count)} reactions · {count(p.comment_count)} comments</small></span><small className="text-[8px] text-zinc-600">{relative(p.created_at)}</small></button>)}{!top.length&&!loading?<p className="py-8 text-center text-[10px] text-zinc-600">No posts available.</p>:null}</div></div></div></Section><Recent posts={posts.slice(0,8)} open={openPost} all={()=>switchView("posts")}/></main><aside className="space-y-3"><Section title="Community Announcements" caption={`${announcements.length} canonical notices`}><div className="divide-y divide-white/[.055] px-4">{announcements.slice(0,4).map(p=><button key={p.id} onClick={()=>openPost(p)} className="flex w-full gap-2 py-3 text-left"><Megaphone className="mt-0.5 h-3.5 w-3.5 text-sky-400"/><span className="min-w-0 flex-1"><b className="block truncate text-[10px] text-zinc-300">{titleOf(p)}</b><small className="block truncate text-[8px] text-zinc-600">{bodyOf(p)}</small></span><small className="text-[8px] text-zinc-600">{relative(p.created_at)}</small></button>)}{!announcements.length?<p className="py-8 text-center text-[10px] text-zinc-600">No announcements published.</p>:null}</div></Section><Section title="Quick Actions" caption="Supported Community operations"><div className="grid grid-cols-2 gap-2 px-4 pb-4">{[[Plus,"Create Post",()=>compose("resident")],[Megaphone,"Announcement",()=>compose("announcement")],[Users,"Manage Members",()=>switchView("members")],[ShieldAlert,"Moderation Queue",()=>switchView("reports")]] .map(([Icon,label,action]:any)=><button key={label} onClick={action} className="flex items-center gap-2 rounded-lg border border-white/[.07] bg-black/10 px-3 py-2.5 text-left text-[9px] text-zinc-300"><Icon className="h-3.5 w-3.5 text-emerald-400"/>{label}</button>)}</div></Section><Section title="Community Health" caption="Measurable indicators without a synthetic score"><div className="px-4 pb-4"><b className="text-2xl text-white">—</b><p className="mt-1 text-[9px] text-zinc-600">Overall score unavailable; no undocumented weighting is applied.</p><div className="mt-3 space-y-2 text-[10px]"><div className="flex"><span className="flex-1 text-zinc-500">Recorded engagement</span><b className="text-zinc-300">{engagement}</b></div><div className="flex"><span className="flex-1 text-zinc-500">Moderation posture</span><b className={pending?"text-amber-400":"text-emerald-400"}>{pending?`${pending} pending`:"Queue clear"}</b></div><div className="flex"><span className="flex-1 text-zinc-500">Participation rate</span><b className="text-zinc-600">Unavailable</b></div></div></div></Section></aside></div>}
+function Activity({posts}:{posts:CommunityPost[]}){const now=Date.now(),start=now-30*86400000,buckets=Array.from({length:6},(_,i)=>({start:start+i*5*86400000,end:start+(i+1)*5*86400000,count:0}));posts.forEach(p=>{const t=Date.parse(p.created_at||"");const b=buckets.find(x=>t>=x.start&&t<x.end);if(b)b.count++});const max=Math.max(1,...buckets.map(x=>x.count));const points=buckets.map((b,i)=>`${i/(buckets.length-1)*100},${86-b.count/max*60}`).join(" ");return <div className="min-h-[230px] rounded-lg border border-white/[.055] bg-black/10 p-3"><div className="flex items-center gap-4 text-[9px]"><b className="text-zinc-300">Activity Overview</b><span className="text-sky-400">● Posts</span><span className="text-zinc-600">Comments/reaction history unavailable</span></div>{posts.some(p=>Date.parse(p.created_at||"")>=start)?<svg viewBox="0 0 100 100" preserveAspectRatio="none" className="mt-5 h-40 w-full"><line x1="0" x2="100" y1="86" y2="86" stroke="rgba(255,255,255,.08)"/><polyline points={points} fill="none" stroke="#2396ff" strokeWidth="2" vectorEffect="non-scaling-stroke"/>{buckets.map((b,i)=><circle key={i} cx={i/(buckets.length-1)*100} cy={86-b.count/max*60} r="1.4" fill="#2396ff"/>)}</svg>:<EmptyState title="Activity history unavailable" body="No canonical posts were recorded in the last 30 days. No chart values are fabricated." icon={BarChart3}/>}</div>}
+function Recent({posts,open,all}:{posts:CommunityPost[];open:(p:CommunityPost)=>void;all:()=>void}){return <Section title="Recent Posts" caption="Latest canonical Community posts" action={<button onClick={all} className="text-[9px] text-sky-400">View all posts →</button>}><div className="divide-y divide-white/[.055] px-3">{posts.map(p=><button key={p.id} onClick={()=>open(p)} className="flex w-full items-center gap-3 py-3 text-left"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sky-500/15 text-[9px] font-semibold text-sky-300">{authorOf(p).slice(0,2).toUpperCase()}</span><span className="min-w-0 flex-[1.5]"><b className="block truncate text-[10.5px] text-zinc-200">{titleOf(p)}</b><small className="block truncate text-[8.5px] text-zinc-600">{authorOf(p)} · {relative(p.created_at)}</small></span><OisStatusBadge status={statusTone(p.status)} label={text(p.category,"resident")}/><span className="hidden items-center gap-1 text-[9px] text-zinc-500 sm:flex"><Heart className="h-3 w-3"/>{count(p.like_count)}</span><span className="hidden items-center gap-1 text-[9px] text-zinc-500 sm:flex"><MessageSquare className="h-3 w-3"/>{count(p.comment_count)}</span>{mediaOf(p).length?<Paperclip className="h-3.5 w-3.5 text-zinc-500"/>:null}<ChevronRight className="h-3.5 w-3.5 text-zinc-600"/></button>)}{!posts.length?<p className="py-12 text-center text-[10px] text-zinc-600">No Community posts are available.</p>:null}</div></Section>}
+function PostRegistry({posts,query,setQuery,filter,setFilter,open,edit,moderate,canWrite,canModerate}:{posts:CommunityPost[];query:string;setQuery:(v:string)=>void;filter:string;setFilter:(v:string)=>void;open:(p:CommunityPost)=>void;edit:(c?:string,p?:CommunityPost)=>void;moderate:(p:CommunityPost)=>void;canWrite:boolean;canModerate:boolean}){return <Section title="Posts" caption={`${posts.length} visible canonical records`} action={canWrite?<Button onClick={()=>edit()} className="gap-2"><Plus className="h-4 w-4"/>Create Post</Button>:null}><div className="flex flex-wrap gap-2 border-y border-white/[.055] p-3"><label className="relative min-w-48 flex-1"><Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-zinc-600"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search posts, authors or audiences" className="h-8 w-full rounded-md border border-white/[.08] bg-black/20 pl-8 pr-2 text-[10px] text-white outline-none"/></label><select value={filter} onChange={e=>setFilter(e.target.value)} className="h-8 rounded-md border border-white/[.08] bg-zinc-950 px-3 text-[10px] text-zinc-300"><option value="all">All</option><option value="active">Active</option><option value="scheduled">Scheduled</option><option value="draft">Draft</option><option value="flagged">Flagged</option><option value="announcement">Announcements</option><option value="event">Events</option></select></div><div className="divide-y divide-white/[.055] px-3">{posts.map(p=><div key={p.id} className="flex items-center gap-3 py-3"><button onClick={()=>open(p)} className="flex min-w-0 flex-1 items-center gap-3 text-left"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-white/[.03]"><MessageSquare className="h-3.5 w-3.5 text-zinc-500"/></span><span className="min-w-0 flex-1"><b className="block truncate text-[10.5px] text-zinc-200">{titleOf(p)}</b><small className="block truncate text-[8.5px] text-zinc-600">{authorOf(p)} · {date(p.created_at)} · {text(p.audience_type,"all_estate")}</small></span><OisStatusBadge status={statusTone(p.status)} label={text(p.status,"active")}/><span className="hidden text-[9px] text-zinc-500 md:block">{count(p.like_count)} reactions · {count(p.comment_count)} comments</span></button>{canWrite?<button onClick={()=>edit(undefined,p)} className="text-[9px] text-sky-400">Edit</button>:null}{canModerate?<button onClick={()=>moderate(p)} className="text-[9px] text-amber-400">Moderate</button>:null}</div>)}{!posts.length?<p className="py-12 text-center text-[10px] text-zinc-600">No posts match this view.</p>:null}</div></Section>}
+function Members({rows,loading}:{rows:EstateMembershipRow[];loading:boolean}){return <Section title="Members" caption="Canonical estate membership projection"><div className="divide-y divide-white/[.055] px-3">{rows.map(m=><div key={m.id} className="flex items-center gap-3 py-3"><span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500/10 text-[9px] text-emerald-300">{text(m.users?.full_name||m.users?.username||m.users?.email,"M").slice(0,2).toUpperCase()}</span><span className="min-w-0 flex-1"><b className="block truncate text-[10.5px] text-zinc-200">{text(m.users?.full_name||m.users?.username||m.users?.email,"Member")}</b><small className="text-[8.5px] text-zinc-600">{m.users?.email||"Contact unavailable"}</small></span><span className="text-[9px] capitalize text-zinc-500">{m.role}</span><OisStatusBadge status={statusTone(m.status)} label={m.status}/></div>)}{!rows.length&&!loading?<EmptyState title="No members available" body="No canonical estate memberships are visible to this operator." icon={Users}/>:null}</div></Section>}
+function CategoryView({title,caption,rows,open,action}:{title:string;caption:string;rows:CommunityPost[];open:(p:CommunityPost)=>void;action?:React.ReactNode}){return <Section title={title} caption={caption} action={action}><div className="border-t border-white/[.055]"><Recent posts={rows} open={open} all={()=>{}}/></div></Section>}
+function ModerationQueue({posts,reports,canModerate,open}:{posts:CommunityPost[];reports:ModerationReport[];canModerate:boolean;open:(v:CommunityPost|ModerationReport)=>void}){return <Section title="Moderation Queue" caption="Flagged Community posts and reported resident messages"><div className="divide-y divide-white/[.055] px-3">{posts.map(p=><button key={`p:${p.id}`} onClick={()=>open(p)} className="flex w-full items-center gap-3 py-3 text-left"><ShieldAlert className="h-4 w-4 text-amber-400"/><span className="min-w-0 flex-1"><b className="block truncate text-[10.5px] text-zinc-200">{titleOf(p)}</b><small className="text-[8.5px] text-zinc-600">Community post · {authorOf(p)} · {date(p.created_at)}</small></span><OisStatusBadge status="attention" label={text(p.status,"review")}/>{canModerate?<ChevronRight className="h-4 w-4 text-zinc-600"/>:null}</button>)}{reports.map(r=><button key={`r:${r.id}`} onClick={()=>open(r)} className="flex w-full items-center gap-3 py-3 text-left"><Flag className="h-4 w-4 text-rose-400"/><span className="min-w-0 flex-1"><b className="block truncate text-[10.5px] text-zinc-200">{text(r.reason,"Reported message")}</b><small className="text-[8.5px] text-zinc-600">Messaging report · {date(r.created_at)}</small></span><OisStatusBadge status="attention" label={text(r.status,"open")}/>{canModerate?<ChevronRight className="h-4 w-4 text-zinc-600"/>:null}</button>)}{!posts.length&&!reports.length?<EmptyState title="Moderation queue clear" body="No canonical Community content or resident-message reports require review." icon={ShieldAlert}/>:null}</div></Section>}
+function Unavailable({title,body,icon}:{title:string;body:string;icon:typeof Users}){return <Section title={title} caption="Canonical capability status"><EmptyState title={`${title} unavailable`} body={body} icon={icon}/></Section>}
+function PostDrawer({post,comments,onClose,edit,moderate,canWrite,canModerate}:{post:CommunityPost|null;comments:CommunityComment[];onClose:()=>void;edit:(c?:string,p?:CommunityPost)=>void;moderate:(p:CommunityPost)=>void;canWrite:boolean;canModerate:boolean}){return <OisDrawer open={Boolean(post)} onClose={onClose} title={post?titleOf(post):"Community post"} subtitle={post?`${authorOf(post)} · ${date(post.created_at)}`:undefined} width="md" footer={post?<div className="flex gap-2">{canWrite?<Button variant="ghost" onClick={()=>{onClose();edit(undefined,post)}}>Edit Post</Button>:null}{canModerate?<Button variant="ghost" onClick={()=>{onClose();moderate(post)}}>Moderate</Button>:null}</div>:null}>{post?<div className="space-y-3"><OisCard className="p-4"><div className="flex justify-between gap-3"><OisStatusBadge status={statusTone(post.status)} label={text(post.status,"active")}/><span className="text-[9px] text-zinc-600">{text(post.category,"resident")} · {text(post.audience_type,"all_estate")}</span></div><p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-zinc-300">{bodyOf(post)}</p>{mediaOf(post).length?<div className="mt-4 grid grid-cols-2 gap-2">{mediaOf(post).map((m:any)=><div key={m.url} className="overflow-hidden rounded-lg border border-white/[.07]">{m.type==="video"?<video controls src={m.url} className="aspect-video w-full bg-black"/>:<img src={m.url} alt="" className="aspect-video w-full object-cover"/>}</div>)}</div>:null}</OisCard><div className="grid grid-cols-2 gap-2">{[["Created",date(post.created_at)],["Last edited",date(post.updated_at)],["Reactions",count(post.like_count)],["Comments",count(post.comment_count)],["Views",count(post.view_count||post.views)],["Audience",text(post.audience_type,"all_estate")]].map(([label,value])=><OisCard key={String(label)} variant="evidence" className="p-3"><small className="text-[8px] uppercase text-zinc-600">{label}</small><b className="mt-1 block text-[10px] text-zinc-300">{value}</b></OisCard>)}</div><Section title="Comments" caption={`${comments.length} canonical comments`}><div className="divide-y divide-white/[.055] px-4">{comments.map(c=><div key={c.id} className="py-3"><p className="text-[10px] text-zinc-300">{c.content}</p><small className="text-[8px] text-zinc-600">{date(c.created_at)}</small></div>)}{!comments.length?<p className="py-8 text-center text-[10px] text-zinc-600">No comments on this post.</p>:null}</div></Section></div>:null}</OisDrawer>}
+function Composer({open,value,setValue,onClose,onSave,onUpload,saving,editing}:{open:boolean;value:Compose;setValue:React.Dispatch<React.SetStateAction<Compose>>;onClose:()=>void;onSave:()=>void;onUpload:(f:File)=>void;saving:boolean;editing:boolean}){return <OisDrawer open={open} onClose={onClose} title={editing?"Edit Post":"Create Post"} subtitle="Publish into the canonical resident Community" width="md" footer={<div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={onSave} disabled={saving}>{saving?"Saving…":editing?"Save Changes":"Publish Post"}</Button></div>}><div className="space-y-3"><input value={value.title} onChange={e=>setValue(c=>({...c,title:e.target.value}))} placeholder="Post title" className="w-full rounded-lg border border-white/[.08] bg-black/20 px-3 py-2.5 text-sm text-white outline-none"/><textarea value={value.content} onChange={e=>setValue(c=>({...c,content:e.target.value}))} rows={7} placeholder="Write a Community update…" className="w-full rounded-lg border border-white/[.08] bg-black/20 px-3 py-2.5 text-sm text-white outline-none"/><div className="grid gap-2 sm:grid-cols-2"><select value={value.category} onChange={e=>setValue(c=>({...c,category:e.target.value}))} className="rounded-lg border border-white/[.08] bg-zinc-950 px-3 py-2.5 text-xs text-white"><option value="resident">General</option><option value="announcement">Announcement</option><option value="notice">Notice</option><option value="maintenance">Maintenance</option><option value="security">Security</option><option value="service">Service</option><option value="amenity">Amenity</option><option value="event">Event</option></select><select value={value.audience} onChange={e=>setValue(c=>({...c,audience:e.target.value}))} className="rounded-lg border border-white/[.08] bg-zinc-950 px-3 py-2.5 text-xs text-white"><option value="all_estate">Entire Estate</option><option value="building">Building</option><option value="home">Home</option><option value="residents">Residents</option><option value="staff">Staff</option></select><select value={value.status} onChange={e=>setValue(c=>({...c,status:e.target.value}))} className="rounded-lg border border-white/[.08] bg-zinc-950 px-3 py-2.5 text-xs text-white"><option value="active">Published</option><option value="draft">Draft</option><option value="scheduled">Scheduled</option><option value="archived">Archived</option></select><input type="datetime-local" value={value.scheduled} onChange={e=>setValue(c=>({...c,scheduled:e.target.value}))} className="rounded-lg border border-white/[.08] bg-zinc-950 px-3 py-2.5 text-xs text-white"/></div><label className="flex items-center gap-2 text-xs text-zinc-400"><input type="checkbox" checked={value.pinned} onChange={e=>setValue(c=>({...c,pinned:e.target.checked}))}/>Pin this post</label><label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-white/[.1] p-4 text-xs text-zinc-400"><FileImage className="h-4 w-4 text-sky-400"/>Add image or video<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/ogg,video/quicktime" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)void onUpload(f)}}/></label>{value.media.length?<div className="grid grid-cols-2 gap-2">{value.media.map((m,i)=><div key={`${m.url}:${i}`} className="flex items-center gap-2 rounded-lg border border-white/[.07] p-3">{m.type==="video"?<Video className="h-4 w-4 text-violet-400"/>:<ImageIcon className="h-4 w-4 text-sky-400"/>}<span className="min-w-0 flex-1 truncate text-[9px] text-zinc-400">{m.name||m.url}</span><button onClick={()=>setValue(c=>({...c,media:c.media.filter((_,x)=>x!==i)}))} className="text-[9px] text-rose-400">Remove</button></div>)}</div>:null}<p className="text-[9px] leading-4 text-zinc-600">The canonical Community media endpoint supports images and videos. Document/file attachments are intentionally omitted because no canonical contract exists.</p></div></OisDrawer>}
+function ModerationDrawer({target,note,setNote,onClose,postAction,reportAction,saving}:{target:CommunityPost|ModerationReport|null;note:string;setNote:(v:string)=>void;onClose:()=>void;postAction:(p:CommunityPost,s:string)=>void;reportAction:(r:ModerationReport,a:"dismiss"|"hide_message"|"mute_sender")=>void;saving:boolean}){const report=Boolean(target&&"message_id" in target);return <OisDrawer open={Boolean(target)} onClose={onClose} title="Moderation Review" subtitle={report?"Reported resident message":"Community post lifecycle"} width="md">{target?<div className="space-y-3"><OisCard className="p-4"><p className="text-sm text-zinc-300">{report?text((target as ModerationReport).reason,"Reported message"):bodyOf(target as CommunityPost)}</p><p className="mt-2 text-[9px] text-zinc-600">{date((target as any).created_at)}</p></OisCard><textarea value={note} onChange={e=>setNote(e.target.value)} rows={4} placeholder="Moderation note" className="w-full rounded-lg border border-white/[.08] bg-black/20 p-3 text-sm text-white outline-none"/><div className="flex flex-wrap gap-2">{report?<><Button variant="ghost" disabled={saving} onClick={()=>reportAction(target as ModerationReport,"dismiss")}>Dismiss</Button><Button disabled={saving} onClick={()=>reportAction(target as ModerationReport,"hide_message")}>Hide Message</Button><Button variant="danger" disabled={saving} onClick={()=>reportAction(target as ModerationReport,"mute_sender")}>Mute Sender</Button></>:<><Button disabled={saving} onClick={()=>postAction(target as CommunityPost,"active")}>Publish / Resolve</Button><Button variant="ghost" disabled={saving} onClick={()=>postAction(target as CommunityPost,"flagged")}>Flag</Button><Button variant="danger" disabled={saving} onClick={()=>postAction(target as CommunityPost,"archived")}>Archive</Button></>}</div></div>:null}</OisDrawer>}
