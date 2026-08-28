@@ -37,6 +37,25 @@ function unwrapList(data: any): AlertItem[] {
   return [];
 }
 
+// Phase 2 commercial-hardening -- the real backend contract
+// (src/services/notificationPolicyService.ts on Ochiga-backend, routes
+// GET/PATCH /notifications/preferences). 10 real categories x real
+// channel/mode fields; replaces the previous fake localStorage-only toggle
+// UI in app/(protected)/account/page.tsx, which never persisted anywhere.
+export type NotificationCategory =
+  | "security" | "visitors" | "maintenance" | "services" | "wallet"
+  | "proximity" | "devices" | "automation" | "community" | "intelligence";
+
+export type NotificationPreference = {
+  category: NotificationCategory;
+  push_enabled: boolean;
+  in_app_enabled: boolean;
+  critical_only: boolean;
+  digest_mode: boolean;
+  cooldown_minutes: number;
+  quiet_hours: { start?: string; end?: string } | null;
+};
+
 export const notificationService = {
   async unread(): Promise<AlertItem[]> {
     try {
@@ -45,6 +64,16 @@ export const notificationService = {
     } catch {
       return [];
     }
+  },
+
+  async preferences(): Promise<NotificationPreference[]> {
+    const res = await API.get("/notifications/preferences");
+    return unwrapList(res.data) as unknown as NotificationPreference[];
+  },
+
+  async updatePreference(category: NotificationCategory, patch: Partial<Omit<NotificationPreference, "category">>): Promise<NotificationPreference> {
+    const res = await API.patch(`/notifications/preferences/${category}`, patch);
+    return (res.data?.item || res.data) as NotificationPreference;
   },
 
   // ✅ optional: only works if your backend has it

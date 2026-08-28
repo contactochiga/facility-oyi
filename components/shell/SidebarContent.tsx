@@ -193,13 +193,13 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                 type="button"
                 onClick={() => {
                   setOpenAccount(false);
-                  router.push("/account?tab=settings");
+                  router.push("/facility-administration");
                   onNavigate?.();
                 }}
                 className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-white/5"
               >
                 <SlidersHorizontal size={16} className="text-zinc-400" />
-                Preferences
+                Facility Administration
               </button>
 
               <div className="my-2 h-px bg-white/10" />

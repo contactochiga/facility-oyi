@@ -9,7 +9,8 @@ import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService } from "@/services/facilityService";
-import { notificationService } from "@/services/notificationService";
+import { notificationService, type NotificationPreference, type NotificationCategory } from "@/services/notificationService";
+import { authService } from "@/services/authService";
 import { cleanupFacilityPushRegistration } from "@/services/pushRegistrationService";
 import { useContextStore } from "@/store/useContextStore";
 import { useSessionStore } from "@/store/useSessionStore";
@@ -31,16 +32,21 @@ type EstateItem = {
   membership_status?: string | null;
 };
 
-type SettingsState = {
-  notificationsEnabled: boolean;
-  emailAlerts: boolean;
-  pushAlerts: boolean;
-  maintenanceAlerts: boolean;
-  visitorAlerts: boolean;
-  communityAlerts: boolean;
+const NOTIFICATION_CATEGORY_LABEL: Record<NotificationCategory, { title: string; detail: string }> = {
+  security: { title: "Security", detail: "Alarms, motion, access anomalies." },
+  visitors: { title: "Visitors", detail: "Approvals and access-window changes." },
+  maintenance: { title: "Maintenance", detail: "Work order updates." },
+  services: { title: "Services", detail: "Utility and service-provider events." },
+  wallet: { title: "Wallet", detail: "Payments and balance changes." },
+  proximity: { title: "Proximity", detail: "Location/geofence-based signals." },
+  devices: { title: "Devices", detail: "Device status and connectivity." },
+  automation: { title: "Automation", detail: "Oyi automation recommendations and actions." },
+  community: { title: "Community", detail: "Notices and moderation activity." },
+  intelligence: { title: "Intelligence", detail: "Oyi insights and digests." },
 };
-
-const SETTINGS_KEY = "oyi_facility_settings_v1";
+const NOTIFICATION_CATEGORY_ORDER: NotificationCategory[] = [
+  "security", "visitors", "maintenance", "services", "wallet", "devices", "automation", "community", "intelligence", "proximity",
+];
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
@@ -74,25 +80,6 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function Toggle({ title, detail, value, onChange, disabled }: { title: string; detail: string; value: boolean; onChange: (next: boolean) => void; disabled?: boolean }) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-xl border border-white/10 bg-black/20 px-3 py-3">
-      <div className="min-w-0">
-        <p className="text-sm text-white">{title}</p>
-        <p className="mt-1 text-xs leading-5 text-zinc-500">{detail}</p>
-      </div>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange(!value)}
-        className={`h-7 w-12 shrink-0 rounded-full border transition ${value ? "border-emerald-400/30 bg-emerald-500/20" : "border-white/10 bg-zinc-900/60"} ${disabled ? "opacity-50" : ""}`}
-      >
-        <span className={`block h-6 w-6 rounded-full transition ${value ? "translate-x-[22px] bg-emerald-300" : "translate-x-[2px] bg-zinc-300"}`} />
-      </button>
-    </div>
-  );
-}
-
 function AccountInner() {
   const router = useRouter();
   const { clear } = useSessionStore();
@@ -112,14 +99,25 @@ function AccountInner() {
   const [estate, setEstate] = useState<EstateItem | null>(null);
   const [loadingEstate, setLoadingEstate] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [settings, setSettings] = useState<SettingsState>({
-    notificationsEnabled: true,
-    emailAlerts: false,
-    pushAlerts: true,
-    maintenanceAlerts: true,
-    visitorAlerts: true,
-    communityAlerts: true,
-  });
+
+  // Phase 2 commercial-hardening -- real, server-persisted preferences
+  // (GET/PATCH /notifications/preferences), replacing the previous
+  // localStorage-only fake toggle set.
+  const [preferences, setPreferences] = useState<NotificationPreference[]>([]);
+  const [loadingPreferences, setLoadingPreferences] = useState(true);
+  const [savingCategory, setSavingCategory] = useState<NotificationCategory | null>(null);
+
+  // Real password-change flow, reusing the same OTP forgot/verify/reset
+  // primitive the standalone forgot-password screen already uses -- there
+  // is no "enter current password" endpoint in Backend, so this is framed
+  // honestly as sending a one-time code to the account's own email, not a
+  // fabricated in-place password field.
+  const [passwordStep, setPasswordStep] = useState<"idle" | "code_sent" | "done">("idle");
+  const [passwordCode, setPasswordCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
   const activeEstateName = context?.estate?.name || estate?.name || (context ? "Estate context unavailable" : "Loading estate context...");
 
   async function loadEstate() {
@@ -134,21 +132,41 @@ function AccountInner() {
     }
   }
 
+  async function loadPreferences() {
+    setLoadingPreferences(true);
+    try {
+      const items = await notificationService.preferences();
+      setPreferences(items || []);
+    } catch {
+      setPreferences([]);
+    } finally {
+      setLoadingPreferences(false);
+    }
+  }
+
   useEffect(() => {
     void loadEstate();
-    if (typeof window === "undefined") return;
-    const raw = window.localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return;
-    try {
-      setSettings((current) => ({ ...current, ...JSON.parse(raw) }));
-    } catch {
-      // ignore malformed local preference snapshots
-    }
+    void loadPreferences();
   }, []);
 
-  async function saveSettings() {
-    if (typeof window !== "undefined") window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    setMessage("Preferences saved on this device.");
+  function preferenceFor(category: NotificationCategory): NotificationPreference | undefined {
+    return preferences.find((item) => item.category === category);
+  }
+
+  async function togglePreferenceChannel(category: NotificationCategory, channel: "push_enabled" | "in_app_enabled", next: boolean) {
+    setSavingCategory(category);
+    setMessage(null);
+    try {
+      const updated = await notificationService.updatePreference(category, { [channel]: next });
+      setPreferences((current) => {
+        const withoutCategory = current.filter((item) => item.category !== category);
+        return [...withoutCategory, updated];
+      });
+    } catch (err: any) {
+      setMessage(err?.response?.data?.error || err?.message || "Could not update that preference.");
+    } finally {
+      setSavingCategory(null);
+    }
   }
 
   async function testNotifications() {
@@ -160,6 +178,41 @@ function AccountInner() {
     }
   }
 
+  async function sendPasswordResetCode() {
+    if (!decoded?.email) return;
+    setPasswordBusy(true);
+    setPasswordError(null);
+    try {
+      const res = await authService.requestPasswordReset(decoded.email);
+      if (!res.ok) {
+        setPasswordError(res.error || "Unable to send a reset code.");
+        return;
+      }
+      setPasswordStep("code_sent");
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
+  async function completePasswordChange() {
+    if (!decoded?.email) return;
+    setPasswordBusy(true);
+    setPasswordError(null);
+    try {
+      const res = await authService.completePasswordReset(decoded.email, passwordCode.trim(), newPassword);
+      if (!res.ok) {
+        setPasswordError(res.error || "Unable to update your password.");
+        return;
+      }
+      setPasswordStep("done");
+      setPasswordCode("");
+      setNewPassword("");
+      setMessage("Password updated.");
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
   async function signOut() {
     await cleanupFacilityPushRegistration();
     clear();
@@ -167,7 +220,6 @@ function AccountInner() {
   }
 
   async function deleteSession() {
-    if (typeof window !== "undefined") window.localStorage.removeItem(SETTINGS_KEY);
     await cleanupFacilityPushRegistration();
     clear();
     router.replace("/login");
@@ -176,7 +228,7 @@ function AccountInner() {
   return (
     <div className="space-y-6">
       <Topbar title="Operator Account" subtitle="Account, preferences and access" />
-      <OisOperationalStrip items={[{ label: "Role", value: role, tone: "stable" }, { label: "Estate", value: loadingEstate && !context?.estate?.name ? "Loading" : activeEstateName, tone: context?.estate?.name || estate?.name ? "attention" : "warning" }, { label: "Notifications", value: settings.notificationsEnabled ? "On" : "Off", tone: settings.notificationsEnabled ? "stable" : "warning" }, { label: "Session", value: token ? "Active" : "Missing", tone: token ? "stable" : "critical" }]} />
+      <OisOperationalStrip items={[{ label: "Role", value: role, tone: "stable" }, { label: "Estate", value: loadingEstate && !context?.estate?.name ? "Loading" : activeEstateName, tone: context?.estate?.name || estate?.name ? "attention" : "warning" }, { label: "Notifications", value: loadingPreferences ? "Loading" : `${preferences.filter((p) => p.in_app_enabled || p.push_enabled).length}/${preferences.length} on`, tone: "stable" }, { label: "Session", value: token ? "Active" : "Missing", tone: token ? "stable" : "critical" }]} />
       {message ? <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-300">{message}</div> : null}
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -187,16 +239,6 @@ function AccountInner() {
           <Field label="Estate" value={activeEstateName} />
         </Section>
 
-        <Section title="Preferences" subtitle="Local operator behavior and delivery settings.">
-          <Toggle title="Notifications" detail="Master switch for operator notifications." value={settings.notificationsEnabled} onChange={(next) => setSettings((current) => ({ ...current, notificationsEnabled: next }))} />
-          <Toggle title="Email alerts" detail="Receive important alerts by email when enabled." value={settings.emailAlerts} onChange={(next) => setSettings((current) => ({ ...current, emailAlerts: next }))} disabled={!settings.notificationsEnabled} />
-          <Toggle title="Push alerts" detail="Keep realtime push-style alerts available." value={settings.pushAlerts} onChange={(next) => setSettings((current) => ({ ...current, pushAlerts: next }))} disabled={!settings.notificationsEnabled} />
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => void saveSettings()}>Save preferences</Button>
-            <Button variant="ghost" onClick={() => void testNotifications()}>Check notifications</Button>
-          </div>
-        </Section>
-
         <Section title="Permissions" subtitle="Operator role and current control posture.">
           <Field label="Role" value={<OisStatusBadge status="stable" label={role} />} />
           <Field label="Membership" value={estate?.membership_role || "Operator"} />
@@ -204,17 +246,91 @@ function AccountInner() {
           <Field label="Scope" value={estate?.id ? `Estate ${estate.id}` : "Scope unavailable"} />
         </Section>
 
-        <Section title="Security" subtitle="Session and operator security posture.">
+        <Section title="Security" subtitle="Session and password.">
           <Field label="Session token" value={token ? "Present" : "Unavailable"} />
           <Field label="Authentication" value="JWT protected operator session" />
           <Field label="Estate context" value={activeEstateName} />
-          <Field label="Recovery" value="Password recovery depends on backend availability." />
+          {passwordStep === "idle" ? (
+            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+              <p className="text-sm text-white">Change password</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-500">We'll send a one-time code to {decoded?.email || "your account email"}.</p>
+              <Button className="mt-3" variant="ghost" disabled={passwordBusy || !decoded?.email} onClick={() => void sendPasswordResetCode()}>
+                {passwordBusy ? "Sending..." : "Send code"}
+              </Button>
+            </div>
+          ) : passwordStep === "code_sent" ? (
+            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 space-y-2">
+              <p className="text-sm text-white">Enter the code and your new password</p>
+              <input
+                value={passwordCode}
+                onChange={(event) => setPasswordCode(event.target.value)}
+                placeholder="6-digit code"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40"
+              />
+              <input
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                placeholder="New password"
+                type="password"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40"
+              />
+              {passwordError ? <p className="text-xs text-rose-300">{passwordError}</p> : null}
+              <div className="flex gap-2">
+                <Button disabled={passwordBusy || !passwordCode.trim() || newPassword.length < 8} onClick={() => void completePasswordChange()}>
+                  {passwordBusy ? "Updating..." : "Update password"}
+                </Button>
+                <Button variant="ghost" onClick={() => { setPasswordStep("idle"); setPasswordError(null); }}>Cancel</Button>
+              </div>
+            </div>
+          ) : (
+            <Field label="Password" value="Updated." />
+          )}
         </Section>
 
-        <Section title="Notifications" subtitle="Estate delivery preferences in this shell.">
-          <Toggle title="Maintenance alerts" detail="Send maintenance-related updates." value={settings.maintenanceAlerts} onChange={(next) => setSettings((current) => ({ ...current, maintenanceAlerts: next }))} disabled={!settings.notificationsEnabled} />
-          <Toggle title="Visitor alerts" detail="Notify on approvals and access changes." value={settings.visitorAlerts} onChange={(next) => setSettings((current) => ({ ...current, visitorAlerts: next }))} disabled={!settings.notificationsEnabled} />
-          <Toggle title="Community alerts" detail="Keep community notices and moderation visible." value={settings.communityAlerts} onChange={(next) => setSettings((current) => ({ ...current, communityAlerts: next }))} disabled={!settings.notificationsEnabled} />
+        <Section title="Notifications" subtitle="Real, server-persisted delivery preferences by category.">
+          {loadingPreferences ? (
+            <p className="text-xs text-zinc-500">Loading preferences…</p>
+          ) : preferences.length === 0 ? (
+            <p className="text-xs text-zinc-500">Notification preferences are unavailable right now.</p>
+          ) : (
+            NOTIFICATION_CATEGORY_ORDER.map((category) => {
+              const pref = preferenceFor(category);
+              const label = NOTIFICATION_CATEGORY_LABEL[category];
+              const saving = savingCategory === category;
+              return (
+                <div key={category} className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm text-white">{label.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">{label.detail}</p>
+                    </div>
+                    {pref?.critical_only ? <OisStatusBadge status="warning" label="Critical only" /> : null}
+                  </div>
+                  <div className="mt-3 flex gap-4">
+                    <label className="flex items-center gap-2 text-xs text-zinc-300">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(pref?.in_app_enabled)}
+                        disabled={saving}
+                        onChange={(event) => void togglePreferenceChannel(category, "in_app_enabled", event.target.checked)}
+                      />
+                      In-app
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-zinc-300">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(pref?.push_enabled)}
+                        disabled={saving}
+                        onChange={(event) => void togglePreferenceChannel(category, "push_enabled", event.target.checked)}
+                      />
+                      Push
+                    </label>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <Button variant="ghost" onClick={() => void testNotifications()}>Check notifications</Button>
         </Section>
 
         <Section title="About" subtitle="Facility OS native release candidate.">
