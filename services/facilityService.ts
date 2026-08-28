@@ -11,10 +11,24 @@ export type MyEstatesResponse = {
     lat?: number | null;
     lng?: number | null;
     type?: string | null;
+    timezone?: string | null;
+    contact_email?: string | null;
+    contact_phone?: string | null;
     created_at?: string;
     membership_role?: string;
     membership_status?: string;
   }>;
+};
+
+export type UpdateEstateProfilePayload = {
+  name?: string;
+  type?: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+  timezone?: string;
+  contact_email?: string;
+  contact_phone?: string;
 };
 
 export type HomesResponse<T = any> = {
@@ -332,6 +346,58 @@ export type ListEstateUsersResponse = {
 export type UpdateEstateUserPayload = {
   role?: string;
   status?: string;
+};
+
+// ---------------------------
+// ESTATE TEAM INVITES (Phase 2)
+// ---------------------------
+export type EstateInviteRow = {
+  id: string;
+  invited_email: string;
+  role: string;
+  status: string;
+  expires_at: string;
+  created_at: string;
+  claimed_at?: string | null;
+  revoked_at?: string | null;
+  last_sent_at?: string | null;
+};
+
+export type ListEstateInvitesResponse = {
+  estate_id: string;
+  invites: EstateInviteRow[];
+};
+
+export type CreateEstateInvitePayload = {
+  email: string;
+  role: string;
+};
+
+export type CreateEstateInviteResponse = {
+  invite: EstateInviteRow;
+  email_delivered: boolean;
+  invite_url?: string;
+};
+
+// ---------------------------
+// AUDIT (Phase 2, tenant-scoped)
+// ---------------------------
+export type EstateAuditEvent = {
+  id: string;
+  occurred_at: string;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  actor_id: string | null;
+  actor_role: string | null;
+  status: string;
+  metadata: Record<string, unknown>;
+};
+
+export type EstateAuditLogResponse = {
+  ok: true;
+  estate_id: string;
+  events: EstateAuditEvent[];
 };
 
 // ---------------------------
@@ -880,6 +946,48 @@ export const facilityService = {
 
   async removeEstateUser(membershipId: string) {
     const res = await API.delete(`/facility/estate-users/${membershipId}`);
+    return res.data;
+  },
+
+  // ---------------------------
+  // ESTATE TEAM INVITES (Phase 2)
+  // ---------------------------
+  async listEstateInvites(): Promise<ListEstateInvitesResponse> {
+    const res = await API.get("/facility/estate-invites");
+    return res.data;
+  },
+
+  async createEstateInvite(payload: CreateEstateInvitePayload): Promise<CreateEstateInviteResponse> {
+    const res = await API.post("/facility/estate-invites", {
+      email: normalizeEmail(payload.email),
+      role: payload.role,
+    });
+    return res.data;
+  },
+
+  async revokeEstateInvite(inviteId: string) {
+    const res = await API.post(`/facility/estate-invites/${inviteId}/revoke`);
+    return res.data;
+  },
+
+  async resendEstateInvite(inviteId: string) {
+    const res = await API.post(`/facility/estate-invites/${inviteId}/resend`);
+    return res.data;
+  },
+
+  // ---------------------------
+  // FACILITY PROFILE (Phase 2)
+  // ---------------------------
+  async updateEstateProfile(estateId: string, payload: UpdateEstateProfilePayload) {
+    const res = await API.patch(`/facility/estates/${estateId}`, payload);
+    return res.data;
+  },
+
+  // ---------------------------
+  // AUDIT (Phase 2, tenant-scoped)
+  // ---------------------------
+  async auditEvents(params?: { limit?: number; before?: string; action?: string }): Promise<EstateAuditLogResponse> {
+    const res = await API.get("/facility/audit-events", { params });
     return res.data;
   },
 

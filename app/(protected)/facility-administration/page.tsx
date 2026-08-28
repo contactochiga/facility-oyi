@@ -21,12 +21,11 @@ import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService, type EstateMembershipRow, type InfrastructureOperations } from "@/services/facilityService";
 import { notificationService, type AlertItem } from "@/services/notificationService";
-import superAdminService from "@/services/superAdminService";
 import { hasPermission, PERMISSION_KEYS, permissionsForRole } from "@/lib/oyiFoundation";
 import { iconForTab } from "@/lib/oisIconRegistry";
 import { useSessionStore } from "@/store/useSessionStore";
 
-type Tab = "operators" | "roles" | "permissions" | "audit" | "integrations" | "notifications" | "security" | "settings";
+type Tab = "operators" | "roles" | "permissions" | "audit" | "automation" | "integrations" | "notifications" | "security" | "settings";
 type LoadStatus = "loading" | "ready" | "error" | "permission";
 type Source<T> = { status: LoadStatus; data: T; message?: string };
 type Detail = { title: string; subtitle?: string; rows: Array<[string, string]>; href?: string };
@@ -36,10 +35,11 @@ const TABS: Array<{ key: Tab; label: string; icon: typeof Users }> = [
   { key: "roles", label: "Roles", icon: iconForTab("roles") },
   { key: "permissions", label: "Permissions", icon: iconForTab("permissions") },
   { key: "audit", label: "Audit", icon: iconForTab("audit") },
+  { key: "automation", label: "Automation", icon: iconForTab("automation") },
   { key: "integrations", label: "Integrations", icon: iconForTab("integrations") },
   { key: "notifications", label: "Notifications", icon: iconForTab("notifications") },
   { key: "security", label: "Security", icon: iconForTab("security") },
-  { key: "settings", label: "Estate Controls", icon: iconForTab("settings") },
+  { key: "settings", label: "Facility Profile", icon: iconForTab("settings") },
 ];
 
 const ROLE_DEFINITIONS = [
@@ -49,6 +49,37 @@ const ROLE_DEFINITIONS = [
   { key: "maintenance_operator", label: "Maintenance Operator", description: "Handles maintenance, support tickets, device posture and resident service workflows.", inheritance: "Support-focused", scope: "Maintenance/support domains" },
   { key: "finance_operator", label: "Finance Operator", description: "Handles wallet, payment and finance operations where enabled.", inheritance: "Finance-focused", scope: "Wallet/service domains" },
   { key: "ochiga_staff", label: "Ochiga Staff", description: "Ochiga support staff with read/support/moderation visibility but not full estate ownership.", inheritance: "Platform staff", scope: "Support-limited" },
+];
+
+// Phase 2 commercial-hardening -- Automation Permissions is a READ-ONLY
+// administrative-visibility layer over the existing, already-shipped
+// client-side automation-recommendation policy (lib/safeAutomationRuntime.ts:
+// permissionsForAction/executionMode/safeToExecute). It does not add any new
+// automation engine, capability or execution path -- it surfaces the ceiling
+// that policy already enforces, so an owner/admin can answer "what is this
+// system allowed to do on its own?" without engineering involvement. Full
+// autonomous-operation workspace is explicitly out of scope (Phase 3).
+type AutomationCeiling = "AUTO_ALLOWED" | "MANUAL_ONLY";
+
+const AUTOMATION_DOMAIN_POLICY: Array<{
+  domain: string;
+  label: string;
+  requiredPermissions: string[];
+  advisory: string;
+  ceiling: AutomationCeiling;
+  ceilingNote: string;
+  hardBlocked: boolean;
+}> = [
+  { domain: "infrastructure", label: "Infrastructure", requiredPermissions: ["devices.control"], advisory: "Suggests or prepares a workflow only", ceiling: "MANUAL_ONLY", ceilingNote: "Device control commands are never executed silently.", hardBlocked: false },
+  { domain: "security", label: "Security", requiredPermissions: ["support.assign", "notifications.manage"], advisory: "Suggests or prepares a workflow only", ceiling: "MANUAL_ONLY", ceilingNote: "Critical security actions are never dispatched without explicit operator approval.", hardBlocked: true },
+  { domain: "maintenance", label: "Maintenance", requiredPermissions: ["support.assign"], advisory: "Suggests or prepares a workflow only", ceiling: "MANUAL_ONLY", ceilingNote: "Support and maintenance follow-up remains operator-executed.", hardBlocked: false },
+  { domain: "utility", label: "Utilities", requiredPermissions: ["devices.control"], advisory: "Suggests or prepares a workflow only", ceiling: "MANUAL_ONLY", ceilingNote: "Utility device control commands are never executed silently.", hardBlocked: false },
+  { domain: "environmental", label: "Environment", requiredPermissions: ["devices.control"], advisory: "Suggests or prepares a workflow only", ceiling: "MANUAL_ONLY", ceilingNote: "Environmental device control commands are never executed silently.", hardBlocked: false },
+  { domain: "visitor", label: "Visitors / Access", requiredPermissions: ["visitors.manage"], advisory: "Suggests or prepares a workflow only", ceiling: "MANUAL_ONLY", ceilingNote: "Access and visitor permissions are never modified automatically.", hardBlocked: true },
+  { domain: "financial", label: "Finance", requiredPermissions: ["wallets.manage"], advisory: "Suggests or prepares a workflow only", ceiling: "MANUAL_ONLY", ceilingNote: "Financial follow-up is never executed automatically.", hardBlocked: true },
+  { domain: "community", label: "Community", requiredPermissions: ["community.moderate"], advisory: "Suggests or prepares a workflow only", ceiling: "MANUAL_ONLY", ceilingNote: "Community moderation actions remain operator-executed.", hardBlocked: false },
+  { domain: "operational_governance", label: "Assets / Operational Governance", requiredPermissions: ["support.assign"], advisory: "Suggests, prepares a workflow, or requests approval", ceiling: "AUTO_ALLOWED", ceilingNote: "Only a narrow, reversible, internal decision-routing step may run without a human click -- never for approval-required or already-flagged items.", hardBlocked: false },
+  { domain: "executive", label: "Executive / Briefings", requiredPermissions: ["office.read"], advisory: "Suggests or prepares a workflow only", ceiling: "MANUAL_ONLY", ceilingNote: "Briefing and reporting output remains operator-reviewed before use.", hardBlocked: false },
 ];
 
 const AUDIT_DOMAINS = [
@@ -165,6 +196,7 @@ export default function FacilityAdministrationModule() {
   const { user } = useSessionStore();
   const [tab, setTab] = useState<Tab>("operators");
   const [operators, setOperators] = useState<Source<EstateMembershipRow[]>>(source([]));
+  const [invites, setInvites] = useState<Source<any[]>>(source([]));
   const [estates, setEstates] = useState<Source<any[]>>(source([]));
   const [audit, setAudit] = useState<Source<any[]>>(source([]));
   const [infra, setInfra] = useState<Source<InfrastructureOperations | null>>(source(null));
@@ -182,22 +214,24 @@ export default function FacilityAdministrationModule() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [operatorState, estateState, auditState, infraState, notificationState, pushState] = await Promise.all([
+    const [operatorState, inviteState, estateState, auditState, infraState, notificationState, pushState] = await Promise.all([
       loadSource(facilityService.listEstateUsers().then((res) => res.users || []), []),
+      canManageStaff ? loadSource(facilityService.listEstateInvites().then((res) => res.invites || []), []) : Promise.resolve(source<any[]>([], "permission", "Permission required")),
       loadSource(facilityService.myEstates().then((res) => res.estates || []), []),
-      canAudit ? loadSource(superAdminService.auditLogs(160).then((res) => res.items || []), []) : Promise.resolve(source<any[]>([], "permission", "Permission required")),
+      canAudit ? loadSource(facilityService.auditEvents({ limit: 160 }).then((res) => res.events || []), []) : Promise.resolve(source<any[]>([], "permission", "Permission required")),
       loadSource(facilityService.infrastructureOperations(), null),
       canNotifications ? loadSource(notificationService.unread(), []) : Promise.resolve(source<AlertItem[]>([], "permission", "Permission required")),
       loadSource(facilityService.platformDeploymentReadiness(), null),
     ]);
     setOperators(operatorState);
+    setInvites(inviteState);
     setEstates(estateState);
     setAudit(auditState);
     setInfra(infraState);
     setNotifications(notificationState);
     setPushReadiness(pushState);
     setLoading(false);
-  }, [canAudit, canNotifications]);
+  }, [canManageStaff, canAudit, canNotifications]);
 
   useEffect(() => {
     void load();
@@ -220,7 +254,7 @@ export default function FacilityAdministrationModule() {
   const pendingOperators = operators.data.filter((item) => /invited|pending/.test(lower(item.status)));
 
   const filteredAudit = audit.data.filter((item) => {
-    const hay = `${item.action || ""} ${item.actor_role || ""} ${item.target_type || ""} ${item.target_id || ""}`.toLowerCase();
+    const hay = `${item.action || ""} ${item.actor_role || ""} ${item.resource_type || ""} ${item.resource_id || ""}`.toLowerCase();
     const matchesSearch = !query.trim() || hay.includes(query.trim().toLowerCase());
     const matchesDomain = auditFilter === "all" || hay.includes(auditFilter);
     return matchesSearch && matchesDomain;
@@ -260,23 +294,181 @@ export default function FacilityAdministrationModule() {
         {tab === "audit" ? <select value={auditFilter} onChange={(event) => setAuditFilter(event.target.value)} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"><option value="all">All domains</option>{AUDIT_DOMAINS.map((domain) => <option key={domain} value={domain}>{domain}</option>)}</select> : null}
       </div>
 
-      {tab === "operators" ? <OperatorsSection operators={filteredOperators} source={operators} canManage={canManageStaff} pendingOperators={pendingOperators.length} onOpen={setDetail} /> : null}
+      {tab === "operators" ? <OperatorsSection operators={filteredOperators} source={operators} invites={invites} canManage={canManageStaff} userRole={user?.role || ""} onOpen={setDetail} onReload={load} /> : null}
       {tab === "roles" ? <RolesSection roles={roleRows} onOpen={setDetail} /> : null}
       {tab === "permissions" ? <PermissionsSection roles={roleRows} /> : null}
       {tab === "audit" ? <AuditSection source={audit} rows={filteredAudit} /> : null}
+      {tab === "automation" ? <AutomationSection /> : null}
       {tab === "integrations" ? <IntegrationsSection rows={integrations} infra={infra} /> : null}
       {tab === "notifications" ? <NotificationsSection notifications={notifications} push={pushReadiness} /> : null}
       {tab === "security" ? <SecuritySection userRole={user?.role || "operator"} canSettings={canSettings} canAudit={canAudit} audit={audit} operators={operators} /> : null}
-      {tab === "settings" ? <EstateSettingsSection estate={estate} source={estates} canSettings={canSettings} /> : null}
+      {tab === "settings" ? <EstateSettingsSection estate={estate} source={estates} canSettings={canSettings} onSaved={load} /> : null}
 
       {detail ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"><section className="w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-950 p-5"><header className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Governance overview</p><h2 className="mt-1 text-lg font-semibold text-white">{detail.title}</h2>{detail.subtitle ? <p className="mt-1 text-sm text-zinc-500">{detail.subtitle}</p> : null}</div><button type="button" onClick={() => setDetail(null)} className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:text-white"><X className="h-4 w-4" /></button></header><div className="mt-5 grid gap-2 sm:grid-cols-2">{detail.rows.map(([label, value]) => <Field key={label} label={label} value={value} />)}</div>{detail.href ? <Link href={detail.href} className="mt-5 inline-flex items-center gap-2 text-sm text-sky-200 hover:text-sky-100">Open source workflow <ChevronRight className="h-4 w-4" /></Link> : null}</section></div> : null}
     </div>
   );
 }
 
-function OperatorsSection({ operators, source, canManage, pendingOperators, onOpen }: { operators: EstateMembershipRow[]; source: Source<EstateMembershipRow[]>; canManage: boolean; pendingOperators: number; onOpen: (detail: Detail) => void }) {
-  if (source.status !== "ready") return <Panel title="Operator Governance" subtitle="Operator source state"><p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{sourceLabel(source, "Awaiting activity source")}</p></Panel>;
-  return <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]"><Panel title="Operator Governance" subtitle="Estate operators, roles, status, assigned scope and honest activity state."><div className="space-y-2">{operators.map((member) => <div key={member.id} className="flex items-center gap-3"><div className="min-w-0 flex-1"><OisListItem title={operatorName(member)} description={`${operatorEmail(member)} · ${member.role || "operator"}`} status={statusTone(member.status || "unknown")} /></div><Button variant="ghost" onClick={() => onOpen({ title: operatorName(member), subtitle: operatorEmail(member), rows: [["Role", member.role || "operator"], ["Status", member.status || "unknown"], ["Assigned scope", "Estate scope"], ["Last login", "Awaiting activity source"], ["Activity", "Awaiting activity source"], ["Suspension state", /suspended/.test(lower(member.status)) ? "Suspended" : "Not suspended"]], href: "/homes" })} className="gap-2"><Eye className="h-4 w-4" />Inspect</Button></div>)}{!operators.length ? <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No operators returned by the estate user source.</p> : null}</div></Panel><Panel title="Lifecycle Controls" subtitle="Mutation support is limited to existing backend contracts."><div className="space-y-3 text-sm text-zinc-400"><Field label="Pending operators" value={String(pendingOperators)} /><Field label="Role assignment" value={canManage ? "Supported through estate/home membership update workflows" : "Permission required: staff.manage"} /><Field label="Suspend / remove" value={canManage ? "Supported where backend membership routes permit it" : "Permission required: staff.manage"} /><Field label="Last login" value="Awaiting activity source" /></div></Panel></section>;
+// Phase 2 commercial-hardening -- real Team & Access. Grantable-role list
+// is a CLIENT-SIDE convenience only (a nicer picker than showing roles the
+// server will reject); the actual authority boundary is enforced entirely
+// server-side (canGrantMembershipRole/canManageTargetRole in
+// Ochiga-backend's estateMembershipRoles.ts) -- this list is deliberately
+// conservative (never higher than what the current user's own role
+// resembles) but is not itself a security control.
+const GRANTABLE_ROLES: Array<{ value: string; label: string; minActorRole: string[] }> = [
+  { value: "estate_admin", label: "Estate Admin", minActorRole: ["estate_admin"] },
+  { value: "facility_manager", label: "Facility Manager", minActorRole: ["estate_admin"] },
+  { value: "security_operator", label: "Security Operator", minActorRole: ["estate_admin", "facility_manager"] },
+  { value: "maintenance_operator", label: "Maintenance Operator", minActorRole: ["estate_admin", "facility_manager"] },
+  { value: "finance_operator", label: "Finance Operator", minActorRole: ["estate_admin", "facility_manager"] },
+];
+
+function grantableRolesFor(actorRole: string) {
+  return GRANTABLE_ROLES.filter((r) => r.minActorRole.includes(actorRole));
+}
+
+function OperatorsSection({ operators, source, invites, canManage, userRole, onOpen, onReload }: { operators: EstateMembershipRow[]; source: Source<EstateMembershipRow[]>; invites: Source<any[]>; canManage: boolean; userRole: string; onOpen: (detail: Detail) => void; onReload: () => void }) {
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteResult, setInviteResult] = useState<string | null>(null);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+
+  const grantable = grantableRolesFor(userRole);
+  const pendingInvites = invites.data.filter((item) => item.status === "pending");
+
+  async function sendInvite() {
+    if (!inviteEmail.trim() || !inviteRole) return;
+    setInviteBusy(true);
+    setInviteError(null);
+    setInviteResult(null);
+    try {
+      const res = await facilityService.createEstateInvite({ email: inviteEmail.trim(), role: inviteRole });
+      setInviteResult(res.email_delivered ? "Invitation sent." : `Invitation created. Email delivery is not configured -- share this link: ${res.invite_url}`);
+      setInviteEmail("");
+      setInviteRole("");
+      onReload();
+    } catch (err: any) {
+      setInviteError(err?.response?.data?.error || err?.message || "Unable to send invitation.");
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
+  async function revoke(inviteId: string) {
+    setRowBusy(inviteId);
+    try {
+      await facilityService.revokeEstateInvite(inviteId);
+      onReload();
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  async function resend(inviteId: string) {
+    setRowBusy(inviteId);
+    try {
+      const res = await facilityService.resendEstateInvite(inviteId);
+      if (!res.email_delivered && res.invite_url) setInviteResult(`Email delivery is not configured -- share this link: ${res.invite_url}`);
+      onReload();
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  async function removeOperator(member: EstateMembershipRow) {
+    if (!window.confirm(`Remove ${operatorName(member)} from this estate?`)) return;
+    setRowBusy(member.id);
+    try {
+      await facilityService.removeEstateUser(member.id);
+      onReload();
+    } catch (err: any) {
+      window.alert(err?.response?.data?.error || err?.message || "Unable to remove this team member.");
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  if (source.status !== "ready") return <Panel title="Team & Access" subtitle="Operator source state"><p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{sourceLabel(source, "Awaiting activity source")}</p></Panel>;
+
+  return (
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="space-y-5">
+        <Panel title="Team & Access" subtitle="Estate operators, roles, status and management actions.">
+          <div className="space-y-2">
+            {operators.map((member) => (
+              <div key={member.id} className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <OisListItem title={operatorName(member)} description={`${operatorEmail(member)} · ${member.role || "operator"}`} status={statusTone(member.status || "unknown")} />
+                </div>
+                <Button variant="ghost" onClick={() => onOpen({ title: operatorName(member), subtitle: operatorEmail(member), rows: [["Role", member.role || "operator"], ["Status", member.status || "unknown"], ["Assigned scope", "Estate scope"], ["Suspension state", /suspended/.test(lower(member.status)) ? "Suspended" : "Not suspended"]], href: "/homes" })} className="gap-2">
+                  <Eye className="h-4 w-4" />Inspect
+                </Button>
+                {canManage ? (
+                  <Button variant="ghost" disabled={rowBusy === member.id} onClick={() => void removeOperator(member)} className="gap-2 text-rose-300">
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+            {!operators.length ? <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No operators returned by the estate user source.</p> : null}
+          </div>
+        </Panel>
+
+        <Panel title="Pending Invitations" subtitle="Invited but not yet activated.">
+          {invites.status !== "ready" ? (
+            <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{sourceLabel(invites, "No invitations")}</p>
+          ) : (
+            <div className="space-y-2">
+              {pendingInvites.map((invite) => (
+                <div key={invite.id} className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <OisListItem title={invite.invited_email} description={`${invite.role} · expires ${dateLabel(invite.expires_at)}`} status="pending" />
+                  </div>
+                  {canManage ? (
+                    <>
+                      <Button variant="ghost" disabled={rowBusy === invite.id} onClick={() => void resend(invite.id)}>Resend</Button>
+                      <Button variant="ghost" disabled={rowBusy === invite.id} onClick={() => void revoke(invite.id)} className="text-rose-300">Revoke</Button>
+                    </>
+                  ) : null}
+                </div>
+              ))}
+              {!pendingInvites.length ? <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No pending invitations.</p> : null}
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      <Panel title={showInvite ? "Invite Team Member" : "Team Controls"} subtitle={canManage ? "Invite a new operator into this estate." : "Permission required: staff.manage"}>
+        {!canManage ? (
+          <p className="text-sm text-zinc-400">You are not authorized to manage this estate's team.</p>
+        ) : showInvite ? (
+          <div className="space-y-3">
+            <input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="Email" className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40" />
+            <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white">
+              <option value="">Select a role</option>
+              {grantable.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+            {inviteError ? <p className="text-xs text-rose-300">{inviteError}</p> : null}
+            {inviteResult ? <p className="text-xs text-emerald-300">{inviteResult}</p> : null}
+            <div className="flex gap-2">
+              <Button disabled={inviteBusy || !inviteEmail.trim() || !inviteRole} onClick={() => void sendInvite()}>{inviteBusy ? "Sending..." : "Send invite"}</Button>
+              <Button variant="ghost" onClick={() => setShowInvite(false)}>Cancel</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3 text-sm text-zinc-400">
+            <Field label="Active operators" value={String(operators.length)} />
+            <Field label="Pending invitations" value={String(pendingInvites.length)} />
+            <Button onClick={() => setShowInvite(true)}>Invite team member</Button>
+          </div>
+        )}
+      </Panel>
+    </section>
+  );
 }
 
 function RolesSection({ roles, onOpen }: { roles: Array<typeof ROLE_DEFINITIONS[number] & { permissions: string[] }>; onOpen: (detail: Detail) => void }) {
@@ -289,7 +481,59 @@ function PermissionsSection({ roles }: { roles: Array<typeof ROLE_DEFINITIONS[nu
 
 function AuditSection({ source, rows }: { source: Source<any[]>; rows: any[] }) {
   if (source.status !== "ready") return <Panel title="Audit Center" subtitle="Audit visibility"><p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{sourceLabel(source, "No audit entries")}</p></Panel>;
-  return <Panel title="Audit Center" subtitle="Authentication, resident lifecycle, invitations, devices, visitors, moderation and administrative actions from backend audit logs."><div className="space-y-2">{rows.map((item) => <OisListItem key={item.id || `${item.action}-${item.created_at}`} title={item.action || "Audit event"} description={`${item.target_type || "target"}:${item.target_id || "n/a"} · actor:${item.actor_role || "n/a"}`} meta={dateLabel(item.created_at)} status={statusTone(item.status || "recorded")} />)}{!rows.length ? <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No audit entries match this filter.</p> : null}</div></Panel>;
+  return <Panel title="Audit Center" subtitle="This estate's own administrative and security events -- team changes, invitations, profile edits, permission denials."><div className="space-y-2">{rows.map((item) => <OisListItem key={item.id || `${item.action}-${item.occurred_at}`} title={item.action || "Audit event"} description={`${item.resource_type || "target"}:${item.resource_id || "n/a"} · actor:${item.actor_role || "n/a"}`} meta={dateLabel(item.occurred_at)} status={statusTone(item.status || "recorded")} />)}{!rows.length ? <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No audit entries match this filter.</p> : null}</div></Panel>;
+}
+
+function AutomationSection() {
+  const autoAllowed = AUTOMATION_DOMAIN_POLICY.filter((row) => row.ceiling === "AUTO_ALLOWED");
+  return (
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <Panel title="Automation Permissions" subtitle="What this Facility's automation policy is allowed to do on its own, by domain. Administrative visibility only -- no execution happens from this screen, and this is not the automation operations workspace.">
+        <div className="grid gap-3 lg:grid-cols-2">
+          {AUTOMATION_DOMAIN_POLICY.map((row) => (
+            <OisCard key={row.domain} variant="evidence" className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">{row.label}</h3>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">{row.advisory}</p>
+                </div>
+                <Status value={row.ceiling === "AUTO_ALLOWED" ? "Auto-allowed (narrow)" : "Manual only"} />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {row.requiredPermissions.map((permission) => (
+                  <span key={permission} className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-300">{permission}</span>
+                ))}
+              </div>
+              <p className="mt-3 text-xs leading-5 text-zinc-500">{row.ceilingNote}</p>
+              {row.hardBlocked ? <p className="mt-2 text-[11px] uppercase tracking-[0.12em] text-amber-300/80">Double-enforced: also hard-blocked at the safety-check layer</p> : null}
+            </OisCard>
+          ))}
+        </div>
+      </Panel>
+      <div className="space-y-5">
+        <Panel title="Automatic Execution" subtitle="Domains that may ever run without an operator click.">
+          {autoAllowed.length ? (
+            <div className="space-y-2 text-sm text-zinc-400">
+              {autoAllowed.map((row) => <Field key={row.domain} label={row.label} value={row.ceilingNote} />)}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400">No domain currently reaches automatic execution.</p>
+          )}
+        </Panel>
+        <Panel title="Universal Safety Rules" subtitle="Enforced for every domain and every recommendation, regardless of role.">
+          <div className="space-y-2 text-sm text-zinc-400">
+            <Field label="Permission boundaries" value="Never bypassed or granted implicitly." />
+            <Field label="Irreversible actions" value="Never auto-executed, resident-facing or otherwise." />
+            <Field label="Approval-flagged items" value="Always require explicit operator approval before any step." />
+            <Field label="Automatic execution" value="Where reachable at all, remains low-risk, internal and reversible." />
+          </div>
+        </Panel>
+        <Panel title="Scope" subtitle="What this phase does and does not implement.">
+          <p className="text-sm leading-6 text-zinc-400">This is the Phase 2 administrative-visibility layer over the existing automation-recommendation policy. It reuses that policy as-is and adds no new engine, no autonomous execution and no operational workspace. The full automation operations workspace is Phase 3 and is not built here.</p>
+        </Panel>
+      </div>
+    </section>
+  );
 }
 
 function IntegrationsSection({ rows, infra }: { rows: Array<{ name: string; status: string; detail: string }>; infra: Source<InfrastructureOperations | null> }) {
@@ -304,7 +548,95 @@ function SecuritySection({ userRole, canSettings, canAudit, audit, operators }: 
   return <section className="grid gap-5 xl:grid-cols-2"><Panel title="Security Policies" subtitle="Authentication, session, role and operator posture."><div className="grid gap-3 sm:grid-cols-2"><Field label="Authentication posture" value="JWT-protected Facility routes" /><Field label="Session posture" value="Cookie/local token cleared on logout by protected shell" /><Field label="Operator access" value={operators.status === "ready" ? `${operators.data.length} estate memberships` : sourceLabel(operators)} /><Field label="Current operator role" value={userRole.replace(/_/g, " ")} /><Field label="Control permission" value={canSettings ? "settings.manage available" : "Permission required"} /><Field label="Audit permission" value={canAudit ? "audit.read available" : "Permission required"} /></div></Panel><Panel title="Security Activity" subtitle="Audit-backed security visibility."><p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{audit.status === "ready" ? `${audit.data.length} audit entries loaded. Use Audit tab for filtering.` : sourceLabel(audit, "Awaiting security event source")}</p></Panel></section>;
 }
 
-function EstateSettingsSection({ estate, source, canSettings }: { estate: any; source: Source<any[]>; canSettings: boolean }) {
-  if (source.status !== "ready") return <Panel title="Estate Controls" subtitle="Estate control source"><p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{sourceLabel(source)}</p></Panel>;
-  return <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]"><Panel title="Estate Controls" subtitle="Operational control center. Editing is only enabled where backend persistence exists."><div className="grid gap-3 sm:grid-cols-2"><Field label="Estate name" value={estate?.name || "Pending source"} /><Field label="Address" value={estate?.address || "Pending source"} /><Field label="Type" value={estate?.type || "Pending source"} /><Field label="Timezone" value="Pending backend support" /><Field label="Branding" value="Pending backend support" /><Field label="Communication readiness" value="Pending backend support" /><Field label="Access readiness" value="Owned through Homes/Members access workflows" /><Field label="Operational readiness" value="Pending backend support" /></div></Panel><Panel title="Readiness Controls" subtitle="Fail-closed editing posture."><div className="space-y-3 text-sm text-zinc-400"><Field label="Edit permission" value={canSettings ? "settings.manage available" : "Permission required: settings.manage"} /><Field label="Persistence" value="Estate create/update fields are available in Homes/Estate workflows. Branding/timezone/communication readiness needs backend contracts." /><Button variant="ghost" disabled={!canSettings}>Readiness editor pending backend support</Button></div></Panel></section>;
+// Phase 2 commercial-hardening -- Facility Profile is now genuinely
+// editable (PATCH /facility/estates/:estateId) for customer-editable
+// metadata. Branding/logo needs file-storage infrastructure this pass
+// doesn't build (flagged as a P1 gap in the final report) -- shown
+// honestly as unavailable rather than a disabled fake control. There is
+// still no commercial/deployment/subscription field on `estates` at all
+// (confirmed by audit), so there is nothing Office-owned to accidentally
+// expose as editable here.
+function EstateSettingsSection({ estate, source, canSettings, onSaved }: { estate: any; source: Source<any[]>; canSettings: boolean; onSaved: () => void }) {
+  const [form, setForm] = useState({ name: "", type: "", address: "", timezone: "", contact_email: "", contact_phone: "" });
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!estate) return;
+    setForm({
+      name: estate.name || "",
+      type: estate.type || "",
+      address: estate.address || "",
+      timezone: estate.timezone || "",
+      contact_email: estate.contact_email || "",
+      contact_phone: estate.contact_phone || "",
+    });
+    setDirty(false);
+  }, [estate?.id, estate?.name, estate?.type, estate?.address, estate?.timezone, estate?.contact_email, estate?.contact_phone]);
+
+  function set<K extends keyof typeof form>(key: K, value: string) {
+    setForm((current) => ({ ...current, [key]: value }));
+    setDirty(true);
+    setSaved(false);
+  }
+
+  async function save() {
+    if (!estate?.id) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await facilityService.updateEstateProfile(estate.id, {
+        name: form.name.trim() || undefined,
+        type: form.type.trim() || undefined,
+        address: form.address.trim(),
+        timezone: form.timezone.trim(),
+        contact_email: form.contact_email.trim(),
+        contact_phone: form.contact_phone.trim(),
+      });
+      setDirty(false);
+      setSaved(true);
+      onSaved();
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || "Unable to save Facility profile.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (source.status !== "ready") return <Panel title="Facility Profile" subtitle="Estate control source"><p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{sourceLabel(source)}</p></Panel>;
+
+  const inputClass = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40 disabled:opacity-50";
+
+  return (
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <Panel title="Facility Profile" subtitle="Customer-editable identity and location. Commercial/deployment status remains Ochiga-controlled (see Deployment).">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-xs text-zinc-500">Facility name<input className={inputClass} value={form.name} disabled={!canSettings} onChange={(e) => set("name", e.target.value)} /></label>
+          <label className="text-xs text-zinc-500">Type<input className={inputClass} value={form.type} disabled={!canSettings} onChange={(e) => set("type", e.target.value)} /></label>
+          <label className="text-xs text-zinc-500 sm:col-span-2">Address<input className={inputClass} value={form.address} disabled={!canSettings} onChange={(e) => set("address", e.target.value)} /></label>
+          <label className="text-xs text-zinc-500">Timezone<input className={inputClass} value={form.timezone} disabled={!canSettings} placeholder="e.g. Africa/Lagos" onChange={(e) => set("timezone", e.target.value)} /></label>
+          <label className="text-xs text-zinc-500">Contact email<input className={inputClass} value={form.contact_email} disabled={!canSettings} onChange={(e) => set("contact_email", e.target.value)} /></label>
+          <label className="text-xs text-zinc-500">Contact phone<input className={inputClass} value={form.contact_phone} disabled={!canSettings} onChange={(e) => set("contact_phone", e.target.value)} /></label>
+          <Field label="Logo" value="Not yet supported -- requires file storage." />
+        </div>
+        {error ? <p className="mt-3 text-xs text-rose-300">{error}</p> : null}
+        {canSettings ? (
+          <div className="mt-4 flex items-center gap-2">
+            <Button disabled={!dirty || saving} onClick={() => void save()}>{saving ? "Saving..." : "Save changes"}</Button>
+            {saved ? <span className="text-xs text-emerald-300">Saved.</span> : null}
+          </div>
+        ) : null}
+      </Panel>
+      <Panel title="Readiness" subtitle="Edit permission and what remains unsupported.">
+        <div className="space-y-3 text-sm text-zinc-400">
+          <Field label="Edit permission" value={canSettings ? "settings.manage available" : "Permission required: settings.manage"} />
+          <Field label="Branding / logo" value="Pending file-storage support" />
+          <Field label="Communication readiness" value="Pending backend support" />
+          <Field label="Access readiness" value="Owned through Homes/Members access workflows" />
+        </div>
+      </Panel>
+    </section>
+  );
 }

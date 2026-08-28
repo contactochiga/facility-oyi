@@ -121,6 +121,7 @@ export const OIS_TAB_ICONS: Record<string, LucideIcon> = {
   roles: UserCog,
   permissions: LockKeyhole,
   audit: Activity,
+  automation: Bot,
   integrations: PlugZap,
   notifications: Bell,
   security: ShieldCheck,
