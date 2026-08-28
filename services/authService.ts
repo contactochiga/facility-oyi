@@ -45,6 +45,61 @@ export const authService = {
     }
   },
 
+  // Commercial production-hardening -- estate-level facility-owner
+  // activation invites (Ochiga Office provisions the deployment and issues
+  // these; the invited person owns their own credentials).
+  async validateEstateInvite(token: string) {
+    try {
+      const res = await API.post("/auth/estate-invites/validate", { token });
+      return res.data;
+    } catch (err: any) {
+      return {
+        ok: false,
+        error:
+          err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          err?.message ||
+          "This invite link could not be verified.",
+      };
+    }
+  },
+
+  async activateEstateInvite(input: { token: string; username: string; password: string; confirmPassword: string }) {
+    try {
+      const res = await API.post("/auth/estate-invites/activate", input);
+      return res.data;
+    } catch (err: any) {
+      return {
+        error:
+          err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          err?.message ||
+          "Unable to activate this invite.",
+      };
+    }
+  },
+
+  // Already-authenticated Oyi user accepting estate ownership -- caller must
+  // pass the CURRENT session token so the request is authenticated.
+  async acceptEstateInvite(token: string, sessionToken: string) {
+    try {
+      const res = await API.post(
+        "/auth/estate-invites/accept",
+        { token },
+        { headers: { authorization: `Bearer ${sessionToken}` } }
+      );
+      return res.data;
+    } catch (err: any) {
+      return {
+        error:
+          err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          err?.message ||
+          "Unable to accept this invite.",
+      };
+    }
+  },
+
   async requestPasswordReset(email: string) {
     const cleanEmail = String(email || "").trim().toLowerCase();
     try {
