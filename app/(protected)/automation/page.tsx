@@ -254,7 +254,7 @@ export default function AutomationWorkspace() {
 
       {tab === "active" ? (
         <section className="space-y-5">
-          <Panel title="System Automations" subtitle="Server-defined detectors -- real, running today, not user-editable in this phase.">
+          <Panel title="System Automations" subtitle="Built-in automations that run today. Not yet user-editable.">
             <div className="space-y-2">
               {SYSTEM_AUTOMATIONS.map((automation) => (
                 <OisListItem
@@ -268,7 +268,7 @@ export default function AutomationWorkspace() {
             </div>
           </Panel>
           <Panel title="Custom Automations" subtitle="User-authored automation rules.">
-            <Empty text="Unsupported in this phase -- no custom rule authoring exists yet. Only the system-defined detectors above run today." />
+            <Empty text="Custom rule authoring isn't available yet. Only the system automations above run today." />
           </Panel>
         </section>
       ) : null}
