@@ -1,23 +1,22 @@
-// Automation Workspace UI/UX completion -- client for the existing,
-// pre-existing "Shared Automation Runtime" (Ochiga-backend's
-// src/routes/scenes.ts, mounted at /scenes). This is NOT a new
-// automation engine: it's the same backend Oyi Consumer already uses for
-// scheduled device scenes, extended in an earlier phase to also accept
-// Facility-surface registered actions. No new backend engine was created
-// for this workspace -- this file only calls the real, already-shipped
-// contract.
+// Automation Workspace UI/UX -- client for the existing, pre-existing
+// "Shared Automation Runtime" (Ochiga-backend's src/routes/scenes.ts,
+// mounted at /scenes). This is NOT a new automation engine: it's the
+// same backend Oyi Consumer already uses for scheduled device scenes,
+// extended in earlier phases to also accept Facility-surface registered
+// actions.
 //
-// Scope for THIS pass: only device (Assets) actions are createable here.
-// Facility's registered_action lane (visitor.*/maintenance.*) executes
-// on schedule with no approval gate at all (confirmed by reading
-// executeConsumerAutomation/executeRegisteredActionBatch directly --
-// neither consults automationPolicyResolver or automation_approvals).
-// Wiring that lane into a user-facing builder would let a Facility admin
-// schedule an automatic maintenance/visitor action that bypasses the
-// approval-required governance built for exactly those domains. Device
-// scenes carry no such regression (they've always executed directly,
-// the same way Consumer's device scenes always have), so only Assets is
-// offered as a creatable domain this pass.
+// Cross-Domain Operational Automation -- previously this builder only
+// ever created device_command actions, because the registered_action
+// lane (visitor.*/maintenance.*) executed on schedule with no approval
+// gate at all. Backend has since closed that gap: every registered_action
+// item on a scheduled/manual-test run is now policy-checked through the
+// same resolver (and same approval_required-by-default) the system-
+// detector approval queue already uses -- see scenes.ts's
+// executeConsumerAutomation. So this client now supports BOTH action
+// shapes Backend actually accepts: device_command (unchanged, always
+// executes directly, exactly as Consumer's own device scenes always
+// have) and registered_action (visitor/maintenance/notification --
+// governed, may queue for approval instead of executing immediately).
 import API from "./api";
 
 export type AutomationSurface = "consumer" | "facility" | "office";
@@ -27,12 +26,32 @@ export type AutomationScheduleTrigger =
   | { type: "schedule"; schedule_type: "weekdays"; local_time: string; weekdays: number[]; timezone: string }
   | { type: "schedule"; schedule_type: "once"; local_datetime: string; timezone: string };
 
-export type AutomationRuleDeviceAction = {
+export type AutomationDeviceAction = {
+  action_type?: undefined;
   device_id: string;
   command: Record<string, unknown>;
   label?: string | null;
   action_label?: string | null;
 };
+
+export type AutomationRegisteredAction = {
+  action_type: "registered_action";
+  action_id: string;
+  entity_id?: string;
+  assignee?: string | null;
+  label?: string | null;
+  command?: Record<string, unknown> | null;
+};
+
+export type AutomationRuleAction = AutomationDeviceAction | AutomationRegisteredAction;
+
+// Kept as an alias -- earlier code across this app refers to
+// AutomationRuleDeviceAction specifically for the device-command shape.
+export type AutomationRuleDeviceAction = AutomationDeviceAction;
+
+export function isRegisteredAction(action: AutomationRuleAction): action is AutomationRegisteredAction {
+  return (action as AutomationRegisteredAction)?.action_type === "registered_action";
+}
 
 export type AutomationRule = {
   id: string;
@@ -43,7 +62,7 @@ export type AutomationRule = {
   surface: AutomationSurface;
   trigger: AutomationScheduleTrigger;
   condition: Record<string, unknown>;
-  actions: AutomationRuleDeviceAction[];
+  actions: AutomationRuleAction[];
   enabled: boolean;
   timezone: string;
   next_run_at: string | null;
@@ -56,7 +75,7 @@ export type AutomationRule = {
 export type AutomationRuleRun = {
   id: string;
   automation_id: string;
-  status: "running" | "succeeded" | "partially_succeeded" | "failed" | string;
+  status: "running" | "succeeded" | "partially_succeeded" | "failed" | "skipped" | string;
   source: "scheduled" | "manual_test" | string;
   scheduled_for: string;
   started_at: string;
@@ -87,7 +106,7 @@ export const automationRulesService = {
     }
   },
 
-  async create(payload: { name: string; trigger: AutomationScheduleTrigger; actions: AutomationRuleDeviceAction[]; enabled: boolean; condition?: Record<string, unknown> }): Promise<{ ok: true; rule: AutomationRule } | { ok: false; error: string; code?: string }> {
+  async create(payload: { name: string; trigger: AutomationScheduleTrigger; actions: AutomationRuleAction[]; enabled: boolean; condition?: Record<string, unknown> }): Promise<{ ok: true; rule: AutomationRule } | { ok: false; error: string; code?: string }> {
     try {
       const res = await API.post("/scenes/automations", { surface: "facility", ...payload });
       return { ok: true, rule: res.data as AutomationRule };
@@ -96,7 +115,7 @@ export const automationRulesService = {
     }
   },
 
-  async update(id: string, payload: Partial<{ name: string; trigger: AutomationScheduleTrigger; actions: AutomationRuleDeviceAction[]; enabled: boolean; condition: Record<string, unknown> }>): Promise<{ ok: true; rule: AutomationRule } | { ok: false; error: string; code?: string }> {
+  async update(id: string, payload: Partial<{ name: string; trigger: AutomationScheduleTrigger; actions: AutomationRuleAction[]; enabled: boolean; condition: Record<string, unknown> }>): Promise<{ ok: true; rule: AutomationRule } | { ok: false; error: string; code?: string }> {
     try {
       const res = await API.patch(`/scenes/automations/${id}`, payload);
       return { ok: true, rule: res.data as AutomationRule };

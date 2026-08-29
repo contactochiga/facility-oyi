@@ -38,10 +38,12 @@ assert.match(page, /loadOyiCoreExecutionHistory/);
 assert.match(page, /loadOyiCoreExecutionStatistics/);
 assert.match(page, /not limited to automations created in this workspace/);
 
-// Create Automation is scoped to the Assets\/Device domain this pass, and
-// discloses why (no bypass of the approval-required Visitor\/Maintenance
-// governance built in the earlier phase).
-assert.match(page, /Only Assets \(device\) actions can be created here today/);
+// Create Automation is domain-generated from the real capability
+// registry -- no hardcoded Assets-only restriction remains now that
+// scheduled registered_action runs are governance-gated server-side.
+assert.match(page, /automationCapabilities/);
+assert.match(page, /Only domains with a real, currently executable action are shown/);
+assert.doesNotMatch(page, /Only Assets \(device\) actions can be created here today/);
 assert.match(page, /schedule-only|Only scheduled triggers are supported today/);
 assert.match(page, /automation_surface_disabled/);
 

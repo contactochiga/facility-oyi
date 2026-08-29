@@ -427,7 +427,12 @@ export type AutomationApproval = {
   detector_id: string;
   action_id: string;
   entity_type: string;
-  entity_id: string;
+  // Cross-Domain Operational Automation -- notification.notify (the one
+  // new registered action this pass adds) addresses a role/user/home/
+  // estate, not a single existing row, so it carries no entity_id.
+  // automation_approvals.entity_id is now nullable at the DB level for
+  // exactly this case.
+  entity_id: string | null;
   target_label: string | null;
   reason: string;
   evidence: Array<Record<string, unknown>>;
@@ -448,6 +453,36 @@ export type AutomationApproval = {
 export type AutomationApprovalsResponse = {
   estate_id: string;
   approvals: AutomationApproval[];
+};
+
+// ---------------------------
+// AUTOMATION CAPABILITY REGISTRY (Cross-Domain Operational Automation)
+// Read-only projection of Backend's real EXECUTION_REGISTRY +
+// automationPolicyResolver -- what Create Automation is generated from,
+// not a second, independently-maintained domain list.
+// ---------------------------
+export type AutomationCapabilityAction = {
+  id: string;
+  domain: string;
+  label: string;
+  target_type: "device" | "visitor_access" | "maintenance_request" | "notification_target" | "none";
+  requires_assignee: boolean;
+  available: boolean;
+  execution_level: AutomationExecutionLevel;
+  required_permission: string | null;
+  reason: string | null;
+};
+
+export type AutomationCapabilityDomain = {
+  domain: string;
+  label: string;
+  actions: AutomationCapabilityAction[];
+};
+
+export type AutomationCapabilitiesResponse = {
+  estate_id: string;
+  triggers: Array<{ type: "schedule"; label: string; schedule_types: string[] }>;
+  domains: AutomationCapabilityDomain[];
 };
 
 // ---------------------------
@@ -1093,6 +1128,11 @@ export const facilityService = {
   // ---------------------------
   async automationPolicy(): Promise<AutomationPolicyResponse> {
     const res = await API.get("/facility/automation/policy");
+    return res.data;
+  },
+
+  async automationCapabilities(): Promise<AutomationCapabilitiesResponse> {
+    const res = await API.get("/facility/automation/capabilities");
     return res.data;
   },
 
