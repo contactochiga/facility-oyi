@@ -52,6 +52,11 @@ export type OyiIdentity = {
   permissions?: string[];
   permission_scopes?: string[];
   exp?: number;
+  // PHASE 3 UX closure -- not present in the JWT; populated at runtime via
+  // useSessionStore().patchUser() after GET /me/context.
+  avatar_url?: string | null;
+  profile_image_url?: string | null;
+  phone?: string | null;
 };
 
 const ROLE_ALIASES: Record<string, string> = {

@@ -13,10 +13,14 @@ type SessionState = {
   hydrated: boolean;
   hydrate: () => void;
   setToken: (token: string) => void;
+  // PHASE 3 UX closure -- merges fields fetched from GET /me/context (e.g.
+  // avatar_url) into the current session user. The JWT itself never
+  // carries this; it's fetched separately and layered on top.
+  patchUser: (patch: Record<string, unknown>) => void;
   clear: () => void;
 };
 
-export const useSessionStore = create<SessionState>((set) => ({
+export const useSessionStore = create<SessionState>((set, get) => ({
   token: null,
   user: null,
   hydrated: false,
@@ -44,6 +48,12 @@ export const useSessionStore = create<SessionState>((set) => ({
     localStorage.setItem("oyi_facility_token", token);
     setCookie("oyi_facility_token", token);
     set({ token, user: decodeToken(token), hydrated: true });
+  },
+
+  patchUser: (patch) => {
+    const current = get().user;
+    if (!current) return;
+    set({ user: { ...current, ...patch } as DecodedToken });
   },
 
   clear: () => {

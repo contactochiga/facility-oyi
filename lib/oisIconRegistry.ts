@@ -101,6 +101,7 @@ export const FACILITY_MODULE_ICON_KEYS: Record<string, OisIconKey> = {
   wallets: "financialPosture",
   intelligence: "operationalIntelligence",
   administration: "operationalGovernance",
+  "facility-administration": "operationalGovernance",
   automation: "operationalIntelligence",
 };
 
@@ -127,6 +128,7 @@ export const OIS_TAB_ICONS: Record<string, LucideIcon> = {
   notifications: Bell,
   security: ShieldCheck,
   settings: SlidersHorizontal,
+  profile: UserCircle,
 };
 
 export function iconForModule(moduleKey: string): LucideIcon {

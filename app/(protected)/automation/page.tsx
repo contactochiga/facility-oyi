@@ -47,6 +47,24 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "history", label: "History" },
 ];
 
+// PHASE 3 UX CLOSURE -- readable labels for the canonical action keys.
+// The action key (e.g. "maintenance.assign") stays visible as secondary
+// metadata for diagnostics; customers see the plain-language label first.
+const ACTION_LABELS: Record<string, string> = {
+  "visitor.approve": "Approve visitor",
+  "visitor.revoke": "Revoke visitor access",
+  "visitor.expire": "Expire visitor access",
+  "maintenance.assign": "Assign maintenance",
+  "maintenance.complete": "Complete maintenance",
+  "maintenance.cancel": "Cancel maintenance",
+  "device.on": "Turn device on",
+  "device.off": "Turn device off",
+  "device.toggle": "Toggle device",
+};
+function actionLabel(actionId: string) {
+  return ACTION_LABELS[actionId] || actionId.replace(/[._]/g, " ");
+}
+
 const SYSTEM_AUTOMATIONS = [
   {
     id: "duplicate_maintenance_request",
@@ -173,16 +191,13 @@ export default function AutomationWorkspace() {
 
   return (
     <div className="space-y-6">
+      {/* PHASE 3 UX CLOSURE -- the old OIS top KPI strip duplicated the
+         newer icon-based metric cards below (Overview tab). Removed per
+         the commercial-polish pass; the metric cards are now the single
+         KPI language on this page. */}
       <Topbar
         title="Automation"
         subtitle="Operational command centre -- observes and controls real automation activity"
-        strip={[
-          { label: "Pending approvals", value: loading ? "…" : pendingApprovals.length },
-          { label: "Recommendations", value: loading ? "…" : visiblePlans.length },
-          { label: "Executed today", value: loading ? "…" : executedToday.length },
-          { label: "Failures", value: loading ? "…" : failed.length },
-          { label: "Health", value: failed.length ? "Review" : "Stable" },
-        ]}
       />
 
       {error ? <div role="alert" className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{error}</div> : null}
@@ -209,12 +224,13 @@ export default function AutomationWorkspace() {
             <FacilityMetricCard icon={<CheckCircle2 />} label="Successful executions" value={loading ? "—" : succeeded.length} detail="Approved, executed and verified" accent="text-emerald-400" />
             <FacilityMetricCard icon={<XCircle />} label="Failed / unverified" value={loading ? "—" : failed.length} detail="Execution or verification failures" accent={failed.length ? "text-rose-400" : "text-zinc-400"} />
           </div>
-          <Panel title="Automation policy (server-authoritative)" subtitle="Real execution levels enforced by the backend for each registered action -- not the same as this Facility's Settings display, which is a read-only summary of the same underlying policy.">
+          <Panel title="Execution Policy" subtitle="Controls how Oyi may act on supported operations. This reflects the real, enforced policy -- the same one summarized in Facility Administration Settings.">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {policy.map((p) => (
                 <div key={p.actionId} className="rounded-xl border border-white/10 bg-black/15 p-3">
-                  <p className="text-xs font-medium text-zinc-200">{p.actionId}</p>
+                  <p className="text-xs font-medium text-zinc-200">{actionLabel(p.actionId)}</p>
                   <p className="mt-1 text-[11px] text-zinc-500">{p.executionLevel.replace(/_/g, " ")}</p>
+                  <p className="mt-1 text-[10px] text-zinc-600">{p.actionId}</p>
                 </div>
               ))}
               {!policy.length && !loading ? <Empty text="No policy data available." /> : null}
@@ -245,7 +261,7 @@ export default function AutomationWorkspace() {
                   key={automation.id}
                   title={automation.name}
                   description={`${automation.domain} · ${automation.trigger}`}
-                  meta={`Action: ${automation.action} · Policy: ${automation.policy}`}
+                  meta={`Action: ${actionLabel(automation.action)} (${automation.action}) · Policy: ${automation.policy}`}
                   status="stable"
                 />
               ))}
@@ -287,7 +303,7 @@ export default function AutomationWorkspace() {
                 key={approval.id}
                 title={approval.target_label || approval.entity_id}
                 description={approval.reason}
-                meta={`${approval.action_id} · requested ${dateLabel(approval.created_at)} · expires ${dateLabel(approval.expires_at)}`}
+                meta={`${actionLabel(approval.action_id)} · requested ${dateLabel(approval.created_at)} · expires ${dateLabel(approval.expires_at)}`}
                 status="pending"
                 action={
                   <div className="flex gap-2">
@@ -312,7 +328,7 @@ export default function AutomationWorkspace() {
             {runs.map((run) => (
               <OisListItem
                 key={run.id}
-                title={`${run.action_id} -- ${run.target_label || run.entity_id}`}
+                title={`${actionLabel(run.action_id)} -- ${run.target_label || run.entity_id}`}
                 description={`Detector: ${run.detector_id} · Approver: ${run.approver_role || "—"} · ${run.verification ? `Verification: ${run.verification.state}` : "Not yet verified"}`}
                 meta={`Requested ${dateLabel(run.created_at)} · Decided ${dateLabel(run.decided_at)} · Executed ${dateLabel(run.executed_at)}`}
                 status={approvalStatusTone(run.status)}
@@ -329,7 +345,7 @@ export default function AutomationWorkspace() {
             {failed.map((run) => (
               <OisListItem
                 key={run.id}
-                title={`${run.action_id} -- ${run.target_label || run.entity_id}`}
+                title={`${actionLabel(run.action_id)} -- ${run.target_label || run.entity_id}`}
                 description={run.verification?.summary || run.decision_note || "Execution failed."}
                 meta={`Detector: ${run.detector_id} · ${dateLabel(run.executed_at || run.decided_at)}`}
                 status="critical"
@@ -348,7 +364,7 @@ export default function AutomationWorkspace() {
               <OisListItem
                 key={item.id}
                 icon={<HistoryIcon className="h-4 w-4 text-zinc-400" />}
-                title={`${item.action_id} -- ${item.target_label || item.entity_id}`}
+                title={`${actionLabel(item.action_id)} -- ${item.target_label || item.entity_id}`}
                 description={`${item.approver_role || item.requested_by} · ${item.decision_note || item.reason}`}
                 meta={dateLabel(item.decided_at)}
                 status={approvalStatusTone(item.status)}
