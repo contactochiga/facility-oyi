@@ -2,15 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Building2,
+  Camera,
   ChevronRight,
   Clock3,
   Eye,
   KeyRound,
   Search,
   SlidersHorizontal,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -20,17 +23,20 @@ import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import { facilityService, type EstateMembershipRow, type InfrastructureOperations, type AutomationActionPolicy } from "@/services/facilityService";
-import { notificationService, type AlertItem } from "@/services/notificationService";
+import { notificationService, type AlertItem, type NotificationPreference, type NotificationCategory } from "@/services/notificationService";
+import { authService } from "@/services/authService";
+import { cleanupFacilityPushRegistration } from "@/services/pushRegistrationService";
 import { hasPermission, PERMISSION_KEYS, permissionsForRole } from "@/lib/oyiFoundation";
 import { iconForTab } from "@/lib/oisIconRegistry";
 import { useSessionStore } from "@/store/useSessionStore";
 
-type Tab = "operators" | "roles" | "permissions" | "audit" | "automation" | "integrations" | "notifications" | "security" | "settings";
+type Tab = "profile" | "operators" | "roles" | "permissions" | "audit" | "automation" | "integrations" | "notifications" | "security" | "settings";
 type LoadStatus = "loading" | "ready" | "error" | "permission";
 type Source<T> = { status: LoadStatus; data: T; message?: string };
 type Detail = { title: string; subtitle?: string; rows: Array<[string, string]>; href?: string };
 
 const TABS: Array<{ key: Tab; label: string; icon: typeof Users }> = [
+  { key: "profile", label: "My Profile", icon: iconForTab("profile") },
   { key: "operators", label: "Operators", icon: iconForTab("operators") },
   { key: "roles", label: "Roles", icon: iconForTab("roles") },
   { key: "permissions", label: "Permissions", icon: iconForTab("permissions") },
@@ -194,7 +200,9 @@ function readinessDetail(data: any, name: string) {
 
 export default function FacilityAdministrationModule() {
   const { user } = useSessionStore();
-  const [tab, setTab] = useState<Tab>("operators");
+  const params = useSearchParams();
+  const requestedTab = params.get("tab") as Tab | null;
+  const [tab, setTab] = useState<Tab>(TABS.some((item) => item.key === requestedTab) ? (requestedTab as Tab) : "operators");
   const [operators, setOperators] = useState<Source<EstateMembershipRow[]>>(source([]));
   const [invites, setInvites] = useState<Source<any[]>>(source([]));
   const [estates, setEstates] = useState<Source<any[]>>(source([]));
@@ -294,6 +302,7 @@ export default function FacilityAdministrationModule() {
         {tab === "audit" ? <select value={auditFilter} onChange={(event) => setAuditFilter(event.target.value)} className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"><option value="all">All domains</option>{AUDIT_DOMAINS.map((domain) => <option key={domain} value={domain}>{domain}</option>)}</select> : null}
       </div>
 
+      {tab === "profile" ? <MyProfileSection estateName={estate?.name || null} /> : null}
       {tab === "operators" ? <OperatorsSection operators={filteredOperators} source={operators} invites={invites} canManage={canManageStaff} userRole={user?.role || ""} onOpen={setDetail} onReload={load} /> : null}
       {tab === "roles" ? <RolesSection roles={roleRows} onOpen={setDetail} /> : null}
       {tab === "permissions" ? <PermissionsSection roles={roleRows} /> : null}
@@ -397,14 +406,14 @@ function OperatorsSection({ operators, source, invites, canManage, userRole, onO
   return (
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-5">
-        <Panel title="Team & Access" subtitle="Estate operators, roles, status and management actions.">
+        <Panel title="Team & Access" subtitle="Facility team members, roles, status and management actions.">
           <div className="space-y-2">
             {operators.map((member) => (
               <div key={member.id} className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <OisListItem title={operatorName(member)} description={`${operatorEmail(member)} · ${member.role || "operator"}`} status={statusTone(member.status || "unknown")} />
                 </div>
-                <Button variant="ghost" onClick={() => onOpen({ title: operatorName(member), subtitle: operatorEmail(member), rows: [["Role", member.role || "operator"], ["Status", member.status || "unknown"], ["Assigned scope", "Estate scope"], ["Suspension state", /suspended/.test(lower(member.status)) ? "Suspended" : "Not suspended"]], href: "/homes" })} className="gap-2">
+                <Button variant="ghost" onClick={() => onOpen({ title: operatorName(member), subtitle: operatorEmail(member), rows: [["Role", member.role || "operator"], ["Status", member.status || "unknown"], ["Assigned scope", "Facility scope"], ["Suspension state", /suspended/.test(lower(member.status)) ? "Suspended" : "Not suspended"]], href: "/homes" })} className="gap-2">
                   <Eye className="h-4 w-4" />Inspect
                 </Button>
                 {canManage ? (
@@ -442,7 +451,7 @@ function OperatorsSection({ operators, source, invites, canManage, userRole, onO
         </Panel>
       </div>
 
-      <Panel title={showInvite ? "Invite Team Member" : "Team Controls"} subtitle={canManage ? "Invite a new operator into this estate." : "Permission required: staff.manage"}>
+      <Panel title={showInvite ? "Invite Team Member" : "Team Controls"} subtitle={canManage ? "Invite a new team member into this Facility." : "Permission required: staff.manage"}>
         {!canManage ? (
           <p className="text-sm text-zinc-400">You are not authorized to manage this estate's team.</p>
         ) : showInvite ? (
@@ -481,7 +490,7 @@ function PermissionsSection({ roles }: { roles: Array<typeof ROLE_DEFINITIONS[nu
 
 function AuditSection({ source, rows }: { source: Source<any[]>; rows: any[] }) {
   if (source.status !== "ready") return <Panel title="Audit Center" subtitle="Audit visibility"><p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{sourceLabel(source, "No audit entries")}</p></Panel>;
-  return <Panel title="Audit Center" subtitle="This estate's own administrative and security events -- team changes, invitations, profile edits, permission denials."><div className="space-y-2">{rows.map((item) => <OisListItem key={item.id || `${item.action}-${item.occurred_at}`} title={item.action || "Audit event"} description={`${item.resource_type || "target"}:${item.resource_id || "n/a"} · actor:${item.actor_role || "n/a"}`} meta={dateLabel(item.occurred_at)} status={statusTone(item.status || "recorded")} />)}{!rows.length ? <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No audit entries match this filter.</p> : null}</div></Panel>;
+  return <Panel title="Audit Center" subtitle="This Facility's own administrative and security events -- team changes, invitations, profile edits, permission denials."><div className="space-y-2">{rows.map((item) => <OisListItem key={item.id || `${item.action}-${item.occurred_at}`} title={item.action || "Audit event"} description={`${item.resource_type || "target"}:${item.resource_id || "n/a"} · actor:${item.actor_role || "n/a"}`} meta={dateLabel(item.occurred_at)} status={statusTone(item.status || "recorded")} />)}{!rows.length ? <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No audit entries match this filter.</p> : null}</div></Panel>;
 }
 
 // PHASE 3 (Milestone 1) -- this section now also shows the REAL,
@@ -582,7 +591,7 @@ function NotificationsSection({ notifications, push }: { notifications: Source<A
 }
 
 function SecuritySection({ userRole, canSettings, canAudit, audit, operators }: { userRole: string; canSettings: boolean; canAudit: boolean; audit: Source<any[]>; operators: Source<EstateMembershipRow[]> }) {
-  return <section className="grid gap-5 xl:grid-cols-2"><Panel title="Security Policies" subtitle="Authentication, session, role and operator posture."><div className="grid gap-3 sm:grid-cols-2"><Field label="Authentication posture" value="JWT-protected Facility routes" /><Field label="Session posture" value="Cookie/local token cleared on logout by protected shell" /><Field label="Operator access" value={operators.status === "ready" ? `${operators.data.length} estate memberships` : sourceLabel(operators)} /><Field label="Current operator role" value={userRole.replace(/_/g, " ")} /><Field label="Control permission" value={canSettings ? "settings.manage available" : "Permission required"} /><Field label="Audit permission" value={canAudit ? "audit.read available" : "Permission required"} /></div></Panel><Panel title="Security Activity" subtitle="Audit-backed security visibility."><p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{audit.status === "ready" ? `${audit.data.length} audit entries loaded. Use Audit tab for filtering.` : sourceLabel(audit, "Awaiting security event source")}</p></Panel></section>;
+  return <section className="grid gap-5 xl:grid-cols-2"><Panel title="Security Policies" subtitle="Authentication, session, role and operator posture."><div className="grid gap-3 sm:grid-cols-2"><Field label="Authentication posture" value="JWT-protected Facility routes" /><Field label="Session posture" value="Cookie/local token cleared on logout by protected shell" /><Field label="Operator access" value={operators.status === "ready" ? `${operators.data.length} Facility team memberships` : sourceLabel(operators)} /><Field label="Current operator role" value={userRole.replace(/_/g, " ")} /><Field label="Control permission" value={canSettings ? "settings.manage available" : "Permission required"} /><Field label="Audit permission" value={canAudit ? "audit.read available" : "Permission required"} /></div></Panel><Panel title="Security Activity" subtitle="Audit-backed security visibility."><p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{audit.status === "ready" ? `${audit.data.length} audit entries loaded. Use Audit tab for filtering.` : sourceLabel(audit, "Awaiting security event source")}</p></Panel></section>;
 }
 
 // Phase 2 commercial-hardening -- Facility Profile is now genuinely
@@ -642,7 +651,7 @@ function EstateSettingsSection({ estate, source, canSettings, onSaved }: { estat
     }
   }
 
-  if (source.status !== "ready") return <Panel title="Facility Profile" subtitle="Estate control source"><p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{sourceLabel(source)}</p></Panel>;
+  if (source.status !== "ready") return <Panel title="Facility Profile" subtitle="Facility control source"><p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{sourceLabel(source)}</p></Panel>;
 
   const inputClass = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40 disabled:opacity-50";
 
@@ -674,6 +683,260 @@ function EstateSettingsSection({ estate, source, canSettings, onSaved }: { estat
           <Field label="Access readiness" value="Owned through Homes/Members access workflows" />
         </div>
       </Panel>
+    </section>
+  );
+}
+
+// PHASE 3 UX closure -- consolidates the former standalone /account page
+// into a single tab here rather than a duplicate administrative
+// workspace. Moves real functionality (password change, notification
+// preferences) unchanged; drops raw technical-ID exposure (user/estate
+// UUIDs were previously shown as primary content). Adds real avatar
+// upload/remove, reusing the canonical identity/media architecture
+// already shipped for Oyi Consumer (GET /me/context, POST/DELETE
+// /me/profile/avatar, Supabase Storage bucket "profile-avatars") -- no
+// second avatar system.
+const NOTIFICATION_CATEGORY_LABEL: Record<NotificationCategory, { title: string; detail: string }> = {
+  security: { title: "Security", detail: "Alarms, motion, access anomalies." },
+  visitors: { title: "Visitors", detail: "Approvals and access-window changes." },
+  maintenance: { title: "Maintenance", detail: "Work order updates." },
+  services: { title: "Services", detail: "Utility and service-provider events." },
+  wallet: { title: "Wallet", detail: "Payments and balance changes." },
+  proximity: { title: "Proximity", detail: "Location/geofence-based signals." },
+  devices: { title: "Devices", detail: "Device status and connectivity." },
+  automation: { title: "Automation", detail: "Oyi automation recommendations and actions." },
+  community: { title: "Community", detail: "Notices and moderation activity." },
+  intelligence: { title: "Intelligence", detail: "Oyi insights and digests." },
+};
+const NOTIFICATION_CATEGORY_ORDER: NotificationCategory[] = [
+  "security", "visitors", "maintenance", "services", "wallet", "devices", "automation", "community", "intelligence", "proximity",
+];
+
+function MyProfileSection({ estateName }: { estateName: string | null }) {
+  const { user, patchUser, clear } = useSessionStore() as any;
+
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
+  const [preferences, setPreferences] = useState<NotificationPreference[]>([]);
+  const [loadingPreferences, setLoadingPreferences] = useState(true);
+  const [savingCategory, setSavingCategory] = useState<NotificationCategory | null>(null);
+  const [prefError, setPrefError] = useState<string | null>(null);
+
+  const [passwordStep, setPasswordStep] = useState<"idle" | "code_sent" | "done">("idle");
+  const [passwordCode, setPasswordCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  useEffect(() => {
+    notificationService
+      .preferences()
+      .then((items) => setPreferences(items || []))
+      .catch(() => setPreferences([]))
+      .finally(() => setLoadingPreferences(false));
+  }, []);
+
+  function preferenceFor(category: NotificationCategory) {
+    return preferences.find((item) => item.category === category);
+  }
+
+  async function togglePreferenceChannel(category: NotificationCategory, channel: "push_enabled" | "in_app_enabled", next: boolean) {
+    setSavingCategory(category);
+    setPrefError(null);
+    try {
+      const updated = await notificationService.updatePreference(category, { [channel]: next });
+      setPreferences((current) => [...current.filter((item) => item.category !== category), updated]);
+    } catch (err: any) {
+      setPrefError(err?.response?.data?.error || err?.message || "Could not update that preference.");
+    } finally {
+      setSavingCategory(null);
+    }
+  }
+
+  async function onAvatarPick(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setAvatarError("Choose an image file."); return; }
+    if (file.size > 6 * 1024 * 1024) { setAvatarError("Image must be 6MB or smaller."); return; }
+    setAvatarBusy(true);
+    setAvatarError(null);
+    try {
+      const res = await authService.uploadMyAvatar(file);
+      if (!res.ok) { setAvatarError(res.error || "Unable to upload your photo."); return; }
+      const url = res.avatar_url || res.profile_image_url || res.user?.avatar_url || res.profile?.avatar_url;
+      patchUser({ avatar_url: url || null, profile_image_url: url || null });
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function removeAvatar() {
+    setAvatarBusy(true);
+    setAvatarError(null);
+    try {
+      const res = await authService.removeMyAvatar();
+      if (!res.ok) { setAvatarError(res.error || "Unable to remove your photo."); return; }
+      patchUser({ avatar_url: null, profile_image_url: null });
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function sendPasswordResetCode() {
+    if (!user?.email) return;
+    setPasswordBusy(true);
+    setPasswordError(null);
+    try {
+      const res = await authService.requestPasswordReset(user.email);
+      if (!res.ok) { setPasswordError(res.error || "Unable to send a reset code."); return; }
+      setPasswordStep("code_sent");
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
+  async function completePasswordChange() {
+    if (!user?.email) return;
+    setPasswordBusy(true);
+    setPasswordError(null);
+    try {
+      const res = await authService.completePasswordReset(user.email, passwordCode.trim(), newPassword);
+      if (!res.ok) { setPasswordError(res.error || "Unable to update your password."); return; }
+      setPasswordStep("done");
+      setPasswordCode("");
+      setNewPassword("");
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
+  async function signOut() {
+    await cleanupFacilityPushRegistration();
+    clear();
+    window.location.href = "/login";
+  }
+
+  const avatarUrl = user?.avatar_url || user?.profile_image_url || null;
+  const displayName = user?.full_name || user?.username || user?.email?.split("@")[0] || "Facility user";
+  const roleLabel = String(user?.role || "operator").replace(/_/g, " ");
+
+  return (
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="space-y-5">
+        <Panel title="My Profile" subtitle="Your identity, contact details and photo.">
+          <div className="flex items-center gap-4">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-16 w-16 rounded-full border border-white/10 object-cover" />
+            ) : (
+              <div className="grid h-16 w-16 place-items-center rounded-full border border-sky-400/20 bg-sky-600/20 text-lg font-semibold text-zinc-100">
+                {displayName.trim().slice(0, 1).toUpperCase() || "U"}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200 hover:bg-white/10">
+                <Camera className="h-3.5 w-3.5" />
+                {avatarBusy ? "Working..." : avatarUrl ? "Replace photo" : "Upload photo"}
+                <input type="file" accept="image/*" className="hidden" disabled={avatarBusy} onChange={(event) => void onAvatarPick(event)} />
+              </label>
+              {avatarUrl ? (
+                <Button variant="ghost" disabled={avatarBusy} onClick={() => void removeAvatar()} className="gap-2 text-rose-300">
+                  <Trash2 className="h-3.5 w-3.5" />Remove
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          {avatarError ? <p className="mt-3 text-xs text-rose-300">{avatarError}</p> : null}
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <Field label="Name" value={displayName} />
+            <Field label="Email" value={user?.email || "Unavailable"} />
+            <Field label="Phone" value={user?.phone || "Not provided"} />
+            <Field label="Role" value={<OisStatusBadge status="stable" label={roleLabel} />} />
+            <Field label="Facility" value={estateName || "Loading..."} />
+          </div>
+        </Panel>
+
+        <Panel title="Account Security" subtitle="Password and session.">
+          {passwordStep === "idle" ? (
+            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+              <p className="text-sm text-white">Change password</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-500">We'll send a one-time code to {user?.email || "your account email"}.</p>
+              <Button className="mt-3" variant="ghost" disabled={passwordBusy || !user?.email} onClick={() => void sendPasswordResetCode()}>
+                {passwordBusy ? "Sending..." : "Send code"}
+              </Button>
+            </div>
+          ) : passwordStep === "code_sent" ? (
+            <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+              <p className="text-sm text-white">Enter the code and your new password</p>
+              <input value={passwordCode} onChange={(event) => setPasswordCode(event.target.value)} placeholder="6-digit code" className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40" />
+              <input value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="New password" type="password" className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40" />
+              {passwordError ? <p className="text-xs text-rose-300">{passwordError}</p> : null}
+              <div className="flex gap-2">
+                <Button disabled={passwordBusy || !passwordCode.trim() || newPassword.length < 8} onClick={() => void completePasswordChange()}>{passwordBusy ? "Updating..." : "Update password"}</Button>
+                <Button variant="ghost" onClick={() => { setPasswordStep("idle"); setPasswordError(null); }}>Cancel</Button>
+              </div>
+            </div>
+          ) : (
+            <Field label="Password" value="Updated." />
+          )}
+        </Panel>
+
+        <Panel title="Notifications" subtitle="Real, server-persisted delivery preferences by category.">
+          {loadingPreferences ? (
+            <p className="text-xs text-zinc-500">Loading preferences...</p>
+          ) : preferences.length === 0 ? (
+            <p className="text-xs text-zinc-500">Notification preferences are unavailable right now.</p>
+          ) : (
+            <div className="space-y-2">
+              {NOTIFICATION_CATEGORY_ORDER.map((category) => {
+                const pref = preferenceFor(category);
+                const label = NOTIFICATION_CATEGORY_LABEL[category];
+                const saving = savingCategory === category;
+                return (
+                  <div key={category} className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm text-white">{label.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">{label.detail}</p>
+                      </div>
+                      {pref?.critical_only ? <OisStatusBadge status="warning" label="Critical only" /> : null}
+                    </div>
+                    <div className="mt-3 flex gap-4">
+                      <label className="flex items-center gap-2 text-xs text-zinc-300">
+                        <input type="checkbox" checked={Boolean(pref?.in_app_enabled)} disabled={saving} onChange={(event) => void togglePreferenceChannel(category, "in_app_enabled", event.target.checked)} />
+                        In-app
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-zinc-300">
+                        <input type="checkbox" checked={Boolean(pref?.push_enabled)} disabled={saving} onChange={(event) => void togglePreferenceChannel(category, "push_enabled", event.target.checked)} />
+                        Push
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {prefError ? <p className="mt-2 text-xs text-rose-300">{prefError}</p> : null}
+        </Panel>
+      </div>
+
+      <div className="space-y-5">
+        <Panel title="Danger Zone" subtitle="Session and account-level actions.">
+          <div className="space-y-3">
+            <div>
+              <Button variant="danger" onClick={() => void signOut()}>Sign out</Button>
+            </div>
+            {/* Honest disclosure: there is no canonical self-service
+               "leave Facility" or "delete account" capability today --
+               removing a membership requires staff.manage and explicitly
+               blocks self-mutation (see estateUsers.controller.ts). Showing
+               a working button here would be fake. Contact an
+               administrator for these actions instead. */}
+            <p className="text-xs leading-5 text-zinc-500">Leaving this Facility or deleting your account isn't self-service yet. Contact a Facility Administrator for these actions.</p>
+          </div>
+        </Panel>
+      </div>
     </section>
   );
 }

@@ -21,30 +21,6 @@ export const authService = {
     }
   },
 
-  async signup(email: string, password: string, fullName: string, otpToken?: string) {
-    try {
-      const res = await API.post(
-        "/auth/signup",
-        { email, password, full_name: fullName, otpToken },
-        { headers: otpToken ? { "x-otp-token": otpToken } : undefined }
-      );
-      return res.data;
-    } catch (err: any) {
-      const timedOut = err?.code === "ECONNABORTED" || String(err?.message || "").includes("timeout");
-      return {
-        error:
-          (timedOut
-            ? "Backend is taking too long to respond. Render may be waking up; try again in a moment."
-            : null) ||
-          err?.response?.data?.error ||
-          err?.response?.data?.message ||
-          err?.response?.data?.detail ||
-          err?.message ||
-          "Signup failed",
-      };
-    }
-  },
-
   // Commercial production-hardening -- estate-level facility-owner
   // activation invites (Ochiga Office provisions the deployment and issues
   // these; the invited person owns their own credentials).
@@ -145,4 +121,55 @@ export const authService = {
       };
     }
   },
+
+  // PHASE 3 UX closure -- reuses the canonical identity/profile-photo
+  // architecture already built for Oyi Consumer (GET /me/context,
+  // POST/DELETE /me/profile/avatar, Supabase Storage bucket
+  // "profile-avatars"). No second avatar system; same base64-JSON upload
+  // shape as Consumer's authService.uploadMyProfileImage().
+  async myContext() {
+    try {
+      const res = await API.get("/me/context");
+      return { ok: true, ...res.data };
+    } catch (err: any) {
+      return { ok: false, error: err?.response?.data?.error || err?.message || "Unable to load your profile." };
+    }
+  },
+
+  async updateMyProfile(payload: { username?: string; full_name?: string; phone?: string }) {
+    try {
+      const res = await API.patch("/me/profile", payload);
+      return { ok: true, ...res.data };
+    } catch (err: any) {
+      return { ok: false, error: err?.response?.data?.error || err?.message || "Unable to update your profile." };
+    }
+  },
+
+  async uploadMyAvatar(file: File) {
+    try {
+      const base64 = await fileToDataUrl(file);
+      const res = await API.post("/me/profile/avatar", { base64, mime: file.type, filename: file.name });
+      return { ok: true, ...res.data };
+    } catch (err: any) {
+      return { ok: false, error: err?.response?.data?.error || err?.message || "Unable to upload your photo." };
+    }
+  },
+
+  async removeMyAvatar() {
+    try {
+      const res = await API.delete("/me/profile/avatar");
+      return { ok: true, ...res.data };
+    } catch (err: any) {
+      return { ok: false, error: err?.response?.data?.error || err?.message || "Unable to remove your photo." };
+    }
+  },
 };
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Unable to read file"));
+    reader.readAsDataURL(file);
+  });
+}

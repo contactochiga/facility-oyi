@@ -19,13 +19,14 @@ import FacilityOyiHubLauncher from "@/components/shell/FacilityOyiHubLauncher";
 import ShellTopbar from "@/components/shell/ShellTopbar";
 import { cleanupFacilityPushRegistration, ensureFacilityPushRegistration } from "@/services/pushRegistrationService";
 import { useViewportDockLayout } from "@/hooks/useViewportDockLayout";
+import { authService } from "@/services/authService";
 
 export default function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { hydrate, hydrated, token, user } = useSessionStore();
+  const { hydrate, hydrated, token, user, patchUser } = useSessionStore();
   const { context, refresh: refreshContext, clear: clearContext } = useContextStore();
   const pathname = usePathname();
   const router = useRouter();
@@ -51,7 +52,16 @@ export default function ProtectedLayout({
     }
     void refreshContext();
     void ensureFacilityPushRegistration();
-  }, [clearContext, hydrated, refreshContext, token, user]);
+    // PHASE 3 UX closure -- the JWT never carries avatar_url; fetch it
+    // once per session from the canonical GET /me/context and layer it
+    // onto the session user.
+    void authService.myContext().then((res) => {
+      if (res?.ok && (res.user || res.profile)) {
+        const profile = { ...(res.profile || {}), ...(res.user || {}) };
+        patchUser({ avatar_url: profile.avatar_url ?? null, profile_image_url: profile.profile_image_url ?? null, phone: profile.phone ?? null });
+      }
+    });
+  }, [clearContext, hydrated, patchUser, refreshContext, token, user]);
 
   useEffect(() => {
     if (!hydrated || !token || !user || isExpired(user)) {

@@ -23,6 +23,23 @@ function cn(...classes: Array<string | false | null | undefined>) {
 
 type NavItem = ModuleDefinition & { icon: LucideIcon };
 
+function SidebarNavLink({ item, active, onClick }: { item: NavItem; active: boolean; onClick: () => void }) {
+  const Icon = item.icon;
+  return (
+    <Link
+      href={item.href}
+      onClick={onClick}
+      className={cn(
+        "mb-px flex min-h-9 w-full items-center gap-2.5 rounded-[4px] px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-300/70",
+        active ? "bg-sky-500/[0.12] text-white" : "text-zinc-400 hover:bg-white/[0.04] hover:text-white"
+      )}
+    >
+      <Icon size={16} strokeWidth={1.6} className={cn("shrink-0", active ? "text-sky-300 opacity-100" : "opacity-75")} />
+      <span className="truncate text-[13px] font-normal">{item.label}</span>
+    </Link>
+  );
+}
+
 function getInitials(nameOrEmail?: string) {
   const s = String(nameOrEmail || "").trim();
   if (!s) return "U";
@@ -85,7 +102,8 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   }, [user]);
 
   const initials = useMemo(() => getInitials(displayName), [displayName]);
-  const navItems = useMemo<NavItem[]>(
+  // PHASE 3 UX closure -- OPERATIONS / ADMIN sidebar sections.
+  const allNavItems = useMemo<NavItem[]>(
     () =>
       visibleModules(user, FACILITY_MODULES).map((item) => ({
         ...item,
@@ -93,6 +111,9 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
       })),
     [user]
   );
+  const operationsItems = useMemo(() => allNavItems.filter((item) => (item.section || "operations") === "operations"), [allNavItems]);
+  const adminItems = useMemo(() => allNavItems.filter((item) => item.section === "admin"), [allNavItems]);
+  const avatarUrl = user?.avatar_url || user?.profile_image_url || null;
 
   async function handleLogout() {
     setOpenAccount(false);
@@ -123,30 +144,36 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
         <div className="mb-1.5 px-2 text-[10.5px] font-normal uppercase tracking-[0.08em] text-zinc-500">
           Operations
         </div>
-        {navItems.map((it) => {
-          const Icon = it.icon;
-          const active = isActive(it);
+        {operationsItems.map((it) => (
+          <SidebarNavLink
+            key={it.label}
+            item={it}
+            active={isActive(it)}
+            onClick={() => {
+              setOpenAccount(false);
+              onNavigate?.();
+            }}
+          />
+        ))}
 
-          return (
-            <Link
-              key={it.label}
-              href={it.href}
-              onClick={() => {
-                setOpenAccount(false);
-                onNavigate?.();
-              }}
-              className={cn(
-                "mb-px flex min-h-9 w-full items-center gap-2.5 rounded-[4px] px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-300/70",
-                active
-                  ? "bg-sky-500/[0.12] text-white"
-                  : "text-zinc-400 hover:bg-white/[0.04] hover:text-white"
-              )}
-            >
-              <Icon size={16} strokeWidth={1.6} className={cn("shrink-0", active ? "text-sky-300 opacity-100" : "opacity-75")} />
-              <span className="truncate text-[13px] font-normal">{it.label}</span>
-            </Link>
-          );
-        })}
+        {adminItems.length ? (
+          <>
+            <div className="mb-1.5 mt-4 px-2 text-[10.5px] font-normal uppercase tracking-[0.08em] text-zinc-500">
+              Admin
+            </div>
+            {adminItems.map((it) => (
+              <SidebarNavLink
+                key={it.label}
+                item={it}
+                active={isActive(it)}
+                onClick={() => {
+                  setOpenAccount(false);
+                  onNavigate?.();
+                }}
+              />
+            ))}
+          </>
+        ) : null}
       </nav>
 
       <div className="mt-auto border-t border-white/[0.08] px-3 pb-3 pt-2.5">
@@ -159,9 +186,13 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
               "hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
             )}
           >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sky-400/20 bg-sky-600/20 text-[10.5px] font-semibold text-zinc-100">
-              {initials}
-            </div>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded-full border border-sky-400/20 object-cover" />
+            ) : (
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sky-400/20 bg-sky-600/20 text-[10.5px] font-semibold text-zinc-100">
+                {initials}
+              </div>
+            )}
 
             <div className="min-w-0 flex-1 text-left">
               <div className="truncate text-[12px] text-zinc-100">{displayName}</div>
@@ -180,13 +211,13 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                 type="button"
                 onClick={() => {
                   setOpenAccount(false);
-                  router.push("/account");
+                  router.push("/facility-administration?tab=profile");
                   onNavigate?.();
                 }}
                 className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-white/5"
               >
                 <UserIcon size={16} className="text-zinc-400" />
-                Account
+                My Profile
               </button>
 
               <button

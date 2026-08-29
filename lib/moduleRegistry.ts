@@ -10,6 +10,10 @@ export type ModuleDefinition = {
   anyOf?: VisibilityScope[];
   allOf?: VisibilityScope[];
   adminOnly?: boolean;
+  // PHASE 3 UX closure -- sidebar information architecture. Defaults to
+  // "operations" when omitted so every pre-existing module keeps its
+  // current grouping without needing to be touched individually.
+  section?: "operations" | "admin";
 };
 
 export type TabDefinition = {
@@ -54,6 +58,11 @@ export const FACILITY_MODULES: ModuleDefinition[] = [
   { key: "community", label: "Community", href: "/community", startsWith: ["/community", "/messages"], anyOf: ["community.read", "community.write", "community.moderate", "community.broadcast", "community.manage_announcements", "notifications.read"] },
   { key: "wallets", label: "Finance", href: "/wallets", startsWith: ["/wallets"], anyOf: ["wallets.read", "wallets.manage"] },
   { key: "automation", label: "Automation", href: "/automation", startsWith: ["/automation"], anyOf: ["support.assign", "visitors.manage", "devices.control"] },
+  // PHASE 3 UX closure -- Facility Administration was previously reachable
+  // only from the account dropdown, not the main sidebar. It's the
+  // administrative hub now, so it gets a real, visible nav entry under a
+  // separate ADMIN section rather than living solely in a dropdown menu.
+  { key: "facility-administration", label: "Facility Administration", href: "/facility-administration", startsWith: ["/facility-administration"], section: "admin" },
 ];
 
 export const FACILITY_TABS: Record<string, TabDefinition[]> = {

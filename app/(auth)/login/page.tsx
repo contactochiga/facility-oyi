@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { Fingerprint } from "lucide-react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
@@ -89,11 +88,11 @@ function LoginInner() {
         Biometric unlock coming soon
       </button>
 
+      {/* PHASE 3 UX/commercial closure -- Oyi Facility is invitation-only.
+         There is no public self-service signup; access begins from an
+         Ochiga-issued Facility invitation. */}
       <div className="text-center text-sm text-zinc-500">
-        New operator?{" "}
-        <Link href={`/signup?next=${encodeURIComponent(next)}`} className="text-sky-200 transition hover:text-sky-100">
-          Create account
-        </Link>
+        Facility access is by invitation. Contact your Ochiga representative to request access.
       </div>
     </AuthShell>
   );
