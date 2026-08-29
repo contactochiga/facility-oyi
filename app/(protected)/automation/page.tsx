@@ -45,11 +45,13 @@ import OisStatusBadge, { type OisStatus } from "@/components/ois/OisStatusBadge"
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import FacilityMetricCard from "@/components/ois/FacilityMetricCard";
-import { facilityService, type AutomationApproval, type AutomationActionPolicy, type InfrastructureDevice } from "@/services/facilityService";
-import { automationRulesService, type AutomationRule, type AutomationScheduleTrigger, type AutomationRuleRun } from "@/services/automationRulesService";
+import { facilityService, type AutomationApproval, type AutomationActionPolicy, type InfrastructureDevice, type AutomationCapabilitiesResponse, type AutomationCapabilityAction, type EstateMembershipRow } from "@/services/facilityService";
+import { automationRulesService, type AutomationRule, type AutomationRuleAction, type AutomationScheduleTrigger, type AutomationRuleRun, isRegisteredAction } from "@/services/automationRulesService";
 import { loadAutomationPlans } from "@/services/safeAutomationService";
 import { loadOyiCoreExecutionHistory, loadOyiCoreExecutionStatistics } from "@/services/oyiCoreRuntimeService";
 import type { AutomationPlan } from "@/lib/safeAutomationRuntime";
+import { visitorService, type VisitorItem } from "@/services/visitorService";
+import { maintenanceService, type MaintenanceItem } from "@/services/maintenanceService";
 
 type Tab = "overview" | "active" | "recommendations" | "approvals" | "runs" | "failures" | "history";
 
@@ -97,19 +99,58 @@ const ACTION_LABELS: Record<string, string> = {
   "maintenance.assign": "Assign maintenance",
   "maintenance.complete": "Complete maintenance",
   "maintenance.cancel": "Cancel maintenance",
+  "maintenance.create": "Create work order",
   "device.on": "Turn device on",
   "device.off": "Turn device off",
   "device.toggle": "Toggle device",
+  "notification.notify": "Send notification",
+  "community.approve": "Approve community post",
+  "community.reject": "Reject community post",
+  "community.post_announcement": "Post announcement",
+  "service.assign": "Assign service",
+  "service.complete": "Complete service",
+  "wallet.approve": "Approve wallet transaction",
+  "wallet.cancel": "Cancel wallet transaction",
 };
 function actionLabel(actionId: string) {
   return ACTION_LABELS[actionId] || actionId.replace(/[._]/g, " ");
 }
+// Cross-Domain Operational Automation -- mirrors EXECUTION_REGISTRY's own
+// domain grouping (intelligence-core/executionRegistry.ts), the single
+// canonical source. Kept as a static fallback for labels used before the
+// capability registry has loaded (e.g. system detectors' fixed action
+// ids), not a second source of truth for anything the registry itself
+// answers.
 function domainForAction(actionId: string) {
   if (actionId.startsWith("visitor.")) return "Access";
   if (actionId.startsWith("maintenance.")) return "Maintenance";
   if (actionId.startsWith("device.")) return "Assets";
+  if (actionId.startsWith("notification.")) return "Notifications";
+  if (actionId.startsWith("community.")) return "Community";
+  if (actionId.startsWith("service.")) return "Services";
+  if (actionId.startsWith("wallet.")) return "Finance";
   return actionId.split(".")[0] || "General";
 }
+
+// AutomationPlan (Oyi Core's recommendation vocabulary) uses different
+// domain strings than the capability registry's real EXECUTION_REGISTRY
+// domains. Only a best-effort UI convenience for pre-selecting a domain
+// in the builder -- domains with no real executable capability fall back
+// to "notifications" (the one action that's honestly always applicable:
+// tell someone about this) rather than a domain that would show nothing
+// but unavailable actions.
+const PLAN_DOMAIN_TO_CAPABILITY_DOMAIN: Record<string, string> = {
+  infrastructure: "devices",
+  maintenance: "maintenance",
+  visitor: "visitors",
+  environmental: "devices",
+  community: "community",
+  financial: "notifications",
+  security: "notifications",
+  utility: "notifications",
+  operational_governance: "notifications",
+  executive: "notifications",
+};
 
 const SYSTEM_AUTOMATIONS = [
   {
@@ -200,9 +241,40 @@ function triggerSummary(trigger: AutomationScheduleTrigger) {
 function actionSummary(rule: AutomationRule) {
   const first = rule.actions?.[0];
   if (!first) return "No action configured";
+  if (isRegisteredAction(first)) {
+    if (first.action_id === "notification.notify") {
+      const command = (first.command || {}) as { target?: string; target_value?: string; title?: string };
+      return `Notify ${command.target || "target"}${command.target_value ? ` (${command.target_value})` : ""} -- ${command.title || "notification"}`;
+    }
+    return `${actionLabel(first.action_id)}${first.label ? ` -- ${first.label}` : ""}`;
+  }
   const control = String(first.command?.action || Object.values(first.command || {})[0] || "run");
   const label = first.label || first.action_label || "device";
   return `${String(control).replace(/_/g, " ")} -- ${label}`;
+}
+function ruleDomain(rule: AutomationRule) {
+  const first = rule.actions?.[0];
+  if (first && isRegisteredAction(first)) return domainForAction(first.action_id);
+  return "Assets";
+}
+// Cross-Domain Operational Automation -- device_command actions have
+// always executed directly (no registered_action bypass risk, unchanged
+// this pass), so "Automatic" is accurate for them without a lookup.
+// registered_action rules (visitor/maintenance/notification) are now
+// governed the same way system detectors are -- this reads the real
+// resolved execution level from the same /facility/automation/policy
+// data Governance already shows, instead of a hardcoded label that would
+// be wrong for anything approval_required.
+function ruleModeBadge(rule: AutomationRule, policy: AutomationActionPolicy[]) {
+  const first = rule.actions?.[0];
+  if (first && isRegisteredAction(first)) {
+    const match = policy.find((p) => p.actionId === first.action_id);
+    const level = match?.executionLevel || "approval_required";
+    const label = level === "auto_allowed" ? "Automatic" : level.replace(/_/g, " ");
+    const status: OisStatus = level === "auto_allowed" ? "stable" : level === "approval_required" ? "attention" : "unavailable";
+    return <OisStatusBadge status={status} label={label} />;
+  }
+  return <OisStatusBadge status="stable" label="Automatic" />;
 }
 function executionTargetLabel(exec: ExecutionRecord) {
   if (exec.device) return exec.device;
@@ -423,10 +495,12 @@ export default function AutomationWorkspace() {
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [rulesAvailable, setRulesAvailable] = useState(true);
   const [devices, setDevices] = useState<InfrastructureDevice[]>([]);
+  const [capabilities, setCapabilities] = useState<AutomationCapabilitiesResponse | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
   const [duplicateTemplate, setDuplicateTemplate] = useState<AutomationRule | null>(null);
+  const [builderPrefill, setBuilderPrefill] = useState<{ name: string; domain: string } | null>(null);
   const [runsSelectedRuleId, setRunsSelectedRuleId] = useState<string>("");
   const [inspect, setInspect] = useState<{ title: string; subtitle?: string; rows: Array<{ label: string; value: React.ReactNode }> } | null>(null);
 
@@ -434,7 +508,7 @@ export default function AutomationWorkspace() {
     setLoading(true);
     setError(null);
     try {
-      const [plansResult, approvalsResult, policyResult, historyResult, statsResult, rulesResult, infraResult] = await Promise.all([
+      const [plansResult, approvalsResult, policyResult, historyResult, statsResult, rulesResult, infraResult, capabilitiesResult] = await Promise.all([
         loadAutomationPlans().catch(() => []),
         facilityService.automationApprovals().catch(() => ({ estate_id: "", approvals: [] })),
         facilityService.automationPolicy().catch(() => ({ estate_id: "", policy: [] })),
@@ -442,6 +516,7 @@ export default function AutomationWorkspace() {
         loadOyiCoreExecutionStatistics({ limit: 200 }).catch(() => null),
         automationRulesService.list(),
         facilityService.infrastructureOperations().catch(() => null),
+        facilityService.automationCapabilities().catch(() => null),
       ]);
       setPlans(plansResult);
       setApprovals(approvalsResult.approvals || []);
@@ -451,6 +526,7 @@ export default function AutomationWorkspace() {
       setRules(rulesResult.automations);
       setRulesAvailable(rulesResult.available);
       setDevices(infraResult?.registry || []);
+      setCapabilities(capabilitiesResult);
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || "Unable to load Automation workspace.");
     } finally {
@@ -549,10 +625,24 @@ export default function AutomationWorkspace() {
     }
   }
 
-  function openCreate() { setEditingRule(null); setDuplicateTemplate(null); setBuilderOpen(true); }
-  function openEdit(rule: AutomationRule) { setEditingRule(rule); setDuplicateTemplate(null); setBuilderOpen(true); }
-  function openDuplicate(rule: AutomationRule) { setEditingRule(null); setDuplicateTemplate(rule); setBuilderOpen(true); }
+  function openCreate() { setEditingRule(null); setDuplicateTemplate(null); setBuilderPrefill(null); setBuilderOpen(true); }
+  function openEdit(rule: AutomationRule) { setEditingRule(rule); setDuplicateTemplate(null); setBuilderPrefill(null); setBuilderOpen(true); }
+  function openDuplicate(rule: AutomationRule) { setEditingRule(null); setDuplicateTemplate(rule); setBuilderPrefill(null); setBuilderOpen(true); }
   function openRuns(rule: AutomationRule) { setRunsSelectedRuleId(rule.id); setTab("runs"); }
+  // Section 10 (Recommendation -> Automation): AutomationPlan's actionType
+  // vocabulary is abstract/advisory and cannot be safely auto-mapped onto
+  // a concrete registered action -- documented directly in
+  // facilityAutomationService.ts's own file header as a deliberate,
+  // permanent design boundary, not a gap to paper over. So this prefills
+  // only what's honestly derivable (a name, and a best-effort domain
+  // guess) and always opens the same real builder for the operator to
+  // complete -- it never claims the trigger/action were already decided.
+  function openCreateFromRecommendation(plan: AutomationPlan) {
+    setEditingRule(null);
+    setDuplicateTemplate(null);
+    setBuilderPrefill({ name: plan.title.slice(0, 80), domain: PLAN_DOMAIN_TO_CAPABILITY_DOMAIN[plan.domain] || "notifications" });
+    setBuilderOpen(true);
+  }
 
   function ruleControlsFor(rule: AutomationRule) {
     return (
@@ -618,10 +708,10 @@ export default function AutomationWorkspace() {
                 ))}
                 {rules.slice(0, 8).map((rule) => (
                   <Row key={rule.id}>
-                    <Cell><p className="text-zinc-100">{rule.name}</p><span className="mt-1 inline-block rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-500">Assets</span></Cell>
+                    <Cell><p className="text-zinc-100">{rule.name}</p><span className="mt-1 inline-block rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-500">{ruleDomain(rule)}</span></Cell>
                     <Cell className="text-zinc-500">{triggerSummary(rule.trigger)}</Cell>
                     <Cell className="text-zinc-400">{actionSummary(rule)}</Cell>
-                    <Cell><OisStatusBadge status="stable" label="Automatic" /></Cell>
+                    <Cell>{ruleModeBadge(rule, policy)}</Cell>
                     <Cell className="text-zinc-500">{relativeLabel(rule.last_run_at)}</Cell>
                     <Cell><OisStatusBadge status={rule.enabled ? "stable" : "unavailable"} label={rule.enabled ? "Enabled" : "Paused"} /></Cell>
                     <Cell>{ruleControlsFor(rule)}</Cell>
@@ -689,8 +779,8 @@ export default function AutomationWorkspace() {
         </section>
       ) : null}
 
-      {tab === "active" ? <ActiveAutomationsTab rules={rules} rulesAvailable={rulesAvailable} loading={loading} onCreate={openCreate} ruleControlsFor={ruleControlsFor} /> : null}
-      {tab === "recommendations" ? <RecommendationsTab plans={visiblePlans} loading={loading} onDismiss={(id) => setDismissedPlanIds((prev) => new Set(prev).add(id))} onInspect={setInspect} /> : null}
+      {tab === "active" ? <ActiveAutomationsTab rules={rules} policy={policy} rulesAvailable={rulesAvailable} loading={loading} onCreate={openCreate} ruleControlsFor={ruleControlsFor} /> : null}
+      {tab === "recommendations" ? <RecommendationsTab plans={visiblePlans} loading={loading} onDismiss={(id) => setDismissedPlanIds((prev) => new Set(prev).add(id))} onInspect={setInspect} onCreateAutomation={openCreateFromRecommendation} /> : null}
       {tab === "approvals" ? <ApprovalsTab approvals={approvals} pending={pendingApprovals} loading={loading} busyId={busyId} onDecide={decide} onInspect={setInspect} /> : null}
       {tab === "runs" ? <RunsTab runsApprovals={runsApprovals} executions={executionHistory} rules={rules} selectedRuleId={runsSelectedRuleId} onSelectRule={setRunsSelectedRuleId} loading={loading} onInspect={setInspect} /> : null}
       {tab === "failures" ? <FailuresTab failedApprovals={failedApprovals} failedRules={failedRuleRows} failedExecutions={failedExecutions} loading={loading} onInspect={setInspect} /> : null}
@@ -700,8 +790,10 @@ export default function AutomationWorkspace() {
         open={builderOpen}
         onClose={() => setBuilderOpen(false)}
         devices={devices}
+        capabilities={capabilities}
         editingRule={editingRule}
         template={duplicateTemplate}
+        prefill={builderPrefill}
         onSaved={async () => { setBuilderOpen(false); setNotice(editingRule ? "Automation updated." : "Automation created."); await load(); }}
       />
 
@@ -722,8 +814,9 @@ export default function AutomationWorkspace() {
 type TypeFilter = "all" | "system" | "custom";
 type StatusFilter = "all" | "enabled" | "paused";
 
-function ActiveAutomationsTab({ rules, rulesAvailable, loading, onCreate, ruleControlsFor }: {
+function ActiveAutomationsTab({ rules, policy, rulesAvailable, loading, onCreate, ruleControlsFor }: {
   rules: AutomationRule[];
+  policy: AutomationActionPolicy[];
   rulesAvailable: boolean;
   loading: boolean;
   onCreate: () => void;
@@ -790,10 +883,10 @@ function ActiveAutomationsTab({ rules, rulesAvailable, loading, onCreate, ruleCo
           {filteredRules.map((rule) => (
             <Row key={rule.id}>
               <Cell className="text-zinc-100">{rule.name}</Cell>
-              <Cell className="text-zinc-500">Assets</Cell>
+              <Cell className="text-zinc-500">{ruleDomain(rule)}</Cell>
               <Cell className="text-zinc-500">{triggerSummary(rule.trigger)}</Cell>
               <Cell className="text-zinc-400">{actionSummary(rule)}</Cell>
-              <Cell><OisStatusBadge status="stable" label="Automatic" /></Cell>
+              <Cell>{ruleModeBadge(rule, policy)}</Cell>
               <Cell className="text-zinc-500">{relativeLabel(rule.last_run_at)}</Cell>
               <Cell className="text-zinc-500">{rule.next_run_at ? dateLabel(rule.next_run_at) : "—"}</Cell>
               <Cell><OisStatusBadge status={rule.enabled ? "stable" : "unavailable"} label={rule.enabled ? "Enabled" : "Paused"} /></Cell>
@@ -813,11 +906,12 @@ function ActiveAutomationsTab({ rules, rulesAvailable, loading, onCreate, ruleCo
 // ---------------------------
 // RECOMMENDATIONS TAB
 // ---------------------------
-function RecommendationsTab({ plans, loading, onDismiss, onInspect }: {
+function RecommendationsTab({ plans, loading, onDismiss, onInspect, onCreateAutomation }: {
   plans: AutomationPlan[];
   loading: boolean;
   onDismiss: (id: string) => void;
   onInspect: (payload: { title: string; subtitle?: string; rows: Array<{ label: string; value: React.ReactNode }> }) => void;
+  onCreateAutomation: (plan: AutomationPlan) => void;
 }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
@@ -872,6 +966,7 @@ function RecommendationsTab({ plans, loading, onDismiss, onInspect }: {
             <Cell>
               <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
                 <button type="button" className="rounded-md px-2 py-1 text-[11px] text-sky-200 hover:bg-white/5" onClick={() => inspectPlan(plan)}>Review</button>
+                <button type="button" title="Prefills the builder's name and domain -- you still choose the real trigger and action" className="rounded-md px-2 py-1 text-[11px] text-emerald-300 hover:bg-white/5" onClick={() => onCreateAutomation(plan)}>Create Automation</button>
                 <button type="button" className="rounded-md px-2 py-1 text-[11px] text-zinc-400 hover:bg-white/5 hover:text-white" onClick={() => onDismiss(plan.id)}>Dismiss</button>
               </div>
             </Cell>
@@ -906,7 +1001,7 @@ function ApprovalsTab({ approvals, pending, loading, busyId, onDecide, onInspect
   function inspectApproval(approval: AutomationApproval) {
     onInspect({
       title: actionLabel(approval.action_id),
-      subtitle: approval.target_label || approval.entity_id,
+      subtitle: approval.target_label || approval.entity_id || undefined,
       rows: [
         { label: "Domain", value: domainForAction(approval.action_id) },
         { label: "Reason", value: approval.reason },
@@ -1111,7 +1206,7 @@ function FailuresTab({ failedApprovals, failedRules, failedExecutions, loading, 
         id: `approval:${approval.id}`,
         automation: actionLabel(approval.action_id),
         domain: domainForAction(approval.action_id),
-        target: approval.target_label || approval.entity_id,
+        target: approval.target_label || approval.entity_id || "Not entity-scoped",
         stage: approval.status.replace(/_/g, " "),
         reason: approval.verification?.summary || approval.decision_note || approval.reason,
         time: approval.executed_at || approval.decided_at || approval.created_at,
@@ -1234,7 +1329,7 @@ function HistoryTab({ historyApprovals, executions, loading, onInspect }: {
         automation: actionLabel(item.action_id),
         event: item.status.replace(/_/g, " "),
         actor: item.approver_role || item.requested_by,
-        target: item.target_label || item.entity_id,
+        target: item.target_label || item.entity_id || "Not entity-scoped",
         result: item.status,
         source: "Approval Queue",
         rows: [
@@ -1309,33 +1404,72 @@ function HistoryTab({ historyApprovals, executions, loading, onInspect }: {
 }
 
 // ---------------------------
-// CREATE AUTOMATION BUILDER
-// Trigger -> Action -> Execution -> Review. Assets/Device domain only
-// this pass (see the file header comment for why). Calls the real
-// POST/PATCH /scenes/automations contract. `template` prefills the form
-// from an existing rule for Duplicate without editing it (Save always
-// calls create() when editingRule is null).
+// CREATE AUTOMATION BUILDER (Cross-Domain Operational Automation)
+// Basics -> Trigger -> Action -> Execution & Governance -> Review.
+// Domain-generated from the real capability registry (GET
+// /facility/automation/capabilities -- a projection of
+// EXECUTION_REGISTRY + automationPolicyResolver, not a second,
+// independently-maintained domain list). Trigger stays schedule-only,
+// disclosed -- no condition/event/threshold trigger engine exists
+// anywhere in the platform yet. Calls the real POST/PATCH
+// /scenes/automations contract; every registered_action item is now
+// policy-checked server-side on every run (see scenes.ts's
+// executeConsumerAutomation), so exposing Access/Maintenance/
+// Notifications here no longer bypasses governance the way it would
+// have before this pass. `template` prefills the form from an existing
+// rule for Duplicate without editing it (Save always calls create()
+// when editingRule is null). `prefill` seeds name/domain only, from an
+// eligible recommendation -- never the action itself (see Section 10's
+// documented gap in facilityAutomationService.ts).
 // ---------------------------
-type BuilderStep = "trigger" | "action" | "execution" | "review";
+type BuilderStep = "basics" | "trigger" | "action" | "execution" | "review";
 const BUILDER_STEPS: Array<{ key: BuilderStep; label: string }> = [
+  { key: "basics", label: "Basics" },
   { key: "trigger", label: "Trigger" },
   { key: "action", label: "Action" },
   { key: "execution", label: "Execution" },
   { key: "review", label: "Review" },
 ];
+const NOTIFY_ROLES = ["admin", "manager", "operator", "security", "staff"];
 
-function AutomationBuilder({ open, onClose, devices, editingRule, template, onSaved }: { open: boolean; onClose: () => void; devices: InfrastructureDevice[]; editingRule: AutomationRule | null; template: AutomationRule | null; onSaved: () => void }) {
-  const [step, setStep] = useState<BuilderStep>("trigger");
+function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, template, prefill, onSaved }: {
+  open: boolean;
+  onClose: () => void;
+  devices: InfrastructureDevice[];
+  capabilities: AutomationCapabilitiesResponse | null;
+  editingRule: AutomationRule | null;
+  template: AutomationRule | null;
+  prefill: { name: string; domain: string } | null;
+  onSaved: () => void;
+}) {
+  const [step, setStep] = useState<BuilderStep>("basics");
   const [name, setName] = useState("");
+  const [domain, setDomain] = useState("");
+  const [actionId, setActionId] = useState("");
   const [scheduleType, setScheduleType] = useState<"daily" | "weekdays" | "once">("daily");
   const [localTime, setLocalTime] = useState("09:00");
   const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [localDatetime, setLocalDatetime] = useState("");
   const [deviceId, setDeviceId] = useState("");
   const [control, setControl] = useState("");
+  const [visitorEntityId, setVisitorEntityId] = useState("");
+  const [maintenanceEntityId, setMaintenanceEntityId] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const [notifyTarget, setNotifyTarget] = useState<"role" | "user" | "home" | "estate">("role");
+  const [notifyTargetValue, setNotifyTargetValue] = useState("");
+  const [notifyTitle, setNotifyTitle] = useState("");
+  const [notifyMessage, setNotifyMessage] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Lazy, on-demand entity lists -- only fetched once the builder is
+  // open and the operator has actually picked a domain that needs them,
+  // reusing the exact same real list calls the Access/Maintenance/Team
+  // pages already use, not a new endpoint.
+  const [visitors, setVisitors] = useState<VisitorItem[] | null>(null);
+  const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceItem[] | null>(null);
+  const [estateUsers, setEstateUsers] = useState<EstateMembershipRow[] | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -1349,33 +1483,106 @@ function AutomationBuilder({ open, onClose, devices, editingRule, template, onSa
       if (t.schedule_type === "weekdays") setWeekdays(t.weekdays);
       if (t.schedule_type === "once") setLocalDatetime(t.local_datetime);
       const firstAction = source.actions?.[0];
-      setDeviceId(firstAction?.device_id || "");
-      setControl(String(firstAction?.command?.action || ""));
+      if (firstAction && isRegisteredAction(firstAction)) {
+        setDomain(domainCapabilityKey(firstAction.action_id));
+        setActionId(firstAction.action_id);
+        setDeviceId("");
+        setControl("");
+        setVisitorEntityId(firstAction.action_id.startsWith("visitor.") ? firstAction.entity_id || "" : "");
+        setMaintenanceEntityId(firstAction.action_id.startsWith("maintenance.") ? firstAction.entity_id || "" : "");
+        setAssignee(firstAction.assignee || "");
+        if (firstAction.action_id === "notification.notify") {
+          const command = (firstAction.command || {}) as { target?: string; target_value?: string; title?: string; message?: string };
+          setNotifyTarget((command.target as any) || "role");
+          setNotifyTargetValue(command.target_value || "");
+          setNotifyTitle(command.title || "");
+          setNotifyMessage(command.message || "");
+        } else {
+          setNotifyTargetValue(""); setNotifyTitle(""); setNotifyMessage("");
+        }
+      } else {
+        setDomain("devices");
+        setActionId("");
+        setDeviceId(firstAction?.device_id || "");
+        setControl(String(firstAction?.command?.action || ""));
+        setVisitorEntityId(""); setMaintenanceEntityId(""); setAssignee("");
+        setNotifyTargetValue(""); setNotifyTitle(""); setNotifyMessage("");
+      }
     } else {
-      setName("");
+      setName(prefill?.name || "");
+      setDomain(prefill?.domain || "");
+      setActionId("");
       setScheduleType("daily");
       setLocalTime("09:00");
       setWeekdays([1, 2, 3, 4, 5]);
       setLocalDatetime("");
       setDeviceId("");
       setControl("");
+      setVisitorEntityId("");
+      setMaintenanceEntityId("");
+      setAssignee("");
+      setNotifyTarget("role");
+      setNotifyTargetValue("");
+      setNotifyTitle("");
+      setNotifyMessage("");
       setEnabled(true);
     }
-    setStep("trigger");
+    setStep("basics");
     setSaveError(null);
-  }, [open, editingRule, template]);
+  }, [open, editingRule, template, prefill]);
 
+  useEffect(() => {
+    if (!open) return;
+    if (domain === "visitors" && visitors === null) visitorService.list().then(setVisitors).catch(() => setVisitors([]));
+    if (domain === "maintenance" && maintenanceRequests === null) maintenanceService.list().then(setMaintenanceRequests).catch(() => setMaintenanceRequests([]));
+    if ((domain === "maintenance" || (domain === "notifications" && notifyTarget === "user")) && estateUsers === null) {
+      facilityService.listEstateUsers().then((res) => setEstateUsers(res.users || [])).catch(() => setEstateUsers([]));
+    }
+  }, [open, domain, notifyTarget, visitors, maintenanceRequests, estateUsers]);
+
+  function domainCapabilityKey(id: string) {
+    if (id.startsWith("visitor.")) return "visitors";
+    if (id.startsWith("maintenance.")) return "maintenance";
+    if (id.startsWith("device.")) return "devices";
+    if (id.startsWith("notification.")) return "notifications";
+    return id.split(".")[0] || "";
+  }
+
+  const availableDomains = useMemo(
+    () => (capabilities?.domains || []).filter((d) => d.actions.some((a) => a.available)),
+    [capabilities]
+  );
+  const domainActions = useMemo(
+    () => availableDomains.find((d) => d.domain === domain)?.actions.filter((a) => a.available) || [],
+    [availableDomains, domain]
+  );
+  const selectedAction: AutomationCapabilityAction | null = domainActions.find((a) => a.id === actionId) || null;
   const device = devices.find((d) => d.id === deviceId) || null;
   const controls = device?.supported_controls || [];
   const stepIndex = BUILDER_STEPS.findIndex((s) => s.key === step);
 
+  function selectDomain(nextDomain: string) {
+    // Clear any action selected under the previous domain rather than
+    // silently keeping a stale, invisible selection.
+    setDomain(nextDomain);
+    setActionId("");
+  }
+
+  function basicsValid() {
+    return Boolean(name.trim() && domain);
+  }
   function triggerValid() {
     if (scheduleType === "daily") return /^([01]\d|2[0-3]):([0-5]\d)$/.test(localTime);
     if (scheduleType === "weekdays") return /^([01]\d|2[0-3]):([0-5]\d)$/.test(localTime) && weekdays.length > 0;
     return /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):([0-5]\d)$/.test(localDatetime);
   }
   function actionValid() {
-    return Boolean(deviceId && control);
+    if (!selectedAction) return false;
+    if (selectedAction.target_type === "device") return Boolean(deviceId && control);
+    if (selectedAction.target_type === "visitor_access") return Boolean(visitorEntityId);
+    if (selectedAction.target_type === "maintenance_request") return Boolean(maintenanceEntityId) && (!selectedAction.requires_assignee || Boolean(assignee));
+    if (selectedAction.target_type === "notification_target") return Boolean(notifyTitle.trim() && notifyMessage.trim() && (notifyTarget === "estate" || notifyTargetValue.trim()));
+    return true;
   }
 
   function buildTrigger(): AutomationScheduleTrigger {
@@ -1385,6 +1592,49 @@ function AutomationBuilder({ open, onClose, devices, editingRule, template, onSa
     return { type: "schedule", schedule_type: "once", local_datetime: localDatetime, timezone };
   }
 
+  function buildActions(): AutomationRuleAction[] {
+    if (!selectedAction) return [];
+    if (selectedAction.target_type === "device") {
+      return [{ device_id: deviceId, command: { action: control }, label: device?.name || null }];
+    }
+    if (selectedAction.target_type === "visitor_access") {
+      const visitor = (visitors || []).find((v) => v.id === visitorEntityId) || null;
+      return [{ action_type: "registered_action", action_id: selectedAction.id, entity_id: visitorEntityId, label: visitor?.visitor_name || null }];
+    }
+    if (selectedAction.target_type === "maintenance_request") {
+      const request = (maintenanceRequests || []).find((r) => r.id === maintenanceEntityId) || null;
+      return [{ action_type: "registered_action", action_id: selectedAction.id, entity_id: maintenanceEntityId, assignee: assignee || null, label: request?.title || null }];
+    }
+    if (selectedAction.target_type === "notification_target") {
+      return [{
+        action_type: "registered_action",
+        action_id: "notification.notify",
+        command: { target: notifyTarget, target_value: notifyTarget === "estate" ? null : notifyTargetValue, title: notifyTitle.trim(), message: notifyMessage.trim() },
+        label: notifyTitle.trim() || null,
+      }];
+    }
+    return [];
+  }
+
+  function reviewTargetLabel() {
+    if (!selectedAction) return "No action configured";
+    if (selectedAction.target_type === "device") return `${control ? control.replace(/_/g, " ") : "control"} -- ${device?.name || "device"}`;
+    if (selectedAction.target_type === "visitor_access") {
+      const visitor = (visitors || []).find((v) => v.id === visitorEntityId);
+      return `${selectedAction.label} -- ${visitor?.visitor_name || "visitor"}`;
+    }
+    if (selectedAction.target_type === "maintenance_request") {
+      const request = (maintenanceRequests || []).find((r) => r.id === maintenanceEntityId);
+      const who = assignee ? (estateUsers || []).find((u) => u.users?.id === assignee)?.users?.full_name : null;
+      return `${selectedAction.label} -- ${request?.title || "work order"}${who ? ` (assign to ${who})` : ""}`;
+    }
+    if (selectedAction.target_type === "notification_target") {
+      const target = notifyTarget === "estate" ? "the whole estate" : notifyTarget === "role" ? `role: ${notifyTargetValue}` : notifyTarget === "user" ? (estateUsers || []).find((u) => u.users?.id === notifyTargetValue)?.users?.full_name || "a team member" : "a home";
+      return `Notify ${target} -- "${notifyTitle || "untitled"}"`;
+    }
+    return selectedAction.label;
+  }
+
   async function save() {
     setSaving(true);
     setSaveError(null);
@@ -1392,7 +1642,7 @@ function AutomationBuilder({ open, onClose, devices, editingRule, template, onSa
       const payload = {
         name: name.trim(),
         trigger: buildTrigger(),
-        actions: [{ device_id: deviceId, command: { action: control }, label: device?.name || null }],
+        actions: buildActions(),
         enabled,
       };
       const res = editingRule ? await automationRulesService.update(editingRule.id, payload) : await automationRulesService.create(payload);
@@ -1412,21 +1662,22 @@ function AutomationBuilder({ open, onClose, devices, editingRule, template, onSa
 
   const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const inputClass = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40";
+  const stepValid = step === "basics" ? basicsValid() : step === "trigger" ? triggerValid() : step === "action" ? actionValid() : true;
 
   return (
     <OisDrawer
       open={open}
       onClose={onClose}
       title={editingRule ? "Edit Automation" : template ? "Duplicate Automation" : "Create Automation"}
-      subtitle="Trigger, condition and action -- built from real Facility capabilities."
+      subtitle="Built from real Facility capabilities -- what you see here is what Oyi can actually do."
       width="lg"
       footer={
         <div className="flex items-center justify-between gap-3">
           <Button variant="ghost" disabled={stepIndex === 0} onClick={() => setStep(BUILDER_STEPS[Math.max(0, stepIndex - 1)].key)}>Back</Button>
           {step !== "review" ? (
-            <Button disabled={(step === "trigger" && !triggerValid()) || (step === "action" && !actionValid())} onClick={() => setStep(BUILDER_STEPS[Math.min(BUILDER_STEPS.length - 1, stepIndex + 1)].key)}>Next</Button>
+            <Button disabled={!stepValid} onClick={() => setStep(BUILDER_STEPS[Math.min(BUILDER_STEPS.length - 1, stepIndex + 1)].key)}>Next</Button>
           ) : (
-            <Button disabled={saving || !name.trim() || !triggerValid() || !actionValid()} onClick={() => void save()}>{saving ? "Saving…" : editingRule ? "Save changes" : "Create automation"}</Button>
+            <Button disabled={saving || !basicsValid() || !triggerValid() || !actionValid()} onClick={() => void save()}>{saving ? "Saving…" : editingRule ? "Save changes" : "Create automation"}</Button>
           )}
         </div>
       }
@@ -1437,13 +1688,25 @@ function AutomationBuilder({ open, onClose, devices, editingRule, template, onSa
         ))}
       </div>
 
-      <div className="mb-4">
-        <label className="text-xs text-zinc-500">Automation name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Turn off lobby lights at midnight" className={`${inputClass} mt-1`} /></label>
-      </div>
+      {step === "basics" ? (
+        <div className="space-y-4">
+          <label className="block text-xs text-zinc-500">Automation name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Turn off lobby lights at midnight" className={`${inputClass} mt-1`} /></label>
+          <div>
+            <p className="text-xs text-zinc-500">Domain</p>
+            <p className="mt-1 text-[11px] text-zinc-600">Only domains with a real, currently executable action are shown.</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {availableDomains.map((d) => (
+                <button key={d.domain} type="button" onClick={() => selectDomain(d.domain)} className={`rounded-lg border px-3 py-2 text-xs ${domain === d.domain ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{d.label}</button>
+              ))}
+              {!availableDomains.length ? <p className="text-xs text-amber-300">No executable domains are available yet -- loading, or none configured.</p> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {step === "trigger" ? (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-400">When should this automation run? Only scheduled triggers are supported today -- there is no condition-sensor (e.g. tank level, camera offline) trigger wired into this workspace yet.</p>
+          <p className="text-sm text-zinc-400">When should this automation run? Only scheduled triggers are supported today, across every domain -- there is no condition/event/threshold trigger engine (e.g. tank level, camera offline) wired into the platform yet. System-managed detectors are the only event-driven automations that exist today.</p>
           <div className="flex gap-2">
             {(["daily", "weekdays", "once"] as const).map((t) => (
               <button key={t} type="button" onClick={() => setScheduleType(t)} className={`rounded-lg border px-3 py-2 text-xs capitalize ${scheduleType === t ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{t}</button>
@@ -1469,36 +1732,109 @@ function AutomationBuilder({ open, onClose, devices, editingRule, template, onSa
 
       {step === "action" ? (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-400">What should Oyi do? Only Assets (device) actions can be created here today -- Access and Maintenance actions already execute through the system-detector approval queue, which this builder does not bypass.</p>
-          <label className="block text-xs text-zinc-500">Device<select value={deviceId} onChange={(e) => { setDeviceId(e.target.value); setControl(""); }} className={`${inputClass} mt-1`}>
-            <option value="">Select a device…</option>
-            {devices.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.category || d.type})</option>)}
+          <label className="block text-xs text-zinc-500">Action<select value={actionId} onChange={(e) => setActionId(e.target.value)} className={`${inputClass} mt-1`}>
+            <option value="">Select an action…</option>
+            {domainActions.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
           </select></label>
-          {device ? (
-            controls.length ? (
-              <label className="block text-xs text-zinc-500">Control<select value={control} onChange={(e) => setControl(e.target.value)} className={`${inputClass} mt-1`}>
-                <option value="">Select a control…</option>
-                {controls.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
+
+          {selectedAction?.target_type === "device" ? (
+            <>
+              <label className="block text-xs text-zinc-500">Device<select value={deviceId} onChange={(e) => { setDeviceId(e.target.value); setControl(""); }} className={`${inputClass} mt-1`}>
+                <option value="">Select a device…</option>
+                {devices.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.category || d.type})</option>)}
               </select></label>
-            ) : (
-              <p className="text-xs text-amber-300">This device has no supported controls registered -- it can't be used in an automation yet.</p>
-            )
+              {device ? (
+                controls.length ? (
+                  <label className="block text-xs text-zinc-500">Control<select value={control} onChange={(e) => setControl(e.target.value)} className={`${inputClass} mt-1`}>
+                    <option value="">Select a control…</option>
+                    {controls.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
+                  </select></label>
+                ) : (
+                  <p className="text-xs text-amber-300">This device has no supported controls registered -- it can't be used in an automation yet.</p>
+                )
+              ) : null}
+            </>
           ) : null}
+
+          {selectedAction?.target_type === "visitor_access" ? (
+            <label className="block text-xs text-zinc-500">Visitor<select value={visitorEntityId} onChange={(e) => setVisitorEntityId(e.target.value)} className={`${inputClass} mt-1`}>
+              <option value="">{visitors === null ? "Loading visitors…" : "Select a visitor…"}</option>
+              {(visitors || []).map((v) => <option key={v.id} value={v.id}>{v.visitor_name} -- {v.status}</option>)}
+            </select></label>
+          ) : null}
+
+          {selectedAction?.target_type === "maintenance_request" ? (
+            <>
+              <label className="block text-xs text-zinc-500">Work order<select value={maintenanceEntityId} onChange={(e) => setMaintenanceEntityId(e.target.value)} className={`${inputClass} mt-1`}>
+                <option value="">{maintenanceRequests === null ? "Loading work orders…" : "Select a work order…"}</option>
+                {(maintenanceRequests || []).map((m) => <option key={m.id} value={m.id}>{m.title} -- {m.status}</option>)}
+              </select></label>
+              {selectedAction.requires_assignee ? (
+                <label className="block text-xs text-zinc-500">Assign to<select value={assignee} onChange={(e) => setAssignee(e.target.value)} className={`${inputClass} mt-1`}>
+                  <option value="">{estateUsers === null ? "Loading team…" : "Select a team member…"}</option>
+                  {(estateUsers || []).map((u) => <option key={u.id} value={u.users?.id}>{u.users?.full_name || u.users?.email} -- {u.role}</option>)}
+                </select></label>
+              ) : null}
+            </>
+          ) : null}
+
+          {selectedAction?.target_type === "notification_target" ? (
+            <>
+              <div>
+                <p className="text-xs text-zinc-500">Notify</p>
+                <div className="mt-1.5 flex gap-1.5">
+                  {(["role", "user", "home", "estate"] as const).map((t) => (
+                    <button key={t} type="button" onClick={() => { setNotifyTarget(t); setNotifyTargetValue(""); }} className={`rounded-lg border px-3 py-1.5 text-xs capitalize ${notifyTarget === t ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{t}</button>
+                  ))}
+                </div>
+              </div>
+              {notifyTarget === "role" ? (
+                <label className="block text-xs text-zinc-500">Role<select value={notifyTargetValue} onChange={(e) => setNotifyTargetValue(e.target.value)} className={`${inputClass} mt-1`}>
+                  <option value="">Select a role…</option>
+                  {NOTIFY_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select></label>
+              ) : null}
+              {notifyTarget === "user" ? (
+                <label className="block text-xs text-zinc-500">Team member<select value={notifyTargetValue} onChange={(e) => setNotifyTargetValue(e.target.value)} className={`${inputClass} mt-1`}>
+                  <option value="">{estateUsers === null ? "Loading team…" : "Select a team member…"}</option>
+                  {(estateUsers || []).map((u) => <option key={u.id} value={u.users?.id}>{u.users?.full_name || u.users?.email}</option>)}
+                </select></label>
+              ) : null}
+              {notifyTarget === "home" ? (
+                <label className="block text-xs text-zinc-500">Home ID<input value={notifyTargetValue} onChange={(e) => setNotifyTargetValue(e.target.value)} placeholder="Paste a home ID from Buildings" className={`${inputClass} mt-1`} /></label>
+              ) : null}
+              <label className="block text-xs text-zinc-500">Title<input value={notifyTitle} onChange={(e) => setNotifyTitle(e.target.value)} placeholder="e.g. Overnight lighting review" className={`${inputClass} mt-1`} /></label>
+              <label className="block text-xs text-zinc-500">Message<textarea value={notifyMessage} onChange={(e) => setNotifyMessage(e.target.value)} rows={3} placeholder="What should the recipient know?" className={`${inputClass} mt-1`} /></label>
+            </>
+          ) : null}
+
+          {!domainActions.length ? <p className="text-xs text-amber-300">No executable actions in this domain yet.</p> : null}
         </div>
       ) : null}
 
       {step === "execution" ? (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-400">How may this action execute? This is enforced by the backend, not this screen.</p>
-          <OisCard variant="evidence" className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-white">Automatic</p>
-                <p className="mt-1 text-xs leading-5 text-zinc-500">Device actions run directly on schedule, the same way Facility's manual device controls already work -- no separate approval step exists for this domain.</p>
+          <p className="text-sm text-zinc-400">How may this action execute? This is resolved server-side by the same governance every approval and system detector already uses -- this screen only displays it.</p>
+          {selectedAction ? (
+            <OisCard variant="evidence" className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-white capitalize">{selectedAction.execution_level.replace(/_/g, " ")}</p>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">
+                    {selectedAction.execution_level === "auto_allowed"
+                      ? "This action runs directly on schedule -- no separate approval step exists for it."
+                      : selectedAction.execution_level === "approval_required"
+                        ? "Each scheduled run will queue for operator approval in the Approvals tab instead of executing immediately."
+                        : selectedAction.reason || "This action cannot currently execute."}
+                  </p>
+                  {selectedAction.required_permission ? <p className="mt-2 text-[11px] text-zinc-600">Requires permission: {selectedAction.required_permission}</p> : null}
+                </div>
+                <OisStatusBadge status={selectedAction.execution_level === "auto_allowed" ? "stable" : selectedAction.execution_level === "approval_required" ? "attention" : "unavailable"} label={selectedAction.execution_level.replace(/_/g, " ")} />
               </div>
-              <OisStatusBadge status="stable" label="Automatic" />
-            </div>
-          </OisCard>
+            </OisCard>
+          ) : (
+            <p className="text-xs text-zinc-500">Choose an action first to see how it may execute.</p>
+          )}
           <label className="flex items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />Enable this automation immediately</label>
         </div>
       ) : null}
@@ -1511,11 +1847,11 @@ function AutomationBuilder({ open, onClose, devices, editingRule, template, onSa
           </OisCard>
           <OisCard variant="evidence" className="p-4 text-sm">
             <p className="text-zinc-500">THEN</p>
-            <p className="mt-1 text-white">{control ? `${control.replace(/_/g, " ")} -- ${device?.name || "device"}` : "No action configured"}</p>
+            <p className="mt-1 text-white">{reviewTargetLabel()}</p>
           </OisCard>
           <OisCard variant="evidence" className="p-4 text-sm">
-            <p className="text-zinc-500">EXECUTION</p>
-            <p className="mt-1 text-white">Automatic · {enabled ? "Enabled" : "Disabled"} on save</p>
+            <p className="text-zinc-500">MODE</p>
+            <p className="mt-1 capitalize text-white">{selectedAction ? selectedAction.execution_level.replace(/_/g, " ") : "—"} · {enabled ? "Enabled" : "Disabled"} on save</p>
           </OisCard>
           {saveError ? <p className="text-xs text-rose-300">{saveError}</p> : null}
         </div>
