@@ -53,6 +53,7 @@ export const FACILITY_MODULES: ModuleDefinition[] = [
   { key: "maintenance", label: "Maintenance", href: "/maintenance", startsWith: ["/maintenance", "/alerts"], anyOf: ["support.read", "support.assign"] },
   { key: "community", label: "Community", href: "/community", startsWith: ["/community", "/messages"], anyOf: ["community.read", "community.write", "community.moderate", "community.broadcast", "community.manage_announcements", "notifications.read"] },
   { key: "wallets", label: "Finance", href: "/wallets", startsWith: ["/wallets"], anyOf: ["wallets.read", "wallets.manage"] },
+  { key: "automation", label: "Automation", href: "/automation", startsWith: ["/automation"], anyOf: ["support.assign", "visitors.manage", "devices.control"] },
 ];
 
 export const FACILITY_TABS: Record<string, TabDefinition[]> = {

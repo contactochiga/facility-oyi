@@ -16,6 +16,15 @@ export type FacilityChatMessage = {
   understood?: string;
   execution?: Record<string, any>;
   display_mode?: "conversation" | "list" | "detail" | "audit" | "report" | "awareness";
+  // PHASE 3 (Milestone 1) -- oyiService.chat() already parses these from
+  // the same canonical /oyi/runtime/conversation response used everywhere
+  // else in this store; they were previously computed and discarded
+  // before ever reaching a stored message. No new conversational
+  // execution path is added here -- confirming just re-sends "confirm"
+  // through this same sendMessage()/chat() call.
+  confirmations?: Array<Record<string, any>>;
+  approvalRequired?: boolean;
+  requiresConfirmation?: boolean;
 };
 
 type FacilityThreadSummary = {
@@ -232,6 +241,9 @@ export const useFacilityConversationStore = create<ConversationState>()(persist(
                 understood: response.understood,
                 execution: response.execution,
                 display_mode: response.display_mode || "conversation",
+                confirmations: Array.isArray(response.confirmations) ? response.confirmations : [],
+                approvalRequired: Boolean(response.approvalRequired),
+                requiresConfirmation: Boolean(response.requiresConfirmation),
               }
             : item
         ),

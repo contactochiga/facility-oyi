@@ -19,7 +19,7 @@ import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
-import { facilityService, type EstateMembershipRow, type InfrastructureOperations } from "@/services/facilityService";
+import { facilityService, type EstateMembershipRow, type InfrastructureOperations, type AutomationActionPolicy } from "@/services/facilityService";
 import { notificationService, type AlertItem } from "@/services/notificationService";
 import { hasPermission, PERMISSION_KEYS, permissionsForRole } from "@/lib/oyiFoundation";
 import { iconForTab } from "@/lib/oisIconRegistry";
@@ -484,32 +484,69 @@ function AuditSection({ source, rows }: { source: Source<any[]>; rows: any[] }) 
   return <Panel title="Audit Center" subtitle="This estate's own administrative and security events -- team changes, invitations, profile edits, permission denials."><div className="space-y-2">{rows.map((item) => <OisListItem key={item.id || `${item.action}-${item.occurred_at}`} title={item.action || "Audit event"} description={`${item.resource_type || "target"}:${item.resource_id || "n/a"} · actor:${item.actor_role || "n/a"}`} meta={dateLabel(item.occurred_at)} status={statusTone(item.status || "recorded")} />)}{!rows.length ? <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">No audit entries match this filter.</p> : null}</div></Panel>;
 }
 
+// PHASE 3 (Milestone 1) -- this section now also shows the REAL,
+// server-enforced policy for the 3 concrete domains that actually execute
+// (visitor/maintenance/device), sourced live from
+// GET /facility/automation/policy (automationPolicyResolver.ts). The
+// domain-level matrix above it stays exactly as Phase 2 built it (the
+// advisory ceiling from lib/safeAutomationRuntime.ts) -- this section is
+// additive, not a replacement, per the governing spec's explicit
+// instruction not to replace the Phase 2 Automation Permissions settings.
 function AutomationSection() {
   const autoAllowed = AUTOMATION_DOMAIN_POLICY.filter((row) => row.ceiling === "AUTO_ALLOWED");
+  const [livePolicy, setLivePolicy] = useState<Source<AutomationActionPolicy[]>>(source([]));
+
+  useEffect(() => {
+    let cancelled = false;
+    facilityService
+      .automationPolicy()
+      .then((res) => { if (!cancelled) setLivePolicy(source(res.policy || [], "ready")); })
+      .catch((err: any) => { if (!cancelled) setLivePolicy(fromError(err, [])); });
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <Panel title="Automation Permissions" subtitle="What this Facility's automation policy is allowed to do on its own, by domain. Administrative visibility only -- no execution happens from this screen, and this is not the automation operations workspace.">
-        <div className="grid gap-3 lg:grid-cols-2">
-          {AUTOMATION_DOMAIN_POLICY.map((row) => (
-            <OisCard key={row.domain} variant="evidence" className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-white">{row.label}</h3>
-                  <p className="mt-1 text-xs leading-5 text-zinc-500">{row.advisory}</p>
+      <div className="space-y-5">
+        <Panel title="Enforced Execution Policy (live)" subtitle="The actual, server-enforced policy for this Facility's three executable action domains -- reflects real backend state, not a description. Every action defaults to approval_required unless this Facility has an explicit override on file (none do yet -- policy editing is not part of this milestone).">
+          {livePolicy.status !== "ready" ? (
+            <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{sourceLabel(livePolicy)}</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {livePolicy.data.map((row) => (
+                <OisCard key={row.actionId} variant="evidence" className="p-3">
+                  <p className="text-xs font-medium text-zinc-200">{row.actionId}</p>
+                  <p className="mt-1 text-[11px] text-zinc-500">{row.executionLevel.replace(/_/g, " ")}</p>
+                  <p className="mt-1 text-[10px] text-zinc-600">{row.reason}</p>
+                </OisCard>
+              ))}
+            </div>
+          )}
+          <Link href="/automation" className="mt-4 inline-flex items-center gap-2 text-sm text-sky-200 hover:text-sky-100">Open the Automation workspace <ChevronRight className="h-4 w-4" /></Link>
+        </Panel>
+        <Panel title="Automation Permissions" subtitle="What this Facility's automation policy is allowed to do on its own, by domain. Administrative visibility only -- no execution happens from this screen, and this is not the automation operations workspace.">
+          <div className="grid gap-3 lg:grid-cols-2">
+            {AUTOMATION_DOMAIN_POLICY.map((row) => (
+              <OisCard key={row.domain} variant="evidence" className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">{row.label}</h3>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">{row.advisory}</p>
+                  </div>
+                  <Status value={row.ceiling === "AUTO_ALLOWED" ? "Auto-allowed (narrow)" : "Manual only"} />
                 </div>
-                <Status value={row.ceiling === "AUTO_ALLOWED" ? "Auto-allowed (narrow)" : "Manual only"} />
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {row.requiredPermissions.map((permission) => (
-                  <span key={permission} className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-300">{permission}</span>
-                ))}
-              </div>
-              <p className="mt-3 text-xs leading-5 text-zinc-500">{row.ceilingNote}</p>
-              {row.hardBlocked ? <p className="mt-2 text-[11px] uppercase tracking-[0.12em] text-amber-300/80">Double-enforced: also hard-blocked at the safety-check layer</p> : null}
-            </OisCard>
-          ))}
-        </div>
-      </Panel>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {row.requiredPermissions.map((permission) => (
+                    <span key={permission} className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-300">{permission}</span>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs leading-5 text-zinc-500">{row.ceilingNote}</p>
+                {row.hardBlocked ? <p className="mt-2 text-[11px] uppercase tracking-[0.12em] text-amber-300/80">Double-enforced: also hard-blocked at the safety-check layer</p> : null}
+              </OisCard>
+            ))}
+          </div>
+        </Panel>
+      </div>
       <div className="space-y-5">
         <Panel title="Automatic Execution" subtitle="Domains that may ever run without an operator click.">
           {autoAllowed.length ? (
@@ -528,8 +565,8 @@ function AutomationSection() {
             <Field label="Automatic execution" value="Where reachable at all, remains low-risk, internal and reversible." />
           </div>
         </Panel>
-        <Panel title="Scope" subtitle="What this phase does and does not implement.">
-          <p className="text-sm leading-6 text-zinc-400">This is the Phase 2 administrative-visibility layer over the existing automation-recommendation policy. It reuses that policy as-is and adds no new engine, no autonomous execution and no operational workspace. The full automation operations workspace is Phase 3 and is not built here.</p>
+        <Panel title="Scope" subtitle="What has been implemented and what remains deliberately out of scope.">
+          <p className="text-sm leading-6 text-zinc-400">Phase 3 (Milestone 1) added a real operational Automation workspace (see the link above) and server-enforced execution for three domains only: visitor access, maintenance work orders, and device control -- every action defaults to approval-required, never automatic, unless this Facility explicitly opts in (no such override exists yet). Finance, Community, Utilities beyond basic device control, Environment, and Security beyond visitor/lockdown remain observation/recommendation-only by design, matching this platform's own existing safety boundary.</p>
         </Panel>
       </div>
     </section>

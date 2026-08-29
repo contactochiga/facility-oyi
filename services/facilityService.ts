@@ -401,6 +401,56 @@ export type EstateAuditLogResponse = {
 };
 
 // ---------------------------
+// AUTOMATION (Phase 3, Milestone 1)
+// ---------------------------
+export type AutomationExecutionLevel = "observe" | "recommend" | "approval_required" | "auto_allowed" | "manual_only" | "unsupported";
+
+export type AutomationActionPolicy = {
+  actionId: string;
+  executionLevel: AutomationExecutionLevel;
+  requiredPermission: string | null;
+  reason: string;
+};
+
+export type AutomationPolicyResponse = {
+  estate_id: string;
+  policy: AutomationActionPolicy[];
+};
+
+export type AutomationApprovalStatus =
+  | "pending_approval" | "approved" | "rejected" | "expired" | "cancelled"
+  | "executing" | "succeeded" | "failed" | "verification_failed";
+
+export type AutomationApproval = {
+  id: string;
+  estate_id: string;
+  detector_id: string;
+  action_id: string;
+  entity_type: string;
+  entity_id: string;
+  target_label: string | null;
+  reason: string;
+  evidence: Array<Record<string, unknown>>;
+  plan_snapshot: Record<string, unknown>;
+  status: AutomationApprovalStatus;
+  requested_by: string;
+  approver_id: string | null;
+  approver_role: string | null;
+  decision_note: string | null;
+  execution_id: string | null;
+  verification: { state: string; summary: string; metadata: Record<string, unknown> } | null;
+  expires_at: string;
+  created_at: string;
+  decided_at: string | null;
+  executed_at: string | null;
+};
+
+export type AutomationApprovalsResponse = {
+  estate_id: string;
+  approvals: AutomationApproval[];
+};
+
+// ---------------------------
 // HOME USERS (KEEP THESE EXPORTS)
 // ---------------------------
 export type HomeMembershipRow = {
@@ -1035,6 +1085,29 @@ export const facilityService = {
 
   async removeHomeUser(membershipId: string) {
     const res = await API.delete(`/facility/home-users/${membershipId}`);
+    return res.data;
+  },
+
+  // ---------------------------
+  // AUTOMATION (Phase 3, Milestone 1)
+  // ---------------------------
+  async automationPolicy(): Promise<AutomationPolicyResponse> {
+    const res = await API.get("/facility/automation/policy");
+    return res.data;
+  },
+
+  async automationApprovals(status?: string): Promise<AutomationApprovalsResponse> {
+    const res = await API.get("/facility/automation/approvals", { params: status ? { status } : undefined });
+    return res.data;
+  },
+
+  async approveAutomation(approvalId: string, note?: string): Promise<{ approval: AutomationApproval }> {
+    const res = await API.post(`/facility/automation/approvals/${approvalId}/approve`, note ? { note } : {});
+    return res.data;
+  },
+
+  async rejectAutomation(approvalId: string, note?: string): Promise<{ approval: AutomationApproval }> {
+    const res = await API.post(`/facility/automation/approvals/${approvalId}/reject`, note ? { note } : {});
     return res.data;
   },
 };
