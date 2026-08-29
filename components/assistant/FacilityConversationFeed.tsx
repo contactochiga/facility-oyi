@@ -114,6 +114,48 @@ function AccountabilityStrip({ execution }: { execution?: Record<string, any> })
   );
 }
 
+// PHASE 3 (Milestone 1) -- oyiService.chat() has always parsed
+// confirmations/approvalRequired/requiresConfirmation from the same
+// canonical /oyi/runtime/conversation response every other part of this
+// feed already renders; nothing ever displayed them before. Confirming
+// or cancelling re-sends a plain "confirm"/"cancel" message through the
+// exact same sendMessage() -> oyiService.chat() call as typing it would --
+// no second execution path, no new endpoint.
+function ConfirmationPrompt({
+  message,
+  onAction,
+}: {
+  message: FacilityChatMessage;
+  onAction: (action: ConversationAction) => void;
+}) {
+  if (!message.requiresConfirmation && !message.approvalRequired && !message.confirmations?.length) return null;
+  const detail = message.confirmations?.[0];
+  return (
+    <div className="mt-3 rounded-[20px] border border-amber-300/16 bg-amber-400/[0.06] p-3">
+      <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-amber-50/82">
+        {message.approvalRequired ? "Approval required" : "Confirmation needed"}
+      </div>
+      {detail?.summary || detail?.label ? <p className="mt-1 text-xs leading-5 text-amber-50/90">{String(detail.summary || detail.label)}</p> : null}
+      <div className="mt-2.5 flex gap-2">
+        <button
+          type="button"
+          onClick={() => onAction({ type: "confirm_reply", reply: "confirm" })}
+          className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-medium text-emerald-100/90 transition active:scale-95"
+        >
+          Confirm
+        </button>
+        <button
+          type="button"
+          onClick={() => onAction({ type: "confirm_reply", reply: "cancel" })}
+          className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium text-zinc-300 transition active:scale-95"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SuggestedActions({
   actions,
   onAction,
@@ -179,6 +221,7 @@ export default function FacilityConversationFeed({
                   <SuggestedActions actions={message.suggested_actions} onAction={onAction} />
                 </>
               ) : null}
+              {!mine && !message.pending ? <ConfirmationPrompt message={message} onAction={onAction} /> : null}
               {!mine && interactive && !message.pending ? (
                 <div className="mt-2.5 flex items-center gap-1.5 border-t border-white/[0.055] pt-2">
                   <button type="button" onClick={() => onCopy?.(message.content)} className="grid h-7 w-7 place-items-center rounded-full text-white/30 transition hover:bg-white/[0.055] hover:text-white/72 active:scale-95" aria-label="Copy Oyi response">

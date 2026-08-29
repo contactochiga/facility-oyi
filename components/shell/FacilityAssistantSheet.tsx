@@ -71,6 +71,10 @@ export default function FacilityAssistantSheet() {
     await sendMessage({ message, context, estateId: context?.estate_id || (user as any)?.estate_id || null, homeId: context?.home_id || null, role: user?.role || null, module: moduleContext, page: pathname, route: pathname, filters: pageFilters, focusHint: focusHint || null, operationalObject: activeOperationalObject || operationalObject, activeIntelligenceContext: activeContext });
   }
   function handleAction(action: Record<string, any>) {
+    // PHASE 3 (Milestone 1): a Confirm/Cancel tap re-sends a plain reply
+    // through the same conversation call as typing it -- no separate
+    // execution path.
+    if (action.type === "confirm_reply") { void send(String(action.reply || "confirm")); return; }
     if (action.route) { closeAssistant(); router.push(String(action.route)); return; }
     if (action.prompt || action.label) void send(String(action.prompt || action.label));
   }
