@@ -1,30 +1,25 @@
 "use client";
 
-// Automation Workspace UI/UX completion. Reuses canonical infrastructure
-// only -- no second automation engine was created:
+// Automation Workspace UI/UX -- final visual/interaction consistency pass.
+// This pass does not change automation architecture, capabilities, or the
+// safety/governance model. It reuses the same real data sources the prior
+// pass established:
 //  - System detectors (duplicate_maintenance_request,
 //    stale_visitor_authorization) + the approval queue -- built in an
 //    earlier phase, facilityAutomationService.ts on Backend.
 //  - Custom automations (Create Automation) -- the pre-existing "Shared
 //    Automation Runtime" (Backend's src/routes/scenes.ts, mounted at
-//    /scenes), the same backend Oyi Consumer's own device scenes already
-//    use. Scoped to the Assets/Device domain only this pass: scenes.ts's
-//    scheduled-execution path (executeConsumerAutomation ->
-//    executeRegisteredActionBatch) does not consult
-//    automationPolicyResolver or automation_approvals at all -- wiring
-//    Visitor/Maintenance registered actions into a user-facing scheduler
-//    here would let an admin schedule an automatic action that bypasses
-//    the approval-required governance built for exactly those domains.
-//    Device scenes carry no such regression (they've always executed
-//    directly). Facility surface also requires
-//    AUTOMATION_SURFACE_FACILITY_ENABLED=true in the deployed
-//    environment -- currently false in production; this is a deployment
-//    decision, not something flipped here.
+//    /scenes). Still scoped to the Assets/Device domain only: that
+//    runtime's scheduled-execution path never consults the approval-gated
+//    policy resolver, so Visitor/Maintenance stay on the detector+approval
+//    path. Not widened in this visual pass.
 //  - Governance table + summary -- the existing /facility/automation/policy
 //    contract (read-only; editing still lives in Facility Administration).
-//  - Oyi Core execution activity -- the existing oyiCoreRuntimeService
-//    execution history/statistics endpoints.
-import { useCallback, useEffect, useMemo, useState } from "react";
+//  - Oyi Core execution activity / Runs / Failures / History -- the
+//    existing oyiCoreRuntimeService execution history/statistics
+//    endpoints (src/oyi-core/runtime/executionLedger.ts's real record
+//    shape), which cover activity beyond workspace-created automations.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -32,17 +27,20 @@ import {
   CheckCircle2,
   Clock3,
   History as HistoryIcon,
+  Info,
+  MoreVertical,
+  Pause,
   Pencil,
   Play,
   Plus,
   Power,
+  Search,
   ShieldCheck,
   Trash2,
   XCircle,
 } from "lucide-react";
 import OisCard from "@/components/ois/OisCard";
 import OisDrawer from "@/components/ois/OisDrawer";
-import OisListItem from "@/components/ois/OisListItem";
 import OisStatusBadge, { type OisStatus } from "@/components/ois/OisStatusBadge";
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
@@ -64,6 +62,30 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "failures", label: "Failures" },
   { key: "history", label: "History" },
 ];
+
+// Real shape returned by Backend's executionLedger (src/oyi-core/runtime/
+// executionLedger.ts's ExecutionLedgerRecord), as served by GET
+// /oyi/runtime/executions/history. Only the fields this page reads are
+// declared here.
+type ExecutionRecord = {
+  executionId: string;
+  estate: string | null;
+  building: string | null;
+  unit: string | null;
+  device: string | null;
+  origin: string | null;
+  initiator: { type: string | null; id: string | null; role: string | null; name: string | null };
+  action: string;
+  requestedAt: string;
+  startedAt: string;
+  completedAt: string | null;
+  duration: number | null;
+  status: string;
+  approvalRequired: boolean;
+  verification: { verified: boolean; method: string | null; trustScore: number } | null;
+  automationReference: string | null;
+  triggerReason: string | null;
+};
 
 // Readable labels for the canonical action keys. The action key stays
 // visible as secondary metadata for diagnostics; customers see the
@@ -125,6 +147,13 @@ function relativeLabel(value?: string | null) {
   if (hours < 24) return `${hours}h ago`;
   return dateLabel(value);
 }
+function durationLabel(ms: number | null) {
+  if (ms == null) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  return `${Math.round(seconds / 60)}m`;
+}
 
 function approvalStatusTone(status: string): OisStatus {
   if (["succeeded"].includes(status)) return "resolved";
@@ -138,6 +167,27 @@ function ruleRunTone(status?: string | null): OisStatus {
   if (["failed", "partially_succeeded"].includes(String(status))) return "critical";
   if (["running"].includes(String(status))) return "pending";
   return "unavailable";
+}
+function planStatusTone(status: string): OisStatus {
+  if (status === "prepared") return "stable";
+  if (status === "awaiting_approval") return "pending";
+  if (status === "expired") return "blocked";
+  if (status === "cancelled") return "unavailable";
+  return "attention";
+}
+function planSeverityTone(severity: string): OisStatus {
+  if (severity === "critical") return "critical";
+  if (severity === "warning") return "warning";
+  if (severity === "attention") return "attention";
+  return "stable";
+}
+function executionStatusTone(status: string): OisStatus {
+  if (status === "executed") return "resolved";
+  if (["failed", "denied"].includes(status)) return "critical";
+  if (status === "expired") return "blocked";
+  if (status === "pending_confirmation") return "pending";
+  if (status === "confirmed") return "attention";
+  return "stable";
 }
 function triggerSummary(trigger: AutomationScheduleTrigger) {
   if (trigger.schedule_type === "daily") return `Daily at ${trigger.local_time}`;
@@ -154,7 +204,18 @@ function actionSummary(rule: AutomationRule) {
   const label = first.label || first.action_label || "device";
   return `${String(control).replace(/_/g, " ")} -- ${label}`;
 }
+function executionTargetLabel(exec: ExecutionRecord) {
+  if (exec.device) return exec.device;
+  const composed = [exec.building, exec.unit].filter(Boolean).join(" / ");
+  return composed || exec.estate || "—";
+}
+function executionInitiatorLabel(exec: ExecutionRecord) {
+  return exec.initiator?.name || exec.initiator?.role || exec.initiator?.type || "System";
+}
 
+// ---------------------------
+// SHARED PRIMITIVES
+// ---------------------------
 function Panel({ title, subtitle, children, action }: { title: string; subtitle?: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <OisCard className="p-4 sm:p-5">
@@ -169,13 +230,13 @@ function Panel({ title, subtitle, children, action }: { title: string; subtitle?
     </OisCard>
   );
 }
-function Registry({ title, subtitle, toolbar, children }: { title: string; subtitle?: string; toolbar?: React.ReactNode; children: React.ReactNode }) {
+function Registry({ title, subtitle, toolbar, dense, children }: { title: string; subtitle?: string; toolbar?: React.ReactNode; dense?: boolean; children: React.ReactNode }) {
   return (
     <OisCard className="overflow-hidden">
-      <header className="flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-4">
+      <header className={`flex flex-wrap items-start justify-between gap-3 ${dense ? "px-3.5 pb-2.5 pt-3.5" : "px-4 pb-3 pt-4"}`}>
         <div>
-          <h2 className="text-sm font-semibold text-white">{title}</h2>
-          {subtitle ? <p className="mt-1 text-xs leading-5 text-zinc-500">{subtitle}</p> : null}
+          <h2 className={dense ? "text-[13px] font-semibold text-white" : "text-sm font-semibold text-white"}>{title}</h2>
+          {subtitle ? <p className="mt-0.5 text-[11px] leading-4 text-zinc-500">{subtitle}</p> : null}
         </div>
         {toolbar}
       </header>
@@ -183,13 +244,15 @@ function Registry({ title, subtitle, toolbar, children }: { title: string; subti
     </OisCard>
   );
 }
-function Table({ columns, children }: { columns: string[]; children: React.ReactNode }) {
+function Table({ columns, dense, minWidth, children }: { columns: string[]; dense?: boolean; minWidth?: number; children: React.ReactNode }) {
   return (
     <div className="overflow-x-auto border-t border-white/[0.06]">
-      <table className="w-full min-w-[760px] text-left">
+      <table className="w-full text-left" style={{ minWidth: minWidth || (dense ? 560 : 760) }}>
         <thead>
           <tr className="border-b border-white/[0.06] text-[10px] uppercase tracking-[0.08em] text-zinc-500">
-            {columns.map((column) => <th key={column} className="px-4 py-2.5 font-medium">{column}</th>)}
+            {columns.map((column) => (
+              <th key={column} className={`font-medium ${dense ? "px-3 py-2" : "px-4 py-2.5"}`}>{column}</th>
+            ))}
           </tr>
         </thead>
         <tbody>{children}</tbody>
@@ -197,17 +260,153 @@ function Table({ columns, children }: { columns: string[]; children: React.React
     </div>
   );
 }
-function Row({ children }: { children: React.ReactNode }) {
-  return <tr className="border-b border-white/[0.04] text-[12.5px] text-zinc-300 last:border-0 hover:bg-white/[0.02]">{children}</tr>;
+function Row({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+  return (
+    <tr onClick={onClick} className={`border-b border-white/[0.04] text-[12.5px] text-zinc-300 last:border-0 hover:bg-white/[0.02] ${onClick ? "cursor-pointer" : ""}`}>
+      {children}
+    </tr>
+  );
 }
-function Cell({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <td className={`px-4 py-3 align-middle ${className}`}>{children}</td>;
+function Cell({ children, className = "", dense }: { children: React.ReactNode; className?: string; dense?: boolean }) {
+  return <td className={`align-middle ${dense ? "px-3 py-2 text-[11.5px]" : "px-4 py-3"} ${className}`}>{children}</td>;
 }
 function EmptyRow({ text, colSpan }: { text: string; colSpan: number }) {
   return <tr><td colSpan={colSpan} className="px-4 py-8 text-center text-sm text-zinc-500">{text}</td></tr>;
 }
 function Empty({ text }: { text: string }) {
   return <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-zinc-500">{text}</p>;
+}
+function SearchInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder?: string }) {
+  return (
+    <div className="relative w-full max-w-[220px]">
+      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-600" />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder || "Search…"}
+        className="w-full rounded-lg border border-white/10 bg-white/5 py-1.5 pl-8 pr-3 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-sky-400/40"
+      />
+    </div>
+  );
+}
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-2.5 py-1 text-[11px] transition ${active ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white"}`}
+    >
+      {children}
+    </button>
+  );
+}
+function FilterBar({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] px-4 py-2.5">{children}</div>;
+}
+function RowMenu({ items }: { items: Array<{ label: string; onClick: () => void; danger?: boolean; disabled?: boolean }> }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  if (!items.length) return null;
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <button
+        type="button"
+        title="More actions"
+        aria-label="More actions"
+        onClick={(event) => { event.stopPropagation(); setOpen((v) => !v); }}
+        className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white"
+      >
+        <MoreVertical className="h-3.5 w-3.5" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-full z-20 mt-1 w-40 overflow-hidden rounded-lg border border-white/10 bg-[#0c1017] py-1 shadow-xl">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              disabled={item.disabled}
+              onClick={(event) => { event.stopPropagation(); setOpen(false); item.onClick(); }}
+              className={`block w-full px-3 py-1.5 text-left text-xs transition disabled:opacity-40 ${item.danger ? "text-rose-300 hover:bg-rose-500/10" : "text-zinc-300 hover:bg-white/5"}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+function InspectDrawer({ open, onClose, title, subtitle, rows }: { open: boolean; onClose: () => void; title: string; subtitle?: string; rows: Array<{ label: string; value: React.ReactNode }> }) {
+  return (
+    <OisDrawer open={open} onClose={onClose} title={title} subtitle={subtitle} width="md">
+      <div className="space-y-3">
+        {rows.map((row, index) => (
+          <div key={`${row.label}-${index}`} className="flex items-start justify-between gap-4 border-b border-white/[0.05] pb-2.5 text-sm last:border-0">
+            <span className="shrink-0 text-zinc-500">{row.label}</span>
+            <span className="text-right text-zinc-200">{row.value}</span>
+          </div>
+        ))}
+      </div>
+    </OisDrawer>
+  );
+}
+
+// Enabled: Run now, Pause, Edit, More(Duplicate/View runs/Delete).
+// Paused: Run now, Resume, Edit, More(Duplicate/View runs/Delete). Run Now
+// is independent of enable state -- confirmed against Backend's
+// POST /scenes/automations/:id/test, which never checks `enabled`.
+function RuleActionControls({ rule, busy, onRun, onToggle, onEdit, onDuplicate, onViewRuns, onDelete }: {
+  rule: AutomationRule;
+  busy: boolean;
+  onRun: () => void;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onViewRuns: () => void;
+  onDelete: () => void;
+}) {
+  if (busy) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] text-sky-300">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />Working…
+      </span>
+    );
+  }
+  return (
+    <div className="flex items-center gap-0.5" onClick={(event) => event.stopPropagation()}>
+      <button type="button" title="Run now" aria-label="Run now" onClick={onRun} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white">
+        <Play className="h-3.5 w-3.5" />
+      </button>
+      <button type="button" title={rule.enabled ? "Pause" : "Resume"} aria-label={rule.enabled ? "Pause automation" : "Resume automation"} onClick={onToggle} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white">
+        {rule.enabled ? <Pause className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+      </button>
+      <button type="button" title="Edit" aria-label="Edit automation" onClick={onEdit} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white">
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <RowMenu
+        items={[
+          { label: "Duplicate", onClick: onDuplicate },
+          { label: "View runs", onClick: onViewRuns },
+          { label: "Delete", onClick: onDelete, danger: true },
+        ]}
+      />
+    </div>
+  );
+}
+function SystemAutomationIndicator() {
+  return (
+    <span title="Managed automatically by Oyi Core -- not user-editable" className="inline-flex items-center gap-1 text-[11px] text-zinc-600">
+      <Info className="h-3 w-3" />System-managed
+    </span>
+  );
 }
 
 export default function AutomationWorkspace() {
@@ -219,7 +418,7 @@ export default function AutomationWorkspace() {
   const [dismissedPlanIds, setDismissedPlanIds] = useState<Set<string>>(new Set());
   const [approvals, setApprovals] = useState<AutomationApproval[]>([]);
   const [policy, setPolicy] = useState<AutomationActionPolicy[]>([]);
-  const [executionHistory, setExecutionHistory] = useState<any[]>([]);
+  const [executionHistory, setExecutionHistory] = useState<ExecutionRecord[]>([]);
   const [executionStats, setExecutionStats] = useState<any>(null);
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [rulesAvailable, setRulesAvailable] = useState(true);
@@ -227,6 +426,9 @@ export default function AutomationWorkspace() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
+  const [duplicateTemplate, setDuplicateTemplate] = useState<AutomationRule | null>(null);
+  const [runsSelectedRuleId, setRunsSelectedRuleId] = useState<string>("");
+  const [inspect, setInspect] = useState<{ title: string; subtitle?: string; rows: Array<{ label: string; value: React.ReactNode }> } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -244,7 +446,7 @@ export default function AutomationWorkspace() {
       setPlans(plansResult);
       setApprovals(approvalsResult.approvals || []);
       setPolicy(policyResult.policy || []);
-      setExecutionHistory(historyResult || []);
+      setExecutionHistory((historyResult as ExecutionRecord[]) || []);
       setExecutionStats(statsResult);
       setRules(rulesResult.automations);
       setRulesAvailable(rulesResult.available);
@@ -276,11 +478,12 @@ export default function AutomationWorkspace() {
   const failedApprovals = useMemo(() => approvals.filter((a) => ["failed", "verification_failed"].includes(a.status)), [approvals]);
   const runsApprovals = useMemo(() => approvals.filter((a) => ["executing", "succeeded", "failed", "verification_failed"].includes(a.status)), [approvals]);
   const historyApprovals = useMemo(() => approvals.filter((a) => a.decided_at), [approvals]);
+  const failedRuleRows = useMemo(() => rules.filter((r) => ["failed", "partially_succeeded"].includes(String(r.last_run_status))), [rules]);
+  const failedExecutions = useMemo(() => executionHistory.filter((e) => e.status === "failed"), [executionHistory]);
 
   const enabledRules = useMemo(() => rules.filter((r) => r.enabled), [rules]);
-  const disabledRules = useMemo(() => rules.filter((r) => !r.enabled), [rules]);
   const succeededRuleRuns = useMemo(() => rules.filter((r) => r.last_run_status === "succeeded").length, [rules]);
-  const failedRuleRuns = useMemo(() => rules.filter((r) => ["failed", "partially_succeeded"].includes(String(r.last_run_status))).length, [rules]);
+  const failedRuleRuns = failedRuleRows.length;
 
   // Combined, real counts across both real execution-tracking sources --
   // the detector-driven approval queue and the scheduled Shared Automation
@@ -312,7 +515,7 @@ export default function AutomationWorkspace() {
     try {
       const res = await automationRulesService.setEnabled(rule.id, !rule.enabled);
       if (!res.ok) { setError(res.error); return; }
-      setNotice(rule.enabled ? "Automation disabled." : "Automation enabled.");
+      setNotice(rule.enabled ? "Automation paused." : "Automation resumed.");
       await load();
     } finally {
       setBusyId(null);
@@ -346,32 +549,51 @@ export default function AutomationWorkspace() {
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <Topbar
-        title="Automation"
-        subtitle="Automate operations across your facility with safety, approvals and full audit."
-        rightSlot={<Button onClick={() => { setEditingRule(null); setBuilderOpen(true); }} className="gap-2"><Plus className="h-4 w-4" />Create Automation</Button>}
+  function openCreate() { setEditingRule(null); setDuplicateTemplate(null); setBuilderOpen(true); }
+  function openEdit(rule: AutomationRule) { setEditingRule(rule); setDuplicateTemplate(null); setBuilderOpen(true); }
+  function openDuplicate(rule: AutomationRule) { setEditingRule(null); setDuplicateTemplate(rule); setBuilderOpen(true); }
+  function openRuns(rule: AutomationRule) { setRunsSelectedRuleId(rule.id); setTab("runs"); }
+
+  function ruleControlsFor(rule: AutomationRule) {
+    return (
+      <RuleActionControls
+        rule={rule}
+        busy={busyId === rule.id}
+        onRun={() => void runRuleNow(rule)}
+        onToggle={() => void toggleRule(rule)}
+        onEdit={() => openEdit(rule)}
+        onDuplicate={() => openDuplicate(rule)}
+        onViewRuns={() => openRuns(rule)}
+        onDelete={() => void removeRule(rule)}
       />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Topbar title="Automation" subtitle="Automate operations across your facility with safety, approvals and full audit." />
 
       {error ? <div role="alert" className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{error}</div> : null}
       {notice ? <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">{notice}</div> : null}
 
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => setTab(item.key)}
-            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs transition ${tab === item.key ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white"}`}
-          >
-            {item.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {TABS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setTab(item.key)}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs transition ${tab === item.key ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400 hover:text-white"}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <Button onClick={openCreate} className="shrink-0 gap-2"><Plus className="h-4 w-4" />Create Automation</Button>
       </div>
 
       {tab === "overview" ? (
-        <section className="space-y-5">
+        <section className="space-y-4">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
             <FacilityMetricCard icon={<Bot />} label="Active Automations" value={loading ? "—" : totalActive} detail={`${enabledRules.length} custom, ${SYSTEM_AUTOMATIONS.length} built-in`} accent="text-sky-400" />
             <FacilityMetricCard icon={<Clock3 />} label="Pending Approvals" value={loading ? "—" : pendingApprovals.length} detail="Awaiting operator decision" accent="text-amber-400" />
@@ -380,7 +602,7 @@ export default function AutomationWorkspace() {
             <FacilityMetricCard icon={<ShieldCheck />} label="Automation Health" value={loading ? "—" : healthPct == null ? "No data yet" : `${healthPct}%`} detail={healthTotal ? `${totalSucceeded} of ${healthTotal} succeeded` : "Awaiting execution history"} accent={healthPct == null ? "text-zinc-400" : healthPct >= 90 ? "text-emerald-400" : healthPct >= 60 ? "text-amber-400" : "text-rose-400"} />
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
             <Registry title="Active Automations" subtitle="Automation rules currently running in your facility." toolbar={<button type="button" onClick={() => setTab("active")} className="text-xs text-sky-200 hover:text-sky-100">View all →</button>}>
               <Table columns={["Automation", "Trigger", "Action", "Mode", "Last Run", "Status", "Actions"]}>
                 {SYSTEM_AUTOMATIONS.map((automation) => (
@@ -389,9 +611,9 @@ export default function AutomationWorkspace() {
                     <Cell className="text-zinc-500">{automation.trigger}</Cell>
                     <Cell className="text-zinc-400">{actionLabel(automation.action)}</Cell>
                     <Cell><OisStatusBadge status="attention" label={automation.mode} /></Cell>
-                    <Cell className="text-zinc-500">Built-in</Cell>
+                    <Cell className="text-zinc-500">Event-driven</Cell>
                     <Cell><OisStatusBadge status="stable" label="Enabled" /></Cell>
-                    <Cell className="text-zinc-600">Not editable</Cell>
+                    <Cell><SystemAutomationIndicator /></Cell>
                   </Row>
                 ))}
                 {rules.slice(0, 8).map((rule) => (
@@ -401,62 +623,50 @@ export default function AutomationWorkspace() {
                     <Cell className="text-zinc-400">{actionSummary(rule)}</Cell>
                     <Cell><OisStatusBadge status="stable" label="Automatic" /></Cell>
                     <Cell className="text-zinc-500">{relativeLabel(rule.last_run_at)}</Cell>
-                    <Cell><OisStatusBadge status={rule.enabled ? "stable" : "unavailable"} label={rule.enabled ? "Enabled" : "Disabled"} /></Cell>
-                    <Cell>
-                      <div className="flex items-center gap-1">
-                        <button type="button" title="Run now" disabled={busyId === rule.id} onClick={() => void runRuleNow(rule)} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white"><Play className="h-3.5 w-3.5" /></button>
-                        <button type="button" title={rule.enabled ? "Disable" : "Enable"} disabled={busyId === rule.id} onClick={() => void toggleRule(rule)} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white"><Power className="h-3.5 w-3.5" /></button>
-                        <button type="button" title="Edit" onClick={() => { setEditingRule(rule); setBuilderOpen(true); }} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white"><Pencil className="h-3.5 w-3.5" /></button>
-                        <button type="button" title="Delete" disabled={busyId === rule.id} onClick={() => void removeRule(rule)} className="rounded-md p-1.5 text-rose-400 hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5" /></button>
-                      </div>
-                    </Cell>
+                    <Cell><OisStatusBadge status={rule.enabled ? "stable" : "unavailable"} label={rule.enabled ? "Enabled" : "Paused"} /></Cell>
+                    <Cell>{ruleControlsFor(rule)}</Cell>
                   </Row>
                 ))}
                 {!rules.length && !loading ? (
                   <tr><td colSpan={7} className="px-4 py-6 text-center text-xs text-zinc-500">No custom automations yet. {!rulesAvailable ? "Custom automation creation isn't enabled for this deployment yet." : "Use Create Automation to add one."}</td></tr>
                 ) : null}
               </Table>
-              <div className="border-t border-white/[0.06] px-4 py-2.5 text-[11px] text-zinc-600">Showing {Math.min(rules.length, 8) + SYSTEM_AUTOMATIONS.length} of {rules.length + SYSTEM_AUTOMATIONS.length} automations</div>
+              <div className="border-t border-white/[0.06] px-4 py-2 text-[11px] text-zinc-600">Showing {Math.min(rules.length, 8) + SYSTEM_AUTOMATIONS.length} of {rules.length + SYSTEM_AUTOMATIONS.length} automations</div>
             </Registry>
 
-            <div className="space-y-5">
-              <Registry title="Automation Governance" subtitle="Control how Oyi may act across supported operations." toolbar={<Link href="/facility-administration?tab=automation" className="text-xs text-sky-200 hover:text-sky-100">Manage governance →</Link>}>
-                <Table columns={["Operation", "Domain", "Mode", "Status"]}>
+            <div className="space-y-4">
+              <Registry dense title="Automation Governance" subtitle="How Oyi may act, enforced server-side." toolbar={<Link href="/facility-administration?tab=automation" className="text-[11px] text-sky-200 hover:text-sky-100">Manage governance →</Link>}>
+                <Table dense columns={["Operation", "Domain", "Mode", "Status"]}>
                   {policy.map((row) => (
                     <Row key={row.actionId}>
-                      <Cell className="text-zinc-100">{actionLabel(row.actionId)}</Cell>
-                      <Cell className="text-zinc-500">{domainForAction(row.actionId)}</Cell>
-                      <Cell className="capitalize text-zinc-400">{row.executionLevel.replace(/_/g, " ")}</Cell>
-                      <Cell><OisStatusBadge status="stable" label="Enforced" /></Cell>
+                      <Cell dense className="text-zinc-100">{actionLabel(row.actionId)}</Cell>
+                      <Cell dense className="text-zinc-500">{domainForAction(row.actionId)}</Cell>
+                      <Cell dense className="capitalize text-zinc-400">{row.executionLevel.replace(/_/g, " ")}</Cell>
+                      <Cell dense><OisStatusBadge status="stable" label="Enforced" /></Cell>
                     </Row>
                   ))}
                   {!policy.length && !loading ? <EmptyRow text="No policy data available." colSpan={4} /> : null}
                 </Table>
               </Registry>
 
-              <OisCard className="p-4">
-                <h3 className="text-sm font-semibold text-white">Governance Summary</h3>
-                <p className="mt-1 text-xs leading-5 text-zinc-500">How Oyi's operational authority is currently configured.</p>
-                <div className="mt-4 grid grid-cols-2 gap-3">
+              <OisCard className="p-3.5">
+                <h3 className="text-[13px] font-semibold text-white">Governance Summary</h3>
+                <div className="mt-3 grid grid-cols-2 gap-2.5">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.08em] text-zinc-500">Automatic execution</p>
-                    <p className="mt-1 text-lg font-semibold text-white">{policy.filter((p) => p.executionLevel === "auto_allowed").length}</p>
-                    <p className="text-[11px] text-zinc-600">actions</p>
+                    <p className="text-[10px] uppercase tracking-[0.08em] text-zinc-500">Automatic</p>
+                    <p className="mt-0.5 text-base font-semibold text-white">{policy.filter((p) => p.executionLevel === "auto_allowed").length}</p>
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.08em] text-zinc-500">Approval-required</p>
-                    <p className="mt-1 text-lg font-semibold text-white">{policy.filter((p) => p.executionLevel === "approval_required").length}</p>
-                    <p className="text-[11px] text-zinc-600">actions</p>
+                    <p className="mt-0.5 text-base font-semibold text-white">{policy.filter((p) => p.executionLevel === "approval_required").length}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.08em] text-zinc-500">Autonomous actions</p>
-                    <p className="mt-1 text-lg font-semibold text-white">{enabledRules.length}</p>
-                    <p className="text-[11px] text-zinc-600">custom automations</p>
+                    <p className="text-[10px] uppercase tracking-[0.08em] text-zinc-500">Autonomous rules</p>
+                    <p className="mt-0.5 text-base font-semibold text-white">{enabledRules.length}</p>
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.08em] text-zinc-500">Safety status</p>
-                    <p className="mt-1 text-lg font-semibold text-emerald-400">Protected</p>
-                    <p className="text-[11px] text-zinc-600">visitor/access/finance excluded</p>
+                    <p className="mt-0.5 text-base font-semibold text-emerald-400">Protected</p>
                   </div>
                 </div>
               </OisCard>
@@ -479,181 +689,378 @@ export default function AutomationWorkspace() {
         </section>
       ) : null}
 
-      {tab === "active" ? (
-        <section className="space-y-5">
-          <Registry title="System Automations" subtitle="Built-in detectors that run today. Not yet user-editable.">
-            <Table columns={["Automation", "Domain", "Trigger", "Action", "Mode", "Status"]}>
-              {SYSTEM_AUTOMATIONS.map((automation) => (
-                <Row key={automation.id}>
-                  <Cell className="text-zinc-100">{automation.name}</Cell>
-                  <Cell className="text-zinc-500">{automation.domain}</Cell>
-                  <Cell className="text-zinc-500">{automation.trigger}</Cell>
-                  <Cell className="text-zinc-400">{actionLabel(automation.action)}</Cell>
-                  <Cell><OisStatusBadge status="attention" label={automation.mode} /></Cell>
-                  <Cell><OisStatusBadge status="stable" label="Enabled" /></Cell>
-                </Row>
-              ))}
-            </Table>
-          </Registry>
-          <Registry title="Custom Automations" subtitle="Automations you've created." toolbar={<Button onClick={() => { setEditingRule(null); setBuilderOpen(true); }} className="gap-2"><Plus className="h-4 w-4" />Create Automation</Button>}>
-            <Table columns={["Automation", "Trigger", "Action", "Last Run", "Status", "Actions"]}>
-              {rules.map((rule) => (
-                <Row key={rule.id}>
-                  <Cell className="text-zinc-100">{rule.name}</Cell>
-                  <Cell className="text-zinc-500">{triggerSummary(rule.trigger)}</Cell>
-                  <Cell className="text-zinc-400">{actionSummary(rule)}</Cell>
-                  <Cell className="text-zinc-500">{relativeLabel(rule.last_run_at)}</Cell>
-                  <Cell><OisStatusBadge status={rule.enabled ? "stable" : "unavailable"} label={rule.enabled ? "Enabled" : "Disabled"} /></Cell>
-                  <Cell>
-                    <div className="flex items-center gap-1">
-                      <button type="button" title="Run now" disabled={busyId === rule.id} onClick={() => void runRuleNow(rule)} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white"><Play className="h-3.5 w-3.5" /></button>
-                      <button type="button" title={rule.enabled ? "Disable" : "Enable"} disabled={busyId === rule.id} onClick={() => void toggleRule(rule)} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white"><Power className="h-3.5 w-3.5" /></button>
-                      <button type="button" title="Edit" onClick={() => { setEditingRule(rule); setBuilderOpen(true); }} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white"><Pencil className="h-3.5 w-3.5" /></button>
-                      <button type="button" title="Delete" disabled={busyId === rule.id} onClick={() => void removeRule(rule)} className="rounded-md p-1.5 text-rose-400 hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5" /></button>
-                    </div>
-                  </Cell>
-                </Row>
-              ))}
-              {!rules.length ? <EmptyRow text={!rulesAvailable ? "Custom automation creation isn't enabled for this deployment yet." : loading ? "Loading…" : "No custom automations yet."} colSpan={6} /> : null}
-            </Table>
-          </Registry>
-        </section>
-      ) : null}
-
-      {tab === "recommendations" ? (
-        <Panel title="Recommendations" subtitle="Oyi Core's existing advisory recommendations. Review-only -- these are not automatically converted into executable actions.">
-          <div className="space-y-2">
-            {visiblePlans.map((plan) => (
-              <OisListItem
-                key={plan.id}
-                title={plan.title}
-                description={plan.summary}
-                meta={`${plan.domain} · confidence ${Math.round((plan.confidence || 0) * 100)}% · ${dateLabel(plan.generatedAt)}`}
-                status={plan.severity === "critical" ? "critical" : plan.severity === "warning" ? "warning" : "attention"}
-                action={<Button variant="ghost" onClick={() => setDismissedPlanIds((prev) => new Set(prev).add(plan.id))}>Dismiss</Button>}
-              />
-            ))}
-            {!visiblePlans.length ? <Empty text={loading ? "Loading…" : "No recommendations right now."} /> : null}
-          </div>
-        </Panel>
-      ) : null}
-
-      {tab === "approvals" ? (
-        <Panel title="Approval Queue" subtitle="Concrete, parameter-complete proposals from a system detector. Approve triggers real execution immediately; reject discards it. Both are audited.">
-          <div className="space-y-2">
-            {pendingApprovals.map((approval) => (
-              <OisListItem
-                key={approval.id}
-                title={approval.target_label || approval.entity_id}
-                description={approval.reason}
-                meta={`${actionLabel(approval.action_id)} · requested ${dateLabel(approval.created_at)} · expires ${dateLabel(approval.expires_at)}`}
-                status="pending"
-                action={
-                  <div className="flex gap-2">
-                    <Button disabled={busyId === approval.id} onClick={() => void decide(approval.id, "approve")}>{busyId === approval.id ? "Working…" : "Approve"}</Button>
-                    <Button variant="ghost" disabled={busyId === approval.id} onClick={() => void decide(approval.id, "reject")}>Reject</Button>
-                  </div>
-                }
-              />
-            ))}
-            {!pendingApprovals.length ? <Empty text={loading ? "Loading…" : "No approvals pending."} /> : null}
-          </div>
-        </Panel>
-      ) : null}
-
-      {tab === "runs" ? (
-        <section className="space-y-5">
-          <Registry title="Approval-Triggered Runs" subtitle="Executions from the system-detector approval queue.">
-            <Table columns={["Action", "Target", "Approver", "Verification", "Status", "Timestamps"]}>
-              {runsApprovals.map((run) => (
-                <Row key={run.id}>
-                  <Cell className="text-zinc-100">{actionLabel(run.action_id)}</Cell>
-                  <Cell className="text-zinc-400">{run.target_label || run.entity_id}</Cell>
-                  <Cell className="text-zinc-500">{run.approver_role || "—"}</Cell>
-                  <Cell className="text-zinc-500">{run.verification ? run.verification.state : "Not yet verified"}</Cell>
-                  <Cell><OisStatusBadge status={approvalStatusTone(run.status)} label={run.status.replace(/_/g, " ")} /></Cell>
-                  <Cell className="whitespace-nowrap text-zinc-600">{dateLabel(run.executed_at)}</Cell>
-                </Row>
-              ))}
-              {!runsApprovals.length ? <EmptyRow text={loading ? "Loading…" : "No runs yet."} colSpan={6} /> : null}
-            </Table>
-          </Registry>
-          <RuleRunsPanel rules={rules} />
-        </section>
-      ) : null}
-
-      {tab === "failures" ? (
-        <Panel title="Failures" subtitle="Execution or verification failures. Each is audited and notified to eligible operators when it happens.">
-          <div className="space-y-2">
-            {failedApprovals.map((run) => (
-              <OisListItem
-                key={run.id}
-                title={`${actionLabel(run.action_id)} -- ${run.target_label || run.entity_id}`}
-                description={run.verification?.summary || run.decision_note || "Execution failed."}
-                meta={`Detector: ${run.detector_id} · ${dateLabel(run.executed_at || run.decided_at)}`}
-                status="critical"
-                icon={<AlertTriangle className="h-4 w-4 text-rose-300" />}
-              />
-            ))}
-            {rules.filter((r) => ["failed", "partially_succeeded"].includes(String(r.last_run_status))).map((rule) => (
-              <OisListItem
-                key={rule.id}
-                title={`${rule.name} -- ${actionSummary(rule)}`}
-                description="Automation run failed or partially succeeded."
-                meta={`Custom automation · ${dateLabel(rule.last_run_at)}`}
-                status="critical"
-                icon={<AlertTriangle className="h-4 w-4 text-rose-300" />}
-              />
-            ))}
-            {!failedApprovals.length && !rules.some((r) => ["failed", "partially_succeeded"].includes(String(r.last_run_status))) ? <Empty text={loading ? "Loading…" : "No failures recorded."} /> : null}
-          </div>
-        </Panel>
-      ) : null}
-
-      {tab === "history" ? (
-        <Panel title="History" subtitle="Every decided approval and automation lifecycle event -- approved, rejected, expired, succeeded or failed.">
-          <div className="space-y-2">
-            {historyApprovals.map((item) => (
-              <OisListItem
-                key={item.id}
-                icon={<HistoryIcon className="h-4 w-4 text-zinc-400" />}
-                title={`${actionLabel(item.action_id)} -- ${item.target_label || item.entity_id}`}
-                description={`${item.approver_role || item.requested_by} · ${item.decision_note || item.reason}`}
-                meta={dateLabel(item.decided_at)}
-                status={approvalStatusTone(item.status)}
-              />
-            ))}
-            {!historyApprovals.length ? <Empty text={loading ? "Loading…" : "No decided approvals yet."} /> : null}
-          </div>
-        </Panel>
-      ) : null}
+      {tab === "active" ? <ActiveAutomationsTab rules={rules} rulesAvailable={rulesAvailable} loading={loading} onCreate={openCreate} ruleControlsFor={ruleControlsFor} /> : null}
+      {tab === "recommendations" ? <RecommendationsTab plans={visiblePlans} loading={loading} onDismiss={(id) => setDismissedPlanIds((prev) => new Set(prev).add(id))} onInspect={setInspect} /> : null}
+      {tab === "approvals" ? <ApprovalsTab approvals={approvals} pending={pendingApprovals} loading={loading} busyId={busyId} onDecide={decide} onInspect={setInspect} /> : null}
+      {tab === "runs" ? <RunsTab runsApprovals={runsApprovals} executions={executionHistory} rules={rules} selectedRuleId={runsSelectedRuleId} onSelectRule={setRunsSelectedRuleId} loading={loading} onInspect={setInspect} /> : null}
+      {tab === "failures" ? <FailuresTab failedApprovals={failedApprovals} failedRules={failedRuleRows} failedExecutions={failedExecutions} loading={loading} onInspect={setInspect} /> : null}
+      {tab === "history" ? <HistoryTab historyApprovals={historyApprovals} executions={executionHistory} loading={loading} onInspect={setInspect} /> : null}
 
       <AutomationBuilder
         open={builderOpen}
         onClose={() => setBuilderOpen(false)}
         devices={devices}
         editingRule={editingRule}
+        template={duplicateTemplate}
         onSaved={async () => { setBuilderOpen(false); setNotice(editingRule ? "Automation updated." : "Automation created."); await load(); }}
+      />
+
+      <InspectDrawer
+        open={Boolean(inspect)}
+        onClose={() => setInspect(null)}
+        title={inspect?.title || ""}
+        subtitle={inspect?.subtitle}
+        rows={inspect?.rows || []}
       />
     </div>
   );
 }
 
-function RuleRunsPanel({ rules }: { rules: AutomationRule[] }) {
-  const [selected, setSelected] = useState<AutomationRule | null>(null);
+// ---------------------------
+// ACTIVE AUTOMATIONS TAB
+// ---------------------------
+type TypeFilter = "all" | "system" | "custom";
+type StatusFilter = "all" | "enabled" | "paused";
+
+function ActiveAutomationsTab({ rules, rulesAvailable, loading, onCreate, ruleControlsFor }: {
+  rules: AutomationRule[];
+  rulesAvailable: boolean;
+  loading: boolean;
+  onCreate: () => void;
+  ruleControlsFor: (rule: AutomationRule) => React.ReactNode;
+}) {
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  const filteredSystem = useMemo(() => {
+    if (typeFilter === "custom") return [];
+    const query = search.trim().toLowerCase();
+    return SYSTEM_AUTOMATIONS.filter((a) => !query || a.name.toLowerCase().includes(query) || a.domain.toLowerCase().includes(query));
+  }, [typeFilter, search]);
+
+  const filteredRules = useMemo(() => {
+    if (typeFilter === "system") return [];
+    const query = search.trim().toLowerCase();
+    return rules.filter((rule) => {
+      if (statusFilter === "enabled" && !rule.enabled) return false;
+      if (statusFilter === "paused" && rule.enabled) return false;
+      if (!query) return true;
+      return rule.name.toLowerCase().includes(query) || actionSummary(rule).toLowerCase().includes(query);
+    });
+  }, [rules, typeFilter, statusFilter, search]);
+
+  const total = filteredSystem.length + filteredRules.length;
+
+  return (
+    <section>
+      <Registry
+        title="Active Automations"
+        subtitle="Every automation running in your facility -- system detectors and rules you've created."
+        toolbar={<Button onClick={onCreate} className="gap-2"><Plus className="h-4 w-4" />Create Automation</Button>}
+      >
+        <FilterBar>
+          <SearchInput value={search} onChange={setSearch} placeholder="Search automations…" />
+          <div className="flex flex-wrap gap-1.5">
+            <Chip active={typeFilter === "all"} onClick={() => setTypeFilter("all")}>All types</Chip>
+            <Chip active={typeFilter === "system"} onClick={() => setTypeFilter("system")}>System</Chip>
+            <Chip active={typeFilter === "custom"} onClick={() => setTypeFilter("custom")}>Custom</Chip>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <Chip active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>All statuses</Chip>
+            <Chip active={statusFilter === "enabled"} onClick={() => setStatusFilter("enabled")}>Enabled</Chip>
+            <Chip active={statusFilter === "paused"} onClick={() => setStatusFilter("paused")}>Paused</Chip>
+          </div>
+        </FilterBar>
+        <Table columns={["Automation", "Domain", "Trigger", "Action", "Mode", "Last Run", "Next Run", "Status", "Type", "Actions"]} minWidth={1080}>
+          {filteredSystem.map((automation) => (
+            <Row key={automation.id}>
+              <Cell className="text-zinc-100">{automation.name}</Cell>
+              <Cell className="text-zinc-500">{automation.domain}</Cell>
+              <Cell className="text-zinc-500">{automation.trigger}</Cell>
+              <Cell className="text-zinc-400">{actionLabel(automation.action)}</Cell>
+              <Cell><OisStatusBadge status="attention" label={automation.mode} /></Cell>
+              <Cell className="text-zinc-500">Event-driven</Cell>
+              <Cell className="text-zinc-600">—</Cell>
+              <Cell><OisStatusBadge status="stable" label="Enabled" /></Cell>
+              <Cell className="text-zinc-500">System</Cell>
+              <Cell><SystemAutomationIndicator /></Cell>
+            </Row>
+          ))}
+          {filteredRules.map((rule) => (
+            <Row key={rule.id}>
+              <Cell className="text-zinc-100">{rule.name}</Cell>
+              <Cell className="text-zinc-500">Assets</Cell>
+              <Cell className="text-zinc-500">{triggerSummary(rule.trigger)}</Cell>
+              <Cell className="text-zinc-400">{actionSummary(rule)}</Cell>
+              <Cell><OisStatusBadge status="stable" label="Automatic" /></Cell>
+              <Cell className="text-zinc-500">{relativeLabel(rule.last_run_at)}</Cell>
+              <Cell className="text-zinc-500">{rule.next_run_at ? dateLabel(rule.next_run_at) : "—"}</Cell>
+              <Cell><OisStatusBadge status={rule.enabled ? "stable" : "unavailable"} label={rule.enabled ? "Enabled" : "Paused"} /></Cell>
+              <Cell className="text-zinc-500">Custom</Cell>
+              <Cell>{ruleControlsFor(rule)}</Cell>
+            </Row>
+          ))}
+          {!total ? (
+            <EmptyRow colSpan={10} text={loading ? "Loading…" : !rulesAvailable && typeFilter !== "system" ? "Custom automation creation isn't enabled for this deployment yet." : "No automations match this filter."} />
+          ) : null}
+        </Table>
+      </Registry>
+    </section>
+  );
+}
+
+// ---------------------------
+// RECOMMENDATIONS TAB
+// ---------------------------
+function RecommendationsTab({ plans, loading, onDismiss, onInspect }: {
+  plans: AutomationPlan[];
+  loading: boolean;
+  onDismiss: (id: string) => void;
+  onInspect: (payload: { title: string; subtitle?: string; rows: Array<{ label: string; value: React.ReactNode }> }) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return plans;
+    return plans.filter((plan) => plan.title.toLowerCase().includes(query) || plan.domain.toLowerCase().includes(query));
+  }, [plans, search]);
+
+  function inspectPlan(plan: AutomationPlan) {
+    onInspect({
+      title: plan.title,
+      subtitle: plan.summary,
+      rows: [
+        { label: "Domain", value: plan.domain.replace(/_/g, " ") },
+        { label: "Target", value: plan.targetEntity?.name || plan.targetEntity?.type || "—" },
+        { label: "Owner", value: plan.owner || "—" },
+        { label: "Severity", value: <OisStatusBadge status={planSeverityTone(plan.severity)} label={plan.severity} /> },
+        { label: "Confidence", value: `${Math.round((plan.confidence || 0) * 100)}%` },
+        { label: "Proposed action", value: plan.actionIntent },
+        { label: "Execution mode", value: plan.executionMode.replace(/_/g, " ") },
+        { label: "Approval required", value: plan.approvalRequired ? "Yes" : "No" },
+        { label: "Verification required", value: plan.verificationRequired ? "Yes" : "No" },
+        { label: "Safe to execute", value: plan.safeToExecute ? "Yes" : "No" },
+        { label: "Preconditions", value: plan.preconditions?.length ? plan.preconditions.join(", ") : "None recorded" },
+        { label: "Safety checks", value: plan.safetyChecks?.length ? plan.safetyChecks.join(", ") : "None recorded" },
+        { label: "Required permissions", value: plan.requiredPermissions?.length ? plan.requiredPermissions.join(", ") : "None recorded" },
+        { label: "Rollback plan", value: plan.rollbackPlan || "Not specified" },
+        { label: "Expected outcome", value: plan.expectedOutcome || "Not specified" },
+        { label: "Next step", value: plan.nextStep || "Not specified" },
+        { label: "Status", value: <OisStatusBadge status={planStatusTone(plan.status)} label={plan.status.replace(/_/g, " ")} /> },
+        { label: "Generated", value: dateLabel(plan.generatedAt) },
+        { label: "Expires", value: dateLabel(plan.expiresAt) },
+      ],
+    });
+  }
+
+  return (
+    <Registry title="Recommendations" subtitle="Oyi Core's advisory recommendations. Review-only -- these are not automatically converted into executable actions.">
+      <FilterBar>
+        <SearchInput value={search} onChange={setSearch} placeholder="Search recommendations…" />
+      </FilterBar>
+      <Table columns={["Recommendation", "Domain", "Target", "Severity", "Proposed action", "Created", "Status", "Actions"]} minWidth={920}>
+        {filtered.map((plan) => (
+          <Row key={plan.id} onClick={() => inspectPlan(plan)}>
+            <Cell className="text-zinc-100">{plan.title}</Cell>
+            <Cell className="text-zinc-500">{plan.domain.replace(/_/g, " ")}</Cell>
+            <Cell className="text-zinc-400">{plan.targetEntity?.name || plan.targetEntity?.type || "—"}</Cell>
+            <Cell><OisStatusBadge status={planSeverityTone(plan.severity)} label={plan.severity} /></Cell>
+            <Cell className="max-w-[220px] truncate text-zinc-400">{plan.actionIntent}</Cell>
+            <Cell className="text-zinc-500">{dateLabel(plan.generatedAt)}</Cell>
+            <Cell><OisStatusBadge status={planStatusTone(plan.status)} label={plan.status.replace(/_/g, " ")} /></Cell>
+            <Cell>
+              <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+                <button type="button" className="rounded-md px-2 py-1 text-[11px] text-sky-200 hover:bg-white/5" onClick={() => inspectPlan(plan)}>Review</button>
+                <button type="button" className="rounded-md px-2 py-1 text-[11px] text-zinc-400 hover:bg-white/5 hover:text-white" onClick={() => onDismiss(plan.id)}>Dismiss</button>
+              </div>
+            </Cell>
+          </Row>
+        ))}
+        {!filtered.length ? <EmptyRow colSpan={8} text={loading ? "Loading…" : "No recommendations require attention."} /> : null}
+      </Table>
+    </Registry>
+  );
+}
+
+// ---------------------------
+// APPROVALS TAB
+// ---------------------------
+function ApprovalsTab({ approvals, pending, loading, busyId, onDecide, onInspect }: {
+  approvals: AutomationApproval[];
+  pending: AutomationApproval[];
+  loading: boolean;
+  busyId: string | null;
+  onDecide: (id: string, decision: "approve" | "reject") => void;
+  onInspect: (payload: { title: string; subtitle?: string; rows: Array<{ label: string; value: React.ReactNode }> }) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  const source = showAll ? approvals : pending;
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return source;
+    return source.filter((a) => (a.target_label || a.entity_id || "").toLowerCase().includes(query) || actionLabel(a.action_id).toLowerCase().includes(query));
+  }, [source, search]);
+
+  function inspectApproval(approval: AutomationApproval) {
+    onInspect({
+      title: actionLabel(approval.action_id),
+      subtitle: approval.target_label || approval.entity_id,
+      rows: [
+        { label: "Domain", value: domainForAction(approval.action_id) },
+        { label: "Reason", value: approval.reason },
+        { label: "Status", value: <OisStatusBadge status={approvalStatusTone(approval.status)} label={approval.status.replace(/_/g, " ")} /> },
+        { label: "Requested by", value: approval.requested_by },
+        { label: "Approver", value: approval.approver_role || "—" },
+        { label: "Decision note", value: approval.decision_note || "—" },
+        { label: "Verification", value: approval.verification ? `${approval.verification.state} -- ${approval.verification.summary}` : "Not yet verified" },
+        { label: "Requested", value: dateLabel(approval.created_at) },
+        { label: "Expires", value: dateLabel(approval.expires_at) },
+        { label: "Decided", value: dateLabel(approval.decided_at) },
+        { label: "Executed", value: dateLabel(approval.executed_at) },
+      ],
+    });
+  }
+
+  return (
+    <Registry title="Approval Queue" subtitle="Concrete, parameter-complete proposals from a system detector. Approve triggers real execution immediately; reject discards it. Both are audited.">
+      <FilterBar>
+        <SearchInput value={search} onChange={setSearch} placeholder="Search approvals…" />
+        <div className="flex gap-1.5">
+          <Chip active={!showAll} onClick={() => setShowAll(false)}>Pending</Chip>
+          <Chip active={showAll} onClick={() => setShowAll(true)}>All</Chip>
+        </div>
+      </FilterBar>
+      <Table columns={["Action", "Domain", "Target", "Requested", "Expires", "Requested by", "Status", "Actions"]} minWidth={920}>
+        {filtered.map((approval) => (
+          <Row key={approval.id} onClick={() => inspectApproval(approval)}>
+            <Cell className="text-zinc-100">{actionLabel(approval.action_id)}</Cell>
+            <Cell className="text-zinc-500">{domainForAction(approval.action_id)}</Cell>
+            <Cell className="text-zinc-400">{approval.target_label || approval.entity_id}</Cell>
+            <Cell className="text-zinc-500">{dateLabel(approval.created_at)}</Cell>
+            <Cell className="text-zinc-500">{dateLabel(approval.expires_at)}</Cell>
+            <Cell className="text-zinc-500">{approval.requested_by}</Cell>
+            <Cell><OisStatusBadge status={approvalStatusTone(approval.status)} label={approval.status.replace(/_/g, " ")} /></Cell>
+            <Cell>
+              {approval.status === "pending_approval" ? (
+                <div className="flex items-center gap-1.5" onClick={(event) => event.stopPropagation()}>
+                  <button type="button" disabled={busyId === approval.id} onClick={() => onDecide(approval.id, "approve")} className="rounded-md bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-blue-500 disabled:opacity-50">
+                    {busyId === approval.id ? "Working…" : "Approve"}
+                  </button>
+                  <button type="button" disabled={busyId === approval.id} onClick={() => onDecide(approval.id, "reject")} className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-zinc-300 hover:bg-white/10">Reject</button>
+                </div>
+              ) : (
+                <button type="button" className="text-[11px] text-sky-200 hover:text-sky-100" onClick={(event) => { event.stopPropagation(); inspectApproval(approval); }}>Review</button>
+              )}
+            </Cell>
+          </Row>
+        ))}
+        {!filtered.length ? <EmptyRow colSpan={8} text={loading ? "Loading…" : showAll ? "No approvals recorded yet." : "No approvals pending."} /> : null}
+      </Table>
+    </Registry>
+  );
+}
+
+// ---------------------------
+// RUNS TAB
+// ---------------------------
+function RunsTab({ runsApprovals, executions, rules, selectedRuleId, onSelectRule, loading, onInspect }: {
+  runsApprovals: AutomationApproval[];
+  executions: ExecutionRecord[];
+  rules: AutomationRule[];
+  selectedRuleId: string;
+  onSelectRule: (id: string) => void;
+  loading: boolean;
+  onInspect: (payload: { title: string; subtitle?: string; rows: Array<{ label: string; value: React.ReactNode }> }) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const filteredExecutions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return executions;
+    return executions.filter((e) => e.action.toLowerCase().includes(query) || executionTargetLabel(e).toLowerCase().includes(query));
+  }, [executions, search]);
+
+  function inspectExecution(exec: ExecutionRecord) {
+    onInspect({
+      title: exec.action.replace(/[._]/g, " "),
+      subtitle: executionTargetLabel(exec),
+      rows: [
+        { label: "Automation", value: exec.automationReference || "Not automation-originated" },
+        { label: "Trigger", value: exec.triggerReason || "—" },
+        { label: "Origin", value: exec.origin || "—" },
+        { label: "Initiator", value: executionInitiatorLabel(exec) },
+        { label: "Status", value: <OisStatusBadge status={executionStatusTone(exec.status)} label={exec.status.replace(/_/g, " ")} /> },
+        { label: "Approval required", value: exec.approvalRequired ? "Yes" : "No" },
+        { label: "Verification", value: exec.verification ? `${exec.verification.verified ? "Verified" : "Not verified"} -- ${exec.verification.method || "n/a"}` : "Not recorded" },
+        { label: "Requested", value: dateLabel(exec.requestedAt) },
+        { label: "Started", value: dateLabel(exec.startedAt) },
+        { label: "Completed", value: dateLabel(exec.completedAt) },
+        { label: "Duration", value: durationLabel(exec.duration) },
+      ],
+    });
+  }
+
+  return (
+    <section className="space-y-4">
+      <Registry title="Approval-Triggered Runs" subtitle="Executions from the system-detector approval queue.">
+        <Table columns={["Action", "Target", "Approver", "Verification", "Status", "Timestamp"]}>
+          {runsApprovals.map((run) => (
+            <Row key={run.id}>
+              <Cell className="text-zinc-100">{actionLabel(run.action_id)}</Cell>
+              <Cell className="text-zinc-400">{run.target_label || run.entity_id}</Cell>
+              <Cell className="text-zinc-500">{run.approver_role || "—"}</Cell>
+              <Cell className="text-zinc-500">{run.verification ? run.verification.state : "Not yet verified"}</Cell>
+              <Cell><OisStatusBadge status={approvalStatusTone(run.status)} label={run.status.replace(/_/g, " ")} /></Cell>
+              <Cell className="whitespace-nowrap text-zinc-600">{dateLabel(run.executed_at)}</Cell>
+            </Row>
+          ))}
+          {!runsApprovals.length ? <EmptyRow text={loading ? "Loading…" : "No runs yet."} colSpan={6} /> : null}
+        </Table>
+      </Registry>
+
+      <RuleRunsPanel rules={rules} selectedId={selectedRuleId} onSelectId={onSelectRule} />
+
+      <Registry title="Oyi Core Executions" subtitle="Broader execution history across Oyi Core -- not limited to workspace-created automations.">
+        <FilterBar>
+          <SearchInput value={search} onChange={setSearch} placeholder="Search executions…" />
+        </FilterBar>
+        <Table columns={["Execution", "Automation", "Target", "Trigger", "Started", "Duration", "Result", "Verification", "Initiator"]} minWidth={1000}>
+          {filteredExecutions.map((exec) => (
+            <Row key={exec.executionId} onClick={() => inspectExecution(exec)}>
+              <Cell className="text-zinc-100">{exec.action.replace(/[._]/g, " ")}</Cell>
+              <Cell className="text-zinc-500">{exec.automationReference || "—"}</Cell>
+              <Cell className="text-zinc-400">{executionTargetLabel(exec)}</Cell>
+              <Cell className="max-w-[160px] truncate text-zinc-500">{exec.triggerReason || "—"}</Cell>
+              <Cell className="text-zinc-500">{dateLabel(exec.startedAt || exec.requestedAt)}</Cell>
+              <Cell className="text-zinc-500">{durationLabel(exec.duration)}</Cell>
+              <Cell><OisStatusBadge status={executionStatusTone(exec.status)} label={exec.status.replace(/_/g, " ")} /></Cell>
+              <Cell className="text-zinc-500">{exec.verification ? (exec.verification.verified ? "Verified" : "Unverified") : "—"}</Cell>
+              <Cell className="text-zinc-500">{executionInitiatorLabel(exec)}</Cell>
+            </Row>
+          ))}
+          {!filteredExecutions.length ? <EmptyRow colSpan={9} text={loading ? "Loading…" : "No execution history available."} /> : null}
+        </Table>
+      </Registry>
+    </section>
+  );
+}
+
+function RuleRunsPanel({ rules, selectedId, onSelectId }: { rules: AutomationRule[]; selectedId: string; onSelectId: (id: string) => void }) {
   const [runs, setRuns] = useState<AutomationRuleRun[]>([]);
   const [loadingRuns, setLoadingRuns] = useState(false);
+  const selected = rules.find((r) => r.id === selectedId) || null;
 
   useEffect(() => {
-    if (!selected) return;
+    if (!selectedId) { setRuns([]); return; }
     setLoadingRuns(true);
-    automationRulesService.runs(selected.id).then(setRuns).finally(() => setLoadingRuns(false));
-  }, [selected]);
+    automationRulesService.runs(selectedId).then(setRuns).finally(() => setLoadingRuns(false));
+  }, [selectedId]);
 
   return (
     <Registry title="Custom Automation Runs" subtitle="Execution history for automations created in this workspace." toolbar={
       rules.length ? (
-        <select value={selected?.id || ""} onChange={(e) => setSelected(rules.find((r) => r.id === e.target.value) || null)} className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs text-white">
+        <select value={selectedId} onChange={(e) => onSelectId(e.target.value)} className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs text-white">
           <option value="">Select an automation…</option>
           {rules.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
@@ -683,10 +1090,231 @@ function RuleRunsPanel({ rules }: { rules: AutomationRule[] }) {
 }
 
 // ---------------------------
+// FAILURES TAB
+// ---------------------------
+type FailureRow = { id: string; automation: string; domain: string; target: string; stage: string; reason: string; time: string; source: string; rows: Array<{ label: string; value: React.ReactNode }> };
+
+function FailuresTab({ failedApprovals, failedRules, failedExecutions, loading, onInspect }: {
+  failedApprovals: AutomationApproval[];
+  failedRules: AutomationRule[];
+  failedExecutions: ExecutionRecord[];
+  loading: boolean;
+  onInspect: (payload: { title: string; subtitle?: string; rows: Array<{ label: string; value: React.ReactNode }> }) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "approvals" | "custom" | "executions">("all");
+
+  const combined = useMemo<FailureRow[]>(() => {
+    const rows: FailureRow[] = [];
+    for (const approval of failedApprovals) {
+      rows.push({
+        id: `approval:${approval.id}`,
+        automation: actionLabel(approval.action_id),
+        domain: domainForAction(approval.action_id),
+        target: approval.target_label || approval.entity_id,
+        stage: approval.status.replace(/_/g, " "),
+        reason: approval.verification?.summary || approval.decision_note || approval.reason,
+        time: approval.executed_at || approval.decided_at || approval.created_at,
+        source: "Approval Queue",
+        rows: [
+          { label: "Domain", value: domainForAction(approval.action_id) },
+          { label: "Target", value: approval.target_label || approval.entity_id },
+          { label: "Detector", value: approval.detector_id },
+          { label: "Reason", value: approval.reason },
+          { label: "Verification", value: approval.verification ? `${approval.verification.state} -- ${approval.verification.summary}` : "Not recorded" },
+          { label: "Time", value: dateLabel(approval.executed_at || approval.decided_at) },
+        ],
+      });
+    }
+    for (const rule of failedRules) {
+      rows.push({
+        id: `rule:${rule.id}`,
+        automation: rule.name,
+        domain: "Assets",
+        target: actionSummary(rule),
+        stage: String(rule.last_run_status).replace(/_/g, " "),
+        reason: "Automation run failed or partially succeeded.",
+        time: rule.last_run_at || rule.updated_at || rule.created_at,
+        source: "Custom Automation",
+        rows: [
+          { label: "Action", value: actionSummary(rule) },
+          { label: "Trigger", value: triggerSummary(rule.trigger) },
+          { label: "Last run status", value: String(rule.last_run_status).replace(/_/g, " ") },
+          { label: "Last run", value: dateLabel(rule.last_run_at) },
+        ],
+      });
+    }
+    for (const exec of failedExecutions) {
+      rows.push({
+        id: `execution:${exec.executionId}`,
+        automation: exec.automationReference || exec.action.replace(/[._]/g, " "),
+        domain: exec.origin || "—",
+        target: executionTargetLabel(exec),
+        stage: exec.status,
+        reason: exec.triggerReason || "Execution failed.",
+        time: exec.completedAt || exec.startedAt || exec.requestedAt,
+        source: "Oyi Core",
+        rows: [
+          { label: "Action", value: exec.action.replace(/[._]/g, " ") },
+          { label: "Target", value: executionTargetLabel(exec) },
+          { label: "Trigger", value: exec.triggerReason || "—" },
+          { label: "Initiator", value: executionInitiatorLabel(exec) },
+          { label: "Started", value: dateLabel(exec.startedAt) },
+          { label: "Completed", value: dateLabel(exec.completedAt) },
+        ],
+      });
+    }
+    return rows.sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime());
+  }, [failedApprovals, failedRules, failedExecutions]);
+
+  const filtered = useMemo(() => {
+    let rows = combined;
+    if (sourceFilter === "approvals") rows = rows.filter((r) => r.source === "Approval Queue");
+    if (sourceFilter === "custom") rows = rows.filter((r) => r.source === "Custom Automation");
+    if (sourceFilter === "executions") rows = rows.filter((r) => r.source === "Oyi Core");
+    const query = search.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((r) => r.automation.toLowerCase().includes(query) || r.target.toLowerCase().includes(query));
+  }, [combined, sourceFilter, search]);
+
+  return (
+    <Registry title="Failures" subtitle="Execution or verification failures across every real automation source. Each is audited.">
+      <FilterBar>
+        <SearchInput value={search} onChange={setSearch} placeholder="Search failures…" />
+        <div className="flex flex-wrap gap-1.5">
+          <Chip active={sourceFilter === "all"} onClick={() => setSourceFilter("all")}>All sources</Chip>
+          <Chip active={sourceFilter === "approvals"} onClick={() => setSourceFilter("approvals")}>Approval Queue</Chip>
+          <Chip active={sourceFilter === "custom"} onClick={() => setSourceFilter("custom")}>Custom Automation</Chip>
+          <Chip active={sourceFilter === "executions"} onClick={() => setSourceFilter("executions")}>Oyi Core</Chip>
+        </div>
+      </FilterBar>
+      <Table columns={["Automation", "Domain", "Target", "Failure stage", "Reason", "Time", "Source", "Actions"]} minWidth={960}>
+        {filtered.map((row) => (
+          <Row key={row.id} onClick={() => onInspect({ title: row.automation, subtitle: row.reason, rows: row.rows })}>
+            <Cell className="text-zinc-100">{row.automation}</Cell>
+            <Cell className="text-zinc-500">{row.domain}</Cell>
+            <Cell className="text-zinc-400">{row.target}</Cell>
+            <Cell><OisStatusBadge status="critical" label={row.stage} /></Cell>
+            <Cell className="max-w-[220px] truncate text-zinc-400">{row.reason}</Cell>
+            <Cell className="text-zinc-500">{dateLabel(row.time)}</Cell>
+            <Cell className="text-zinc-600">{row.source}</Cell>
+            <Cell>
+              <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-sky-200 hover:bg-white/5" onClick={(event) => { event.stopPropagation(); onInspect({ title: row.automation, subtitle: row.reason, rows: row.rows }); }}>
+                <AlertTriangle className="h-3 w-3" />Review
+              </button>
+            </Cell>
+          </Row>
+        ))}
+        {!filtered.length ? <EmptyRow colSpan={8} text={loading ? "Loading…" : "No failed executions."} /> : null}
+      </Table>
+    </Registry>
+  );
+}
+
+// ---------------------------
+// HISTORY TAB
+// ---------------------------
+type HistoryRow = { id: string; timestamp: string; automation: string; event: string; actor: string; target: string; result: string; source: string; rows: Array<{ label: string; value: React.ReactNode }> };
+
+function HistoryTab({ historyApprovals, executions, loading, onInspect }: {
+  historyApprovals: AutomationApproval[];
+  executions: ExecutionRecord[];
+  loading: boolean;
+  onInspect: (payload: { title: string; subtitle?: string; rows: Array<{ label: string; value: React.ReactNode }> }) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "approvals" | "executions">("all");
+
+  const combined = useMemo<HistoryRow[]>(() => {
+    const rows: HistoryRow[] = [];
+    for (const item of historyApprovals) {
+      rows.push({
+        id: `approval:${item.id}`,
+        timestamp: item.decided_at || item.created_at,
+        automation: actionLabel(item.action_id),
+        event: item.status.replace(/_/g, " "),
+        actor: item.approver_role || item.requested_by,
+        target: item.target_label || item.entity_id,
+        result: item.status,
+        source: "Approval Queue",
+        rows: [
+          { label: "Action", value: actionLabel(item.action_id) },
+          { label: "Target", value: item.target_label || item.entity_id },
+          { label: "Actor", value: item.approver_role || item.requested_by },
+          { label: "Decision note", value: item.decision_note || item.reason },
+          { label: "Status", value: <OisStatusBadge status={approvalStatusTone(item.status)} label={item.status.replace(/_/g, " ")} /> },
+          { label: "Decided", value: dateLabel(item.decided_at) },
+        ],
+      });
+    }
+    for (const exec of executions) {
+      rows.push({
+        id: `execution:${exec.executionId}`,
+        timestamp: exec.completedAt || exec.startedAt || exec.requestedAt,
+        automation: exec.automationReference || "—",
+        event: exec.action.replace(/[._]/g, " "),
+        actor: executionInitiatorLabel(exec),
+        target: executionTargetLabel(exec),
+        result: exec.status,
+        source: "Oyi Core",
+        rows: [
+          { label: "Action", value: exec.action.replace(/[._]/g, " ") },
+          { label: "Automation", value: exec.automationReference || "Not automation-originated" },
+          { label: "Target", value: executionTargetLabel(exec) },
+          { label: "Initiator", value: executionInitiatorLabel(exec) },
+          { label: "Status", value: <OisStatusBadge status={executionStatusTone(exec.status)} label={exec.status.replace(/_/g, " ")} /> },
+          { label: "Requested", value: dateLabel(exec.requestedAt) },
+          { label: "Completed", value: dateLabel(exec.completedAt) },
+        ],
+      });
+    }
+    return rows.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+  }, [historyApprovals, executions]);
+
+  const filtered = useMemo(() => {
+    let rows = combined;
+    if (sourceFilter === "approvals") rows = rows.filter((r) => r.source === "Approval Queue");
+    if (sourceFilter === "executions") rows = rows.filter((r) => r.source === "Oyi Core");
+    const query = search.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((r) => r.automation.toLowerCase().includes(query) || r.actor.toLowerCase().includes(query) || r.target.toLowerCase().includes(query));
+  }, [combined, sourceFilter, search]);
+
+  return (
+    <Registry title="History" subtitle="Broad automation lifecycle and execution activity -- not limited to automations created in this workspace.">
+      <FilterBar>
+        <SearchInput value={search} onChange={setSearch} placeholder="Search history…" />
+        <div className="flex flex-wrap gap-1.5">
+          <Chip active={sourceFilter === "all"} onClick={() => setSourceFilter("all")}>All sources</Chip>
+          <Chip active={sourceFilter === "approvals"} onClick={() => setSourceFilter("approvals")}>Approval Queue</Chip>
+          <Chip active={sourceFilter === "executions"} onClick={() => setSourceFilter("executions")}>Oyi Core</Chip>
+        </div>
+      </FilterBar>
+      <Table columns={["Timestamp", "Automation", "Event", "Actor", "Target", "Result", "Source"]} minWidth={880}>
+        {filtered.map((row) => (
+          <Row key={row.id} onClick={() => onInspect({ title: row.event, subtitle: row.automation, rows: row.rows })}>
+            <Cell className="whitespace-nowrap text-zinc-500">{dateLabel(row.timestamp)}</Cell>
+            <Cell className="text-zinc-100">{row.automation}</Cell>
+            <Cell className="capitalize text-zinc-400">{row.event}</Cell>
+            <Cell className="text-zinc-500">{row.actor}</Cell>
+            <Cell className="text-zinc-400">{row.target}</Cell>
+            <Cell><OisStatusBadge status={approvalStatusTone(row.result) === "attention" ? executionStatusTone(row.result) : approvalStatusTone(row.result)} label={row.result.replace(/_/g, " ")} /></Cell>
+            <Cell className="text-zinc-600">{row.source}</Cell>
+          </Row>
+        ))}
+        {!filtered.length ? <EmptyRow colSpan={7} text={loading ? "Loading…" : "No history recorded yet."} /> : null}
+      </Table>
+    </Registry>
+  );
+}
+
+// ---------------------------
 // CREATE AUTOMATION BUILDER
 // Trigger -> Action -> Execution -> Review. Assets/Device domain only
 // this pass (see the file header comment for why). Calls the real
-// POST/PATCH /scenes/automations contract.
+// POST/PATCH /scenes/automations contract. `template` prefills the form
+// from an existing rule for Duplicate without editing it (Save always
+// calls create() when editingRule is null).
 // ---------------------------
 type BuilderStep = "trigger" | "action" | "execution" | "review";
 const BUILDER_STEPS: Array<{ key: BuilderStep; label: string }> = [
@@ -696,7 +1324,7 @@ const BUILDER_STEPS: Array<{ key: BuilderStep; label: string }> = [
   { key: "review", label: "Review" },
 ];
 
-function AutomationBuilder({ open, onClose, devices, editingRule, onSaved }: { open: boolean; onClose: () => void; devices: InfrastructureDevice[]; editingRule: AutomationRule | null; onSaved: () => void }) {
+function AutomationBuilder({ open, onClose, devices, editingRule, template, onSaved }: { open: boolean; onClose: () => void; devices: InfrastructureDevice[]; editingRule: AutomationRule | null; template: AutomationRule | null; onSaved: () => void }) {
   const [step, setStep] = useState<BuilderStep>("trigger");
   const [name, setName] = useState("");
   const [scheduleType, setScheduleType] = useState<"daily" | "weekdays" | "once">("daily");
@@ -711,15 +1339,16 @@ function AutomationBuilder({ open, onClose, devices, editingRule, onSaved }: { o
 
   useEffect(() => {
     if (!open) return;
-    if (editingRule) {
-      setName(editingRule.name);
-      setEnabled(editingRule.enabled);
-      const t = editingRule.trigger;
+    const source = editingRule || template;
+    if (source) {
+      setName(editingRule ? source.name : `${source.name} (copy)`);
+      setEnabled(editingRule ? source.enabled : true);
+      const t = source.trigger;
       setScheduleType(t.schedule_type);
       if (t.schedule_type === "daily" || t.schedule_type === "weekdays") setLocalTime(t.local_time);
       if (t.schedule_type === "weekdays") setWeekdays(t.weekdays);
       if (t.schedule_type === "once") setLocalDatetime(t.local_datetime);
-      const firstAction = editingRule.actions?.[0];
+      const firstAction = source.actions?.[0];
       setDeviceId(firstAction?.device_id || "");
       setControl(String(firstAction?.command?.action || ""));
     } else {
@@ -734,7 +1363,7 @@ function AutomationBuilder({ open, onClose, devices, editingRule, onSaved }: { o
     }
     setStep("trigger");
     setSaveError(null);
-  }, [open, editingRule]);
+  }, [open, editingRule, template]);
 
   const device = devices.find((d) => d.id === deviceId) || null;
   const controls = device?.supported_controls || [];
@@ -788,7 +1417,7 @@ function AutomationBuilder({ open, onClose, devices, editingRule, onSaved }: { o
     <OisDrawer
       open={open}
       onClose={onClose}
-      title={editingRule ? "Edit Automation" : "Create Automation"}
+      title={editingRule ? "Edit Automation" : template ? "Duplicate Automation" : "Create Automation"}
       subtitle="Trigger, condition and action -- built from real Facility capabilities."
       width="lg"
       footer={

@@ -19,6 +19,12 @@ const DOMAIN_SUBTITLES: Record<string, string> = {
   maintenance: "Work order management, preventive maintenance and asset reliability",
   community: "Community management, engagement, and moderation",
   wallets: "Wallet activity, service payments, and financial operations",
+  // Final UI/UX consistency pass -- this key was missing, so the
+  // Automation page's required subtitle was set on the per-page Topbar
+  // (which only ever renders it into an aria-label, never visibly) and
+  // never actually appeared on screen. This is the map ShellTopbar
+  // genuinely reads from for the visible title/subtitle.
+  automation: "Automate operations across your facility with safety, approvals and full audit.",
 };
 
 export default function ShellTopbar() {
