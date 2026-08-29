@@ -62,7 +62,10 @@ export const FACILITY_MODULES: ModuleDefinition[] = [
   // only from the account dropdown, not the main sidebar. It's the
   // administrative hub now, so it gets a real, visible nav entry under a
   // separate ADMIN section rather than living solely in a dropdown menu.
-  { key: "facility-administration", label: "Facility Administration", href: "/facility-administration", startsWith: ["/facility-administration"], section: "admin" },
+  // Sidebar label is the short "Facility" per the final UX closure pass --
+  // the route stays /facility-administration since renaming it would add
+  // risk for no real benefit (internal path, not customer-visible).
+  { key: "facility-administration", label: "Facility", href: "/facility-administration", startsWith: ["/facility-administration"], section: "admin" },
 ];
 
 export const FACILITY_TABS: Record<string, TabDefinition[]> = {
