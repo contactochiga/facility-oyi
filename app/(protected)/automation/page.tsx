@@ -45,7 +45,7 @@ import OisStatusBadge, { type OisStatus } from "@/components/ois/OisStatusBadge"
 import Topbar from "@/components/shell/Topbar";
 import Button from "@/components/ui/Button";
 import FacilityMetricCard from "@/components/ois/FacilityMetricCard";
-import { facilityService, type AutomationApproval, type AutomationActionPolicy, type InfrastructureDevice, type AutomationCapabilitiesResponse, type AutomationCapabilityAction, type EstateMembershipRow } from "@/services/facilityService";
+import { facilityService, type AutomationApproval, type AutomationActionPolicy, type InfrastructureDevice, type AutomationCapabilitiesResponse, type AutomationCapabilityAction, type EstateMembershipRow, type AutomationCondition, type AutomationTriggerCapability } from "@/services/facilityService";
 import { automationRulesService, type AutomationRule, type AutomationRuleAction, type AutomationScheduleTrigger, type AutomationRuleRun, isRegisteredAction } from "@/services/automationRulesService";
 import { loadAutomationPlans } from "@/services/safeAutomationService";
 import { loadOyiCoreExecutionHistory, loadOyiCoreExecutionStatistics } from "@/services/oyiCoreRuntimeService";
@@ -1422,15 +1422,102 @@ function HistoryTab({ historyApprovals, executions, loading, onInspect }: {
 // eligible recommendation -- never the action itself (see Section 10's
 // documented gap in facilityAutomationService.ts).
 // ---------------------------
-type BuilderStep = "basics" | "trigger" | "action" | "execution" | "review";
+// Cross-Domain Fabric Closure -- Conditions is a new step, shown only when
+// triggerMode is "event" (a schedule trigger has nothing to condition on
+// besides the time itself, already captured by the Trigger step). Adding
+// a step rather than overloading Trigger keeps each step's validity
+// self-contained, matching how Action/Execution already work.
+type BuilderStep = "basics" | "trigger" | "conditions" | "action" | "execution" | "review";
 const BUILDER_STEPS: Array<{ key: BuilderStep; label: string }> = [
   { key: "basics", label: "Basics" },
   { key: "trigger", label: "Trigger" },
+  { key: "conditions", label: "Conditions" },
   { key: "action", label: "Action" },
   { key: "execution", label: "Execution" },
   { key: "review", label: "Review" },
 ];
 const NOTIFY_ROLES = ["admin", "manager", "operator", "security", "staff"];
+const CONDITION_TYPES = ["severity_at_least", "field_threshold", "time_window", "building_occupied", "indoor_sensor_threshold"] as const;
+type ConditionType = (typeof CONDITION_TYPES)[number];
+const CONDITION_LABELS: Record<ConditionType, string> = {
+  severity_at_least: "Signal severity is at least",
+  field_threshold: "A trigger value crosses a threshold",
+  time_window: "Only within a time window",
+  building_occupied: "A building is occupied / unoccupied",
+  indoor_sensor_threshold: "An indoor sensor reading crosses a threshold",
+};
+const CONDITION_DEFAULTS: Record<ConditionType, AutomationCondition> = {
+  severity_at_least: { type: "severity_at_least", severity: "warning" },
+  field_threshold: { type: "field_threshold", field: "", op: "gte", value: 0 },
+  time_window: { type: "time_window", start: "08:00", end: "18:00" },
+  building_occupied: { type: "building_occupied", building_id: "", occupied: true },
+  indoor_sensor_threshold: { type: "indoor_sensor_threshold", home_id: "", metric: "temperature", op: "gte", value: 0 },
+};
+
+// One compact row per condition -- the smallest UI necessary for the five
+// condition kinds Backend's automationConditionEvaluator.ts actually
+// implements, not a generic rule builder.
+function ConditionRow({ condition, fields, onChange, onRemove }: { condition: AutomationCondition; fields: Array<{ key: string; type: "number" | "string"; label: string }>; onChange: (next: AutomationCondition) => void; onRemove: () => void }) {
+  const inputClass = "rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-white outline-none";
+  return (
+    <div className="space-y-2 rounded-lg border border-white/10 bg-white/5 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <select value={condition.type} onChange={(e) => onChange(CONDITION_DEFAULTS[e.target.value as ConditionType])} className={`${inputClass} flex-1`}>
+          {CONDITION_TYPES.map((t) => <option key={t} value={t}>{CONDITION_LABELS[t]}</option>)}
+        </select>
+        <button type="button" onClick={onRemove} className="rounded-md border border-white/10 px-2 py-1.5 text-[10px] text-zinc-400">Remove</button>
+      </div>
+      {condition.type === "severity_at_least" ? (
+        <select value={condition.severity} onChange={(e) => onChange({ ...condition, severity: e.target.value as any })} className={inputClass}>
+          {(["info", "attention", "warning", "critical"] as const).map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      ) : null}
+      {condition.type === "field_threshold" ? (
+        <div className="flex gap-2">
+          <select value={condition.field} onChange={(e) => onChange({ ...condition, field: e.target.value })} className={inputClass}>
+            <option value="">Select a field…</option>
+            {fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+          </select>
+          <select value={condition.op} onChange={(e) => onChange({ ...condition, op: e.target.value as any })} className={inputClass}>
+            <option value="gte">≥</option>
+            <option value="lte">≤</option>
+          </select>
+          <input type="number" value={condition.value} onChange={(e) => onChange({ ...condition, value: Number(e.target.value) })} className={`${inputClass} w-24`} />
+        </div>
+      ) : null}
+      {condition.type === "time_window" ? (
+        <div className="flex items-center gap-2">
+          <input type="time" value={condition.start} onChange={(e) => onChange({ ...condition, start: e.target.value })} className={inputClass} />
+          <span className="text-xs text-zinc-500">to</span>
+          <input type="time" value={condition.end} onChange={(e) => onChange({ ...condition, end: e.target.value })} className={inputClass} />
+        </div>
+      ) : null}
+      {condition.type === "building_occupied" ? (
+        <div className="flex gap-2">
+          <input value={condition.building_id} onChange={(e) => onChange({ ...condition, building_id: e.target.value })} placeholder="Building ID from Buildings" className={`${inputClass} flex-1`} />
+          <select value={String(condition.occupied)} onChange={(e) => onChange({ ...condition, occupied: e.target.value === "true" })} className={inputClass}>
+            <option value="true">Occupied</option>
+            <option value="false">Unoccupied</option>
+          </select>
+        </div>
+      ) : null}
+      {condition.type === "indoor_sensor_threshold" ? (
+        <div className="flex gap-2">
+          <input value={condition.home_id} onChange={(e) => onChange({ ...condition, home_id: e.target.value })} placeholder="Home ID from Buildings" className={`${inputClass} flex-1`} />
+          <select value={condition.metric} onChange={(e) => onChange({ ...condition, metric: e.target.value as any })} className={inputClass}>
+            <option value="temperature">Temperature</option>
+            <option value="humidity">Humidity</option>
+          </select>
+          <select value={condition.op} onChange={(e) => onChange({ ...condition, op: e.target.value as any })} className={inputClass}>
+            <option value="gte">≥</option>
+            <option value="lte">≤</option>
+          </select>
+          <input type="number" value={condition.value} onChange={(e) => onChange({ ...condition, value: Number(e.target.value) })} className={`${inputClass} w-20`} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, template, prefill, onSaved }: {
   open: boolean;
@@ -1462,6 +1549,24 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Cross-Domain Fabric Closure -- event-driven trigger + conditions +
+  // the "none" target_type actions (maintenance.create, community.
+  // post_announcement, security.create_incident) that only became
+  // available now that those adapters are real. Device actions stay
+  // schedule/scene-only for event-triggered rules this pass -- the
+  // device_command lane's command shape hasn't been verified against
+  // executeRegisteredAction's generic device fallthrough, so it's kept
+  // out of the event-rule path rather than risk an unverified runtime
+  // mismatch (disclosed as a deferred P1, not silently narrowed).
+  const [triggerMode, setTriggerMode] = useState<"schedule" | "event">("schedule");
+  const [eventTriggerType, setEventTriggerType] = useState("");
+  const [conditions, setConditions] = useState<AutomationCondition[]>([]);
+  const [noneTitle, setNoneTitle] = useState("");
+  const [noneBody, setNoneBody] = useState("");
+  const [nonePriority, setNonePriority] = useState("medium");
+  const [noneSeverity, setNoneSeverity] = useState("medium");
+  const [noneHomeId, setNoneHomeId] = useState("");
 
   // Lazy, on-demand entity lists -- only fetched once the builder is
   // open and the operator has actually picked a domain that needs them,
@@ -1527,6 +1632,14 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
       setNotifyMessage("");
       setEnabled(true);
     }
+    // Event rules aren't editable/duplicable through this builder yet
+    // (see the CreateAutomationEventRule/editingRule note above) -- always
+    // reset to schedule mode when opening, whether creating fresh or
+    // editing/duplicating an existing schedule-based rule.
+    setTriggerMode("schedule");
+    setEventTriggerType("");
+    setConditions([]);
+    setNoneTitle(""); setNoneBody(""); setNonePriority("medium"); setNoneSeverity("medium"); setNoneHomeId("");
     setStep("basics");
     setSaveError(null);
   }, [open, editingRule, template, prefill]);
@@ -1549,17 +1662,19 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
   }
 
   const availableDomains = useMemo(
-    () => (capabilities?.domains || []).filter((d) => d.actions.some((a) => a.available)),
-    [capabilities]
+    () => (capabilities?.domains || []).filter((d) => d.actions.some((a) => a.available && (triggerMode !== "event" || a.target_type !== "device"))),
+    [capabilities, triggerMode]
   );
   const domainActions = useMemo(
-    () => availableDomains.find((d) => d.domain === domain)?.actions.filter((a) => a.available) || [],
-    [availableDomains, domain]
+    () => (availableDomains.find((d) => d.domain === domain)?.actions.filter((a) => a.available && (triggerMode !== "event" || a.target_type !== "device"))) || [],
+    [availableDomains, domain, triggerMode]
   );
   const selectedAction: AutomationCapabilityAction | null = domainActions.find((a) => a.id === actionId) || null;
   const device = devices.find((d) => d.id === deviceId) || null;
   const controls = device?.supported_controls || [];
   const stepIndex = BUILDER_STEPS.findIndex((s) => s.key === step);
+  const eventTriggers = useMemo(() => (capabilities?.triggers || []).filter((t): t is Extract<AutomationTriggerCapability, { type: "event" }> => t.type === "event"), [capabilities]);
+  const selectedEventTrigger = eventTriggers.find((t) => t.event_type === eventTriggerType) || null;
 
   function selectDomain(nextDomain: string) {
     // Clear any action selected under the previous domain rather than
@@ -1572,9 +1687,16 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
     return Boolean(name.trim() && domain);
   }
   function triggerValid() {
+    if (triggerMode === "event") return Boolean(eventTriggerType);
     if (scheduleType === "daily") return /^([01]\d|2[0-3]):([0-5]\d)$/.test(localTime);
     if (scheduleType === "weekdays") return /^([01]\d|2[0-3]):([0-5]\d)$/.test(localTime) && weekdays.length > 0;
     return /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):([0-5]\d)$/.test(localDatetime);
+  }
+  // Conditions are always optional -- an event rule with zero conditions
+  // simply fires on every occurrence of its trigger event, same as a
+  // schedule rule with no condition concept at all.
+  function conditionsValid() {
+    return true;
   }
   function actionValid() {
     if (!selectedAction) return false;
@@ -1582,6 +1704,7 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
     if (selectedAction.target_type === "visitor_access") return Boolean(visitorEntityId);
     if (selectedAction.target_type === "maintenance_request") return Boolean(maintenanceEntityId) && (!selectedAction.requires_assignee || Boolean(assignee));
     if (selectedAction.target_type === "notification_target") return Boolean(notifyTitle.trim() && notifyMessage.trim() && (notifyTarget === "estate" || notifyTargetValue.trim()));
+    if (selectedAction.target_type === "none") return Boolean(noneTitle.trim());
     return true;
   }
 
@@ -1613,7 +1736,43 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
         label: notifyTitle.trim() || null,
       }];
     }
+    if (selectedAction.target_type === "none") {
+      return [{ action_type: "registered_action", action_id: selectedAction.id, command: buildNoneCommand(), label: noneTitle.trim() || null }];
+    }
     return [];
+  }
+
+  // Cross-Domain Fabric Closure -- the three newly-available entity-less
+  // actions (maintenance.create, community.post_announcement, security.
+  // create_incident) each expect a different command shape, matching
+  // exactly what Backend's executeRegisteredAction branches for these
+  // three ids read (executionRegistry.ts).
+  function buildNoneCommand(): Record<string, unknown> {
+    if (selectedAction?.id === "maintenance.create") return { title: noneTitle.trim(), description: noneBody.trim() || null, priority: nonePriority, home_id: noneHomeId.trim() || null };
+    if (selectedAction?.id === "community.post_announcement") return { title: noneTitle.trim(), body: noneBody.trim() };
+    if (selectedAction?.id === "security.create_incident") return { title: noneTitle.trim(), description: noneBody.trim() || null, severity: noneSeverity, home_id: noneHomeId.trim() || null };
+    return { title: noneTitle.trim(), description: noneBody.trim() || null };
+  }
+
+  // Cross-Domain Fabric Closure -- converts the single selected action
+  // into the event-rule action_params shape the backend dispatcher reads
+  // (entity_id/entity_type/target_label/command). Device actions are
+  // excluded from domainActions in event mode (see availableDomains
+  // above), so this never needs to handle that target_type.
+  function buildEventRuleActionParams(): { entity_id: string | null; entity_type: string; target_label: string | null; command: Record<string, unknown> | null } {
+    if (!selectedAction) return { entity_id: null, entity_type: "none", target_label: null, command: null };
+    if (selectedAction.target_type === "visitor_access") {
+      const visitor = (visitors || []).find((v) => v.id === visitorEntityId) || null;
+      return { entity_id: visitorEntityId, entity_type: "visitor_access", target_label: visitor?.visitor_name || null, command: null };
+    }
+    if (selectedAction.target_type === "maintenance_request") {
+      const request = (maintenanceRequests || []).find((r) => r.id === maintenanceEntityId) || null;
+      return { entity_id: maintenanceEntityId, entity_type: "maintenance_request", target_label: request?.title || null, command: assignee ? { assignee } : null };
+    }
+    if (selectedAction.target_type === "notification_target") {
+      return { entity_id: null, entity_type: "notification", target_label: notifyTitle.trim() || null, command: { target: notifyTarget, target_value: notifyTarget === "estate" ? null : notifyTargetValue, title: notifyTitle.trim(), message: notifyMessage.trim() } };
+    }
+    return { entity_id: null, entity_type: "none", target_label: noneTitle.trim() || null, command: buildNoneCommand() };
   }
 
   function reviewTargetLabel() {
@@ -1632,13 +1791,44 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
       const target = notifyTarget === "estate" ? "the whole estate" : notifyTarget === "role" ? `role: ${notifyTargetValue}` : notifyTarget === "user" ? (estateUsers || []).find((u) => u.users?.id === notifyTargetValue)?.users?.full_name || "a team member" : "a home";
       return `Notify ${target} -- "${notifyTitle || "untitled"}"`;
     }
+    if (selectedAction.target_type === "none") return `${selectedAction.label} -- "${noneTitle || "untitled"}"`;
     return selectedAction.label;
+  }
+
+  function triggerSummaryText() {
+    if (triggerMode === "event") return selectedEventTrigger ? selectedEventTrigger.label : "No trigger event selected";
+    return triggerSummary(buildTrigger());
+  }
+
+  function conditionsSummaryText() {
+    if (!conditions.length) return "No conditions -- runs on every occurrence";
+    return conditions.map((c) => CONDITION_LABELS[c.type as ConditionType] || c.type).join("; ");
   }
 
   async function save() {
     setSaving(true);
     setSaveError(null);
     try {
+      // Cross-Domain Fabric Closure -- an event-triggered rule reaches the
+      // backend's event-rules endpoint (the governed policy/approval/
+      // execution pipeline, entered a new way), a schedule-triggered rule
+      // keeps using the existing Shared Automation Runtime endpoint.
+      // Event rules aren't editable through this builder yet -- Save
+      // always creates, matching the disclosed scope for this pass.
+      if (triggerMode === "event") {
+        if (!selectedEventTrigger) { setSaveError("Select a trigger event first."); return; }
+        const params = buildEventRuleActionParams();
+        const res = await facilityService.createAutomationEventRule({
+          name: name.trim(),
+          trigger_event_type: selectedEventTrigger.event_type,
+          conditions,
+          action_id: selectedAction?.id || "",
+          action_params: { entity_id: params.entity_id, entity_type: params.entity_type, target_label: params.target_label, command: params.command },
+        });
+        if (!res.rule) { setSaveError("Unable to create rule."); return; }
+        onSaved();
+        return;
+      }
       const payload = {
         name: name.trim(),
         trigger: buildTrigger(),
@@ -1655,6 +1845,8 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
         return;
       }
       onSaved();
+    } catch (err: any) {
+      setSaveError(err?.response?.data?.error || err?.message || "Unable to save automation.");
     } finally {
       setSaving(false);
     }
@@ -1662,7 +1854,7 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
 
   const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const inputClass = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-400/40";
-  const stepValid = step === "basics" ? basicsValid() : step === "trigger" ? triggerValid() : step === "action" ? actionValid() : true;
+  const stepValid = step === "basics" ? basicsValid() : step === "trigger" ? triggerValid() : step === "conditions" ? conditionsValid() : step === "action" ? actionValid() : true;
 
   return (
     <OisDrawer
@@ -1677,7 +1869,7 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
           {step !== "review" ? (
             <Button disabled={!stepValid} onClick={() => setStep(BUILDER_STEPS[Math.min(BUILDER_STEPS.length - 1, stepIndex + 1)].key)}>Next</Button>
           ) : (
-            <Button disabled={saving || !basicsValid() || !triggerValid() || !actionValid()} onClick={() => void save()}>{saving ? "Saving…" : editingRule ? "Save changes" : "Create automation"}</Button>
+            <Button disabled={saving || !basicsValid() || !triggerValid() || !actionValid()} onClick={() => void save()}>{saving ? "Saving…" : editingRule ? "Save changes" : triggerMode === "event" ? "Create event automation" : "Create automation"}</Button>
           )}
         </div>
       }
@@ -1706,27 +1898,63 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
 
       {step === "trigger" ? (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-400">When should this automation run? Only scheduled triggers are supported today, across every domain -- there is no condition/event/threshold trigger engine (e.g. tank level, camera offline) wired into the platform yet. System-managed detectors are the only event-driven automations that exist today.</p>
+          <p className="text-sm text-zinc-400">When should this automation run? Schedule fires at a set time. Event fires the moment a real Facility signal happens -- these are the same canonical events Oyi's own intelligence already runs on, not a client-invented list.</p>
           <div className="flex gap-2">
-            {(["daily", "weekdays", "once"] as const).map((t) => (
-              <button key={t} type="button" onClick={() => setScheduleType(t)} className={`rounded-lg border px-3 py-2 text-xs capitalize ${scheduleType === t ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{t}</button>
+            {(["schedule", "event"] as const).map((m) => (
+              <button key={m} type="button" onClick={() => setTriggerMode(m)} className={`rounded-lg border px-3 py-2 text-xs capitalize ${triggerMode === m ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{m}</button>
             ))}
           </div>
-          {scheduleType !== "once" ? (
-            <label className="block text-xs text-zinc-500">Time of day<input type="time" value={localTime} onChange={(e) => setLocalTime(e.target.value)} className={`${inputClass} mt-1`} /></label>
-          ) : (
-            <label className="block text-xs text-zinc-500">Date and time<input type="datetime-local" value={localDatetime} onChange={(e) => setLocalDatetime(e.target.value)} className={`${inputClass} mt-1`} /></label>
-          )}
-          {scheduleType === "weekdays" ? (
-            <div>
-              <p className="text-xs text-zinc-500">Repeat on</p>
-              <div className="mt-2 flex gap-1.5">
-                {weekdayNames.map((label, index) => (
-                  <button key={label} type="button" onClick={() => setWeekdays((prev) => prev.includes(index) ? prev.filter((d) => d !== index) : [...prev, index].sort())} className={`h-8 w-8 rounded-md text-[11px] ${weekdays.includes(index) ? "bg-sky-500/20 text-sky-100" : "bg-white/5 text-zinc-500"}`}>{label[0]}</button>
+
+          {triggerMode === "schedule" ? (
+            <>
+              <div className="flex gap-2">
+                {(["daily", "weekdays", "once"] as const).map((t) => (
+                  <button key={t} type="button" onClick={() => setScheduleType(t)} className={`rounded-lg border px-3 py-2 text-xs capitalize ${scheduleType === t ? "border-sky-400/35 bg-sky-500/10 text-sky-100" : "border-white/10 bg-white/5 text-zinc-400"}`}>{t}</button>
                 ))}
               </div>
-            </div>
-          ) : null}
+              {scheduleType !== "once" ? (
+                <label className="block text-xs text-zinc-500">Time of day<input type="time" value={localTime} onChange={(e) => setLocalTime(e.target.value)} className={`${inputClass} mt-1`} /></label>
+              ) : (
+                <label className="block text-xs text-zinc-500">Date and time<input type="datetime-local" value={localDatetime} onChange={(e) => setLocalDatetime(e.target.value)} className={`${inputClass} mt-1`} /></label>
+              )}
+              {scheduleType === "weekdays" ? (
+                <div>
+                  <p className="text-xs text-zinc-500">Repeat on</p>
+                  <div className="mt-2 flex gap-1.5">
+                    {weekdayNames.map((label, index) => (
+                      <button key={label} type="button" onClick={() => setWeekdays((prev) => prev.includes(index) ? prev.filter((d) => d !== index) : [...prev, index].sort())} className={`h-8 w-8 rounded-md text-[11px] ${weekdays.includes(index) ? "bg-sky-500/20 text-sky-100" : "bg-white/5 text-zinc-500"}`}>{label[0]}</button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <label className="block text-xs text-zinc-500">Trigger event<select value={eventTriggerType} onChange={(e) => setEventTriggerType(e.target.value)} className={`${inputClass} mt-1`}>
+                <option value="">Select a trigger event…</option>
+                {eventTriggers.map((t) => <option key={t.event_type} value={t.event_type}>{t.label} ({t.domain})</option>)}
+              </select></label>
+              {selectedEventTrigger ? <p className="text-xs text-zinc-500">{selectedEventTrigger.description}</p> : null}
+              {!eventTriggers.length ? <p className="text-xs text-amber-300">No event triggers are available yet -- loading, or none configured on this deployment.</p> : null}
+              <p className="text-[11px] text-zinc-600">Device actions aren't available for event-triggered rules yet -- use Schedule for device automations, or Notification/Access/Maintenance/Community/Security actions here.</p>
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {step === "conditions" ? (
+        <div className="space-y-4">
+          <p className="text-sm text-zinc-400">Optional. Add conditions to narrow when this rule actually runs, on top of the trigger event. With no conditions, the rule runs on every occurrence.</p>
+          {triggerMode === "schedule" ? (
+            <p className="text-xs text-amber-300">Conditions only apply to event-triggered rules -- switch the Trigger step to Event to use them.</p>
+          ) : (
+            <>
+              {conditions.map((condition, index) => (
+                <ConditionRow key={index} condition={condition} fields={selectedEventTrigger?.fields || []} onChange={(next) => setConditions((prev) => prev.map((c, i) => (i === index ? next : c)))} onRemove={() => setConditions((prev) => prev.filter((_, i) => i !== index))} />
+              ))}
+              <button type="button" onClick={() => setConditions((prev) => [...prev, { type: "severity_at_least", severity: "warning" }])} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">+ Add condition</button>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -1808,6 +2036,26 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
             </>
           ) : null}
 
+          {selectedAction?.target_type === "none" ? (
+            <>
+              <label className="block text-xs text-zinc-500">Title<input value={noneTitle} onChange={(e) => setNoneTitle(e.target.value)} placeholder={selectedAction.id === "community.post_announcement" ? "e.g. Water shutdown notice" : selectedAction.id === "security.create_incident" ? "e.g. Perimeter fence damage" : "e.g. Replace lobby HVAC filter"} className={`${inputClass} mt-1`} /></label>
+              <label className="block text-xs text-zinc-500">{selectedAction.id === "community.post_announcement" ? "Body" : "Description"}<textarea value={noneBody} onChange={(e) => setNoneBody(e.target.value)} rows={3} className={`${inputClass} mt-1`} /></label>
+              {selectedAction.id === "maintenance.create" ? (
+                <label className="block text-xs text-zinc-500">Priority<select value={nonePriority} onChange={(e) => setNonePriority(e.target.value)} className={`${inputClass} mt-1`}>
+                  {["low", "medium", "high", "critical"].map((p) => <option key={p} value={p}>{p}</option>)}
+                </select></label>
+              ) : null}
+              {selectedAction.id === "security.create_incident" ? (
+                <label className="block text-xs text-zinc-500">Severity<select value={noneSeverity} onChange={(e) => setNoneSeverity(e.target.value)} className={`${inputClass} mt-1`}>
+                  {["low", "medium", "high", "critical"].map((s) => <option key={s} value={s}>{s}</option>)}
+                </select></label>
+              ) : null}
+              {selectedAction.id !== "community.post_announcement" ? (
+                <label className="block text-xs text-zinc-500">Home (optional)<input value={noneHomeId} onChange={(e) => setNoneHomeId(e.target.value)} placeholder="Paste a home ID from Buildings" className={`${inputClass} mt-1`} /></label>
+              ) : null}
+            </>
+          ) : null}
+
           {!domainActions.length ? <p className="text-xs text-amber-300">No executable actions in this domain yet.</p> : null}
         </div>
       ) : null}
@@ -1835,7 +2083,11 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
           ) : (
             <p className="text-xs text-zinc-500">Choose an action first to see how it may execute.</p>
           )}
-          <label className="flex items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />Enable this automation immediately</label>
+          {triggerMode === "schedule" ? (
+            <label className="flex items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />Enable this automation immediately</label>
+          ) : (
+            <p className="text-xs text-zinc-600">Event-triggered rules are enabled as soon as they're created.</p>
+          )}
         </div>
       ) : null}
 
@@ -1843,15 +2095,21 @@ function AutomationBuilder({ open, onClose, devices, capabilities, editingRule, 
         <div className="space-y-3">
           <OisCard variant="evidence" className="p-4 text-sm">
             <p className="text-zinc-500">WHEN</p>
-            <p className="mt-1 text-white">{triggerSummary(buildTrigger())}</p>
+            <p className="mt-1 text-white">{triggerSummaryText()}</p>
           </OisCard>
+          {triggerMode === "event" ? (
+            <OisCard variant="evidence" className="p-4 text-sm">
+              <p className="text-zinc-500">IF</p>
+              <p className="mt-1 text-white">{conditionsSummaryText()}</p>
+            </OisCard>
+          ) : null}
           <OisCard variant="evidence" className="p-4 text-sm">
             <p className="text-zinc-500">THEN</p>
             <p className="mt-1 text-white">{reviewTargetLabel()}</p>
           </OisCard>
           <OisCard variant="evidence" className="p-4 text-sm">
             <p className="text-zinc-500">MODE</p>
-            <p className="mt-1 capitalize text-white">{selectedAction ? selectedAction.execution_level.replace(/_/g, " ") : "—"} · {enabled ? "Enabled" : "Disabled"} on save</p>
+            <p className="mt-1 capitalize text-white">{selectedAction ? selectedAction.execution_level.replace(/_/g, " ") : "—"} · {triggerMode === "schedule" ? (enabled ? "Enabled" : "Disabled") + " on save" : "Enabled on save"}</p>
           </OisCard>
           {saveError ? <p className="text-xs text-rose-300">{saveError}</p> : null}
         </div>

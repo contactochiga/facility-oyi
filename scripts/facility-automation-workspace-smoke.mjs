@@ -44,8 +44,18 @@ assert.match(page, /not limited to automations created in this workspace/);
 assert.match(page, /automationCapabilities/);
 assert.match(page, /Only domains with a real, currently executable action are shown/);
 assert.doesNotMatch(page, /Only Assets \(device\) actions can be created here today/);
-assert.match(page, /schedule-only|Only scheduled triggers are supported today/);
 assert.match(page, /automation_surface_disabled/);
+
+// Cross-Domain Fabric Closure -- automation is now genuinely event-driven,
+// not schedule-only. The old "only scheduled triggers are supported"
+// disclosure is deliberately gone (flipped, not broken): a real Event
+// trigger mode now exists, sourced from the real trigger registry, with a
+// real (if narrow, typed) condition engine behind it -- and this smoke
+// asserts that widening actually happened rather than assuming it.
+assert.doesNotMatch(page, /Only scheduled triggers are supported today/);
+assert.match(page, /triggerMode === m/);
+assert.match(page, /eventTriggers\.map/);
+assert.match(page, /step === "conditions"/);
 
 // No fabricated example data from the reference screenshot leaked into
 // production code (illustrative rows the spec explicitly said not to copy).

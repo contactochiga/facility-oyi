@@ -479,10 +479,41 @@ export type AutomationCapabilityDomain = {
   actions: AutomationCapabilityAction[];
 };
 
+// Cross-Domain Fabric Closure -- triggers is no longer schedule-only.
+// "event" entries are a real, derived projection of Backend's
+// triggerRegistry.ts (real event_type strings already flowing through the
+// canonical intelligence-event bus), not a client-invented list.
+export type AutomationTriggerCapability =
+  | { type: "schedule"; label: string; schedule_types: string[] }
+  | { type: "event"; event_type: string; domain: string; label: string; description: string; fields: Array<{ key: string; type: "number" | "string"; label: string }> };
+
 export type AutomationCapabilitiesResponse = {
   estate_id: string;
-  triggers: Array<{ type: "schedule"; label: string; schedule_types: string[] }>;
+  triggers: AutomationTriggerCapability[];
   domains: AutomationCapabilityDomain[];
+};
+
+// Cross-Domain Fabric Closure -- the smallest canonical condition engine
+// necessary, mirroring Backend's automationConditionEvaluator.ts exactly.
+export type AutomationCondition =
+  | { type: "severity_at_least"; severity: "info" | "attention" | "warning" | "critical" }
+  | { type: "field_threshold"; field: string; op: "gte" | "lte"; value: number }
+  | { type: "time_window"; start: string; end: string; timezone?: string }
+  | { type: "building_occupied"; building_id: string; occupied: boolean }
+  | { type: "indoor_sensor_threshold"; home_id: string; metric: "temperature" | "humidity"; op: "gte" | "lte"; value: number };
+
+export type FacilityAutomationEventRule = {
+  id: string;
+  estate_id: string;
+  name: string;
+  trigger_event_type: string;
+  conditions: AutomationCondition[];
+  action_id: string;
+  action_params: Record<string, unknown>;
+  enabled: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 // ---------------------------
@@ -1209,6 +1240,30 @@ export const facilityService = {
 
   async rejectAutomation(approvalId: string, note?: string): Promise<{ approval: AutomationApproval }> {
     const res = await API.post(`/facility/automation/approvals/${approvalId}/reject`, note ? { note } : {});
+    return res.data;
+  },
+
+  // Cross-Domain Fabric Closure -- event-driven rules. A rule reaches the
+  // exact same governed pipeline (policy resolver -> approval queue ->
+  // executeRegisteredAction) every schedule-based/manual action already
+  // uses; this is a new way to REACH it, not a second automation surface.
+  async automationEventRules(): Promise<{ estate_id: string; rules: FacilityAutomationEventRule[] }> {
+    const res = await API.get("/facility/automation/event-rules");
+    return res.data;
+  },
+
+  async createAutomationEventRule(input: { name: string; trigger_event_type: string; conditions: AutomationCondition[]; action_id: string; action_params: Record<string, unknown> }): Promise<{ rule: FacilityAutomationEventRule }> {
+    const res = await API.post("/facility/automation/event-rules", input);
+    return res.data;
+  },
+
+  async updateAutomationEventRule(ruleId: string, patch: Partial<{ name: string; trigger_event_type: string; conditions: AutomationCondition[]; action_id: string; action_params: Record<string, unknown>; enabled: boolean }>): Promise<{ rule: FacilityAutomationEventRule }> {
+    const res = await API.patch(`/facility/automation/event-rules/${ruleId}`, patch);
+    return res.data;
+  },
+
+  async deleteAutomationEventRule(ruleId: string): Promise<{ ok: boolean }> {
+    const res = await API.delete(`/facility/automation/event-rules/${ruleId}`);
     return res.data;
   },
 };
