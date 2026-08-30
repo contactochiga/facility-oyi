@@ -486,6 +486,59 @@ export type AutomationCapabilitiesResponse = {
 };
 
 // ---------------------------
+// LIVE WEATHER (Environmental Context Integration)
+// Canonical shape mirrors Backend's weatherContracts.ts exactly -- this
+// client never sees a third-party provider's raw payload, only Oyi's
+// normalized contract. See src/services/weather/weatherContracts.ts.
+// ---------------------------
+export type WeatherCondition = "clear" | "partly_cloudy" | "cloudy" | "fog" | "drizzle" | "rain" | "heavy_rain" | "thunderstorm" | "snow" | "sleet" | "windy" | "unknown";
+
+export type CanonicalCurrentWeather = {
+  observed_at: string;
+  condition: WeatherCondition;
+  condition_code: string;
+  condition_label: string;
+  temperature: number;
+  feels_like: number | null;
+  humidity: number | null;
+  precipitation: number | null;
+  precipitation_probability: number | null;
+  wind_speed: number | null;
+  wind_direction: number | null;
+  pressure: number | null;
+  visibility: number | null;
+  cloud_cover: number | null;
+  uv_index: number | null;
+};
+
+export type CanonicalForecastEntry = {
+  timestamp: string;
+  temperature: number | null;
+  temperature_min: number | null;
+  temperature_max: number | null;
+  condition: WeatherCondition;
+  condition_code: string;
+  condition_label: string;
+  precipitation_probability: number | null;
+  precipitation_amount: number | null;
+  humidity: number | null;
+  wind_speed: number | null;
+  uv_index: number | null;
+};
+
+export type WeatherMetadata = {
+  provider: string;
+  fetched_at: string;
+  age_seconds: number;
+  stale: boolean;
+  source_status: "live" | "cached" | "stale_cache" | "unavailable";
+};
+
+export type FacilityWeatherResponse =
+  | { available: true; location: { lat: number; lng: number; timezone?: string | null; locality?: string | null }; current: CanonicalCurrentWeather; forecast: CanonicalForecastEntry[]; metadata: WeatherMetadata }
+  | { available: false; code: "location_required" | "provider_unavailable" | "provider_not_configured"; message: string };
+
+// ---------------------------
 // HOME USERS (KEEP THESE EXPORTS)
 // ---------------------------
 export type HomeMembershipRow = {
@@ -1133,6 +1186,14 @@ export const facilityService = {
 
   async automationCapabilities(): Promise<AutomationCapabilitiesResponse> {
     const res = await API.get("/facility/automation/capabilities");
+    return res.data;
+  },
+
+  // Live outdoor weather + environmental context. Server resolves the
+  // Facility's own location -- this client never submits coordinates or a
+  // Facility id, and never talks to a weather provider directly.
+  async weather(): Promise<FacilityWeatherResponse> {
+    const res = await API.get("/facility/environment/weather");
     return res.data;
   },
 

@@ -11,6 +11,7 @@
     "smoke:facility-utilities": "node scripts/facility-utilities-workspace-smoke.mjs",
     "smoke:facility-maintenance": "node scripts/facility-maintenance-workspace-smoke.mjs",
     "smoke:facility-environment": "node scripts/facility-environment-workspace-smoke.mjs",
+    "smoke:facility-location-configuration": "node scripts/facility-location-configuration-smoke.mjs",
     "smoke:facility-finance": "node scripts/facility-finance-workspace-smoke.mjs",
     "smoke:facility-community": "node scripts/facility-community-workspace-smoke.mjs",
     "smoke:facility-automation": "node scripts/facility-automation-workspace-smoke.mjs",

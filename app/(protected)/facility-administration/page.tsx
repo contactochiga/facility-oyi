@@ -828,7 +828,7 @@ const NOTIFICATION_CATEGORY_ORDER: NotificationCategory[] = [
 function ProfileSection({ estate, estateSource, canSettings, onSaved }: { estate: any; estateSource: Source<any[]>; canSettings: boolean; onSaved: () => void }) {
   const { user, patchUser, clear } = useSessionStore() as any;
 
-  const [form, setForm] = useState({ name: "", type: "", address: "", timezone: "", contact_email: "", contact_phone: "" });
+  const [form, setForm] = useState({ name: "", type: "", address: "", timezone: "", contact_email: "", contact_phone: "", lat: "", lng: "" });
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -857,9 +857,11 @@ function ProfileSection({ estate, estateSource, canSettings, onSaved }: { estate
       timezone: estate.timezone || "",
       contact_email: estate.contact_email || "",
       contact_phone: estate.contact_phone || "",
+      lat: typeof estate.lat === "number" ? String(estate.lat) : estate.lat || "",
+      lng: typeof estate.lng === "number" ? String(estate.lng) : estate.lng || "",
     });
     setDirty(false);
-  }, [estate?.id, estate?.name, estate?.type, estate?.address, estate?.timezone, estate?.contact_email, estate?.contact_phone]);
+  }, [estate?.id, estate?.name, estate?.type, estate?.address, estate?.timezone, estate?.contact_email, estate?.contact_phone, estate?.lat, estate?.lng]);
 
   useEffect(() => {
     notificationService
@@ -877,6 +879,18 @@ function ProfileSection({ estate, estateSource, canSettings, onSaved }: { estate
 
   async function saveFacility() {
     if (!estate?.id) return;
+    const latTrim = form.lat.trim();
+    const lngTrim = form.lng.trim();
+    const lat = latTrim ? Number(latTrim) : undefined;
+    const lng = lngTrim ? Number(lngTrim) : undefined;
+    if (latTrim && (!Number.isFinite(lat) || (lat as number) < -90 || (lat as number) > 90)) {
+      setSaveError("Latitude must be a number between -90 and 90.");
+      return;
+    }
+    if (lngTrim && (!Number.isFinite(lng) || (lng as number) < -180 || (lng as number) > 180)) {
+      setSaveError("Longitude must be a number between -180 and 180.");
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {
@@ -887,6 +901,8 @@ function ProfileSection({ estate, estateSource, canSettings, onSaved }: { estate
         timezone: form.timezone.trim(),
         contact_email: form.contact_email.trim(),
         contact_phone: form.contact_phone.trim(),
+        lat,
+        lng,
       });
       setDirty(false);
       setSaved(true);
@@ -1094,6 +1110,8 @@ function ProfileSection({ estate, estateSource, canSettings, onSaved }: { estate
               <label className="text-xs text-zinc-500">Type<input className={inputClass} value={form.type} disabled={!canSettings} onChange={(e) => setField("type", e.target.value)} /></label>
               <label className="text-xs text-zinc-500 sm:col-span-2">Address<input className={inputClass} value={form.address} disabled={!canSettings} onChange={(e) => setField("address", e.target.value)} /></label>
               <label className="text-xs text-zinc-500">Timezone<input className={inputClass} value={form.timezone} disabled={!canSettings} placeholder="e.g. Africa/Lagos" onChange={(e) => setField("timezone", e.target.value)} /></label>
+              <label className="text-xs text-zinc-500">Latitude<input className={inputClass} value={form.lat} disabled={!canSettings} placeholder="e.g. 6.5244" onChange={(e) => setField("lat", e.target.value)} /></label>
+              <label className="text-xs text-zinc-500">Longitude<input className={inputClass} value={form.lng} disabled={!canSettings} placeholder="e.g. 3.3792" onChange={(e) => setField("lng", e.target.value)} /></label>
               <label className="text-xs text-zinc-500">Contact email<input className={inputClass} value={form.contact_email} disabled={!canSettings} onChange={(e) => setField("contact_email", e.target.value)} /></label>
               <label className="text-xs text-zinc-500">Contact phone<input className={inputClass} value={form.contact_phone} disabled={!canSettings} onChange={(e) => setField("contact_phone", e.target.value)} /></label>
               <Field label="Logo" value="Not yet supported" />
