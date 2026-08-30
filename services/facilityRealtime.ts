@@ -129,6 +129,18 @@ export function connectFacilityRealtime(input: { token: string; estateId?: strin
   socket.on("error:permission", (payload: Record<string, any>) => {
     void emitLocal("permission.denied", payload || {});
   });
+  // Messages workspace -- src/controllers/messagesController.ts's
+  // sendMessage already emits a real "dm:new" event to `user:${id}` for
+  // every thread member (this client already joins that room via
+  // subscribe:user above). It was never listened for on this side. A raw
+  // chat message isn't a NormalizedSignal-shaped operational event, so
+  // this stays a separate, lightweight dispatch rather than being forced
+  // through emitLocal's signal/awareness/recommendation pipeline, which
+  // exists for device/visitor/maintenance telemetry, not conversation
+  // messages.
+  socket.on("dm:new", (payload: Record<string, any>) => {
+    window.dispatchEvent(new CustomEvent("facility:dm-message", { detail: payload || {} }));
+  });
 
   for (const event of EVENTS) {
     socket.on(event, (payload: Record<string, any>) => {

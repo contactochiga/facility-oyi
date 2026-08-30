@@ -13,8 +13,11 @@ export type ResidentLite = {
   id: string;
   username?: string | null;
   full_name?: string | null;
+  email?: string | null;
   role?: string | null;
   home_id?: string | null;
+  is_online?: boolean;
+  last_seen_at?: string | null;
 };
 
 export type ThreadLite = {
@@ -36,6 +39,8 @@ export type MessageLite = {
   thread_id: string;
   sender_id?: string | null;
   body: string;
+  message_type?: "text" | "image" | "video" | "file" | string;
+  metadata?: { media_url?: string | null; caption?: string | null; filename?: string | null } | null;
   created_at?: string | null;
   is_hidden?: boolean;
 };
@@ -109,6 +114,37 @@ export const messagesService = {
       return res.data as { ok?: boolean };
     } catch (err: any) {
       return { error: pickError(err, "Failed to mark thread read") } as any;
+    }
+  },
+
+  async setArchived(threadId: string, archived: boolean) {
+    try {
+      const res = await API.post(`/messages/thread/${encodeURIComponent(threadId)}/archive`, { archived });
+      return res.data as { ok?: boolean; thread?: { id: string; is_archived: boolean } };
+    } catch (err: any) {
+      return { error: pickError(err, "Failed to archive this conversation") } as any;
+    }
+  },
+
+  async uploadMedia(input: { base64: string; mime: string; filename?: string; mediaType?: "image" | "video" | "file" }) {
+    try {
+      const res = await API.post("/messages/media/upload", input);
+      return res.data as { ok?: boolean; url?: string; mime?: string; mediaType?: string };
+    } catch (err: any) {
+      return { error: pickError(err, "Failed to upload attachment") } as any;
+    }
+  },
+
+  async sendMedia(threadId: string, media: { url: string; mediaType: "image" | "video" | "file"; caption?: string; filename?: string }) {
+    try {
+      const res = await API.post(`/messages/thread/${encodeURIComponent(threadId)}/messages`, {
+        body: media.caption || "",
+        message_type: media.mediaType === "video" ? "video" : media.mediaType,
+        metadata: { media_url: media.url, caption: media.caption || "", filename: media.filename || null },
+      });
+      return res.data as { ok?: boolean; message?: MessageLite };
+    } catch (err: any) {
+      return { error: pickError(err, "Failed to send attachment") } as any;
     }
   },
 
