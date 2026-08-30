@@ -1,4 +1,4 @@
-import { facilityService } from "./facilityService";
+import { facilityService, type FacilityWeatherResponse } from "./facilityService";
 import { awarenessFromFacilityAttention } from "@/services/signalAwarenessService";
 
 export type AttentionSeverity = "critical" | "warning" | "info";
@@ -8,6 +8,7 @@ export type AttentionCategory =
   | "escalated_workflow"
   | "verification_failure"
   | "critical_infrastructure_failure"
+  | "environmental_hazard"
   | "high_confidence_prediction";
 
 export type FacilityAttentionItem = {
@@ -35,7 +36,8 @@ const categoryOrder: Record<AttentionCategory, number> = {
   escalated_workflow: 2,
   verification_failure: 3,
   critical_infrastructure_failure: 4,
-  high_confidence_prediction: 5,
+  environmental_hazard: 5,
+  high_confidence_prediction: 6,
 };
 
 const securityPattern = /security|access|intrusion|unauthori[sz]ed|tailgat|gate|door|badge|credential|lockdown|perimeter|panic|camera|surveillance/i;
@@ -383,6 +385,48 @@ function predictionItems(predictions: any[]) {
   return items;
 }
 
+// Weather only becomes Facility attention when a real threshold is crossed --
+// thunderstorm/extreme heat/heavy rain/high wind/high rain probability.
+// Mirrors Backend's own severityFor() thresholds (weatherService.ts) so both
+// integration points agree on what "actionable" weather means. Ordinary
+// conditions never produce an item; this avoids notification spam per the
+// live-weather spec.
+function weatherSeverity(current: { condition: string; temperature: number; wind_speed: number | null; precipitation_probability: number | null }): AttentionSeverity | null {
+  if (current.condition === "thunderstorm" || current.temperature >= 38) return "critical";
+  const heavyRain = current.condition === "heavy_rain";
+  const highWind = (current.wind_speed ?? 0) >= 50;
+  const highHeat = current.temperature >= 33;
+  const highRainChance = (current.precipitation_probability ?? 0) >= 80;
+  if (heavyRain || highWind || highHeat || highRainChance) return "warning";
+  return null;
+}
+
+function weatherAttentionItems(weather: FacilityWeatherResponse | null): FacilityAttentionItem[] {
+  if (!weather || weather.available !== true) return [];
+  const { current, metadata, location: loc } = weather;
+  const severity = weatherSeverity(current);
+  if (!severity) return [];
+  return [
+    {
+      id: `weather:${loc.lat}:${loc.lng}:${current.observed_at}`,
+      source_type: "weather",
+      source_id: `${loc.lat},${loc.lng}`,
+      category: "environmental_hazard",
+      severity,
+      domain: "Environment",
+      title: `Outdoor weather: ${current.condition_label}, ${Math.round(current.temperature)}°C`,
+      detail: `Humidity ${current.humidity ?? "unavailable"}%, wind ${current.wind_speed ?? "unavailable"} km/h, rain probability ${current.precipitation_probability ?? "unavailable"}%.`,
+      href: "/environment?view=weather",
+      action: "Review outdoor weather conditions",
+      time: current.observed_at,
+      escalation: "none",
+      overdueMs: 0,
+      operationalImpact: severity === "critical" ? 4 : 3,
+      confidence: metadata.stale ? 0.6 : 0.9,
+    },
+  ];
+}
+
 function compareAttention(a: FacilityAttentionItem, b: FacilityAttentionItem) {
   return (
     categoryOrder[a.category] - categoryOrder[b.category] ||
@@ -406,13 +450,14 @@ function dedupeAndTrim(items: FacilityAttentionItem[]) {
 }
 
 export async function loadFacilityAttention(): Promise<FacilityAttentionItem[]> {
-  const [incidents, workflows, predictions, infrastructure, utilities, cameras] = await Promise.all([
+  const [incidents, workflows, predictions, infrastructure, utilities, cameras, weather] = await Promise.all([
     facilityService.platformIncidents().catch(() => ({ items: [] })),
     facilityService.intelligenceWorkflows().catch(() => ({ workflows: [] })),
     facilityService.intelligencePredictions().catch(() => ({ predictions: [] })),
     facilityService.infrastructureOperations().catch(() => null),
     facilityService.platformUtilityTelemetry().catch(() => ({ items: [] })),
     facilityService.platformCameraInfrastructure().catch(() => ({ items: [] })),
+    facilityService.weather().catch(() => null),
   ]);
 
   return dedupeAndTrim([
@@ -420,6 +465,7 @@ export async function loadFacilityAttention(): Promise<FacilityAttentionItem[]> 
     ...workflowItems(workflows.workflows || []),
     ...infrastructureItems(infrastructure, utilities.items || [], cameras.items || []),
     ...predictionItems(predictions.predictions || []),
+    ...weatherAttentionItems(weather),
   ]);
 }
 
