@@ -21,14 +21,35 @@ assert.match(badge, /shrink-0/);
 // Builder is domain-generated from the real capability registry, not a
 // second, independently-maintained list.
 assert.match(page, /availableDomains = useMemo/);
-assert.match(page, /d\.actions\.some\(\(a\) => a\.available\)/);
+assert.match(page, /d\.actions\.some\(\(a\) => a\.available/);
 assert.match(page, /capabilities\?\.domains \|\| \[\]/);
 assert.match(page, /facilityService\.automationCapabilities\(\)/);
 
-// 5 real steps: Basics, Trigger, Action, Execution, Review.
-for (const step of ["Basics", "Trigger", "Action", "Execution", "Review"]) {
+// 6 real steps: Basics, Trigger, Conditions, Action, Execution, Review.
+// Conditions is new (Cross-Domain Fabric Closure) -- only meaningful for
+// event-triggered rules, deliberately inserted right after Trigger.
+for (const step of ["Basics", "Trigger", "Conditions", "Action", "Execution", "Review"]) {
   assert.match(page, new RegExp(`key: "${step.toLowerCase()}", label: "${step}"`));
 }
+
+// Automation is genuinely event-driven now, not schedule-only -- the
+// Trigger step offers both modes, sourced from the real trigger registry
+// (capabilities.triggers), not a second hardcoded list.
+assert.match(page, /const \[triggerMode, setTriggerMode\] = useState<"schedule" \| "event">\("schedule"\)/);
+assert.match(page, /eventTriggers = useMemo\(\(\) => \(capabilities\?\.triggers \|\| \[\]\)\.filter/);
+assert.match(page, /facilityService\.createAutomationEventRule\(/);
+
+// A real, typed (not generic-expression) condition engine backs the new
+// Conditions step, mirroring Backend's automationConditionEvaluator.ts.
+for (const kind of ["severity_at_least", "field_threshold", "time_window", "building_occupied", "indoor_sensor_threshold"]) {
+  assert.match(page, new RegExp(kind));
+}
+assert.doesNotMatch(page, /eval\(|new Function\(/);
+
+// Device actions stay out of the event-rule path this pass (disclosed
+// scope -- the device_command lane's shape hasn't been verified against
+// executeRegisteredAction's generic fallthrough).
+assert.match(page, /triggerMode !== "event" \|\| a\.target_type !== "device"/);
 
 // Execution & Governance step reads the real, server-resolved execution
 // level from the capability registry -- it does not hardcode "Automatic"
