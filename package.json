@@ -17,6 +17,7 @@
     "smoke:facility-automation": "node scripts/facility-automation-workspace-smoke.mjs",
     "smoke:cross-domain-automation-builder": "node scripts/cross-domain-automation-builder-smoke.mjs",
     "smoke:home-registry-consolidation": "node scripts/home-registry-consolidation-smoke.mjs",
+    "smoke:facility-activation-wizard": "node scripts/facility-activation-wizard-smoke.mjs",
     "smoke:facility-messages": "node scripts/facility-messages-workspace-smoke.mjs",
     "smoke:camera-center": "node scripts/camera-center-dashboard-smoke.mjs",
     "smoke:camera-runtime-canonicalization": "node scripts/camera-runtime-canonicalization-smoke.mjs",
