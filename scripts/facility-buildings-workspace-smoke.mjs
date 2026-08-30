@@ -38,7 +38,17 @@ assert.match(workspace, /setOpenFloors/);
 assert.match(workspace, /setOpenHome/);
 assert.match(workspace, /serviceBindings\(form\)/);
 for (const binding of ["utility_token", "water_service", "gas_service", "internet_service", "service_charge", "other_facility_fees"]) assert.match(workspace, new RegExp(binding));
-for (const action of ["Manage Access", "View Rooms", "View Meters / Services", "Invite Resident", "Room Registry", "Occupancy", "Home Registry"]) assert.match(workspace, new RegExp(action));
+for (const action of ["Manage Access", "View Rooms", "View Meters / Services", "Occupancy"]) assert.match(workspace, new RegExp(action));
+
+// Buildings/Home Registry consolidation -- the old standalone /homes and
+// /occupancy pages now redirect here rather than staying independently
+// reachable, including from this workspace's own Quick Actions/Registry
+// Attention panels (previously the exact "old UI reachable through Quick
+// Actions" problem the consolidation pass exists to fix).
+assert.doesNotMatch(workspace, /href="\/homes(\?|")/);
+assert.doesNotMatch(workspace, /href="\/occupancy"/);
+assert.match(workspace, /setPanel\(\{ kind: "occupancy" \}\)/);
+assert.match(workspace, /searchParams\?\.get\("panel"\) === "occupancy"/);
 for (const projection of ["Primary resident", "Move-in date", "Access status", "Home status", "Current members", "Resident invitations"]) assert.match(workspace, new RegExp(projection));
 for (const contextualContract of ["listHomeUsers", "inviteHomeUser"]) assert.match(workspace, new RegExp(`facilityService\\.${contextualContract}\\(`));
 assert.match(workspace, /EllipsisVertical/);
