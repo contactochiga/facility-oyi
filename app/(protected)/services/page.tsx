@@ -12,7 +12,7 @@ import Button from "@/components/ui/Button";
 import { formatMoney } from "@/lib/format";
 import { iconForTab } from "@/lib/oisIconRegistry";
 import { facilityService, type InfrastructureServiceAccountRow, type InfrastructureServiceEventRow, type InfrastructureServiceTransactionRow } from "@/services/facilityService";
-import { serviceConfigService, type ServiceConfig } from "@/services/serviceConfigService";
+import { serviceConfigService, type ServiceConfig, type PricingPlan, type ServiceConfigPricingInput } from "@/services/serviceConfigService";
 import { AlertTriangle, ArrowUpDown, ChevronDown, ChevronRight, ClipboardList, CloudCog, Droplets, FileText, Flame, Gauge, Globe2, Home, Landmark, Plus, Search, ShieldAlert, Wifi, Zap } from "lucide-react";
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -26,6 +26,36 @@ const SERVICE_LABELS: Record<string, string> = {
   service_charge: "Estate Fees",
   other_facility_fees: "Facility Services",
 };
+
+// Facility <-> Consumer Utilities acceptance: each utility type needs
+// different pricing semantics, not one universal tariff form. This maps
+// each service_key to the typed pricing UI it should show. Types not
+// listed here (generator_recovery, solar_battery_service) keep the
+// original generic unit_cost/unit_name/billing_mode fields -- they were
+// not part of the typed-pricing scope, and forcing them into one of these
+// shapes without a clear commercial model would be guessing.
+type PricingKind = "electricity" | "water" | "gas" | "subscription" | "recurring" | "generic";
+
+function pricingKindFor(serviceKey: string): PricingKind {
+  if (serviceKey === "utility_token") return "electricity";
+  if (serviceKey === "water_service") return "water";
+  if (serviceKey === "gas_service") return "gas";
+  if (serviceKey === "internet_service" || serviceKey === "fiber_internet") return "subscription";
+  if (serviceKey === "service_charge" || serviceKey === "other_facility_fees") return "recurring";
+  return "generic";
+}
+
+const PRICING_KIND_LABELS: Record<Exclude<PricingKind, "generic">, { rateLabel: string; defaultUnit: string; unitEditable: boolean }> = {
+  electricity: { rateLabel: "Rate (₦ / kWh)", defaultUnit: "kWh", unitEditable: false },
+  water: { rateLabel: "Rate (₦ / m³)", defaultUnit: "m3", unitEditable: false },
+  gas: { rateLabel: "Rate", defaultUnit: "kg", unitEditable: true },
+  subscription: { rateLabel: "Price", defaultUnit: "", unitEditable: false },
+  recurring: { rateLabel: "Amount", defaultUnit: "", unitEditable: false },
+};
+
+function emptyPlanRow() {
+  return { plan_name: "", rate_amount: "", billing_frequency: "monthly", provider: "" };
+}
 
 const SERVICE_DOMAINS = [
   {
@@ -257,6 +287,12 @@ export default function FacilityInfrastructureServicesPage() {
     vending_mode: "facility",
     issuer_name: "",
     support_contact: "",
+    pricing_rate_amount: "",
+    pricing_unit_name: "",
+    pricing_payment_timing: "",
+    pricing_billing_frequency: "monthly",
+    pricing_provider: "",
+    pricing_plans: [emptyPlanRow()],
   });
   const [activeDomain, setActiveDomain] = useState<(typeof DOMAIN_FILTERS)[number]>("All");
   const [activeType, setActiveType] = useState<(typeof TYPE_FILTERS)[number]>("All");
@@ -308,6 +344,10 @@ export default function FacilityInfrastructureServicesPage() {
     if (!selectedPolicy) return;
     const meta = policyMeta(selectedPolicy);
     const electricity = selectedPolicy.metadata?.electricity && typeof selectedPolicy.metadata.electricity === "object" ? selectedPolicy.metadata.electricity : {};
+    const kind = pricingKindFor(selectedPolicy.service_key);
+    const plans = selectedPolicy.pricing_plans || [];
+    const primaryPlan = plans.find((plan) => plan.pricing_type !== "subscription") || null;
+    const subscriptionPlans = plans.filter((plan) => plan.pricing_type === "subscription");
     setPolicyDraft({
       title: selectedPolicy.title || SERVICE_LABELS[selectedPolicy.service_key] || "Service policy",
       suggested_amount: String(selectedPolicy.suggested_amount ?? ""),
@@ -326,6 +366,19 @@ export default function FacilityInfrastructureServicesPage() {
       vending_mode: String(electricity.vending_mode || "facility"),
       issuer_name: String(electricity.issuer_name || ""),
       support_contact: String(electricity.support_contact || ""),
+      pricing_rate_amount: primaryPlan ? String(primaryPlan.rate_amount ?? "") : "",
+      pricing_unit_name: primaryPlan?.unit_name || (kind !== "generic" ? PRICING_KIND_LABELS[kind]?.defaultUnit || "" : ""),
+      pricing_payment_timing: primaryPlan?.payment_timing || "",
+      pricing_billing_frequency: primaryPlan?.billing_frequency || "monthly",
+      pricing_provider: primaryPlan?.provider || "",
+      pricing_plans: subscriptionPlans.length
+        ? subscriptionPlans.map((plan) => ({
+            plan_name: plan.plan_name || "",
+            rate_amount: String(plan.rate_amount ?? ""),
+            billing_frequency: plan.billing_frequency || "monthly",
+            provider: plan.provider || "",
+          }))
+        : [emptyPlanRow()],
     });
   }, [selectedPolicy]);
 
@@ -484,6 +537,43 @@ export default function FacilityInfrastructureServicesPage() {
         },
       } : {}),
     };
+    const kind = pricingKindFor(selectedPolicy.service_key);
+    let pricing: ServiceConfigPricingInput | undefined;
+    if (kind === "electricity" || kind === "water" || kind === "gas") {
+      if (policyDraft.pricing_rate_amount !== "") {
+        pricing = {
+          pricing_type: "usage_based",
+          unit_name: policyDraft.pricing_unit_name.trim() || PRICING_KIND_LABELS[kind].defaultUnit,
+          rate_amount: Number(policyDraft.pricing_rate_amount),
+          payment_timing: policyDraft.pricing_payment_timing || null,
+          provider: policyDraft.pricing_provider.trim() || null,
+          effective_from: policyDraft.effectiveFrom || null,
+        };
+      }
+    } else if (kind === "recurring") {
+      if (policyDraft.pricing_rate_amount !== "") {
+        pricing = {
+          pricing_type: "recurring",
+          rate_amount: Number(policyDraft.pricing_rate_amount),
+          billing_frequency: policyDraft.pricing_billing_frequency || "monthly",
+          provider: policyDraft.pricing_provider.trim() || null,
+          effective_from: policyDraft.effectiveFrom || null,
+        };
+      }
+    } else if (kind === "subscription") {
+      const plans = policyDraft.pricing_plans
+        .filter((plan) => plan.plan_name.trim() && plan.rate_amount !== "")
+        .map((plan) => ({
+          plan_name: plan.plan_name.trim(),
+          rate_amount: Number(plan.rate_amount),
+          billing_frequency: plan.billing_frequency || "monthly",
+          provider: plan.provider.trim() || null,
+        }));
+      if (plans.length) {
+        pricing = { pricing_type: "subscription", plans };
+      }
+    }
+
     const result = await serviceConfigService.update(selectedPolicy.service_key, {
       estate_id: estateId,
       title: policyDraft.title,
@@ -492,6 +582,7 @@ export default function FacilityInfrastructureServicesPage() {
       unit_name: policyDraft.unit_name || null,
       billing_mode: policyDraft.billing_mode,
       metadata: nextMetadata,
+      ...(pricing ? { pricing } : {}),
     });
     setSavingPolicy(false);
     if (result.error) {
@@ -948,22 +1039,105 @@ export default function FacilityInfrastructureServicesPage() {
                 <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Suggested amount</span>
                 <input className={inputClassName()} inputMode="decimal" value={policyDraft.suggested_amount} onChange={(event) => setPolicyDraft((current) => ({ ...current, suggested_amount: event.target.value }))} />
               </label>
-              <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Unit rate</span>
-                <input className={inputClassName()} inputMode="decimal" value={policyDraft.unit_cost} onChange={(event) => setPolicyDraft((current) => ({ ...current, unit_cost: event.target.value }))} />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Unit name</span>
-                <input className={inputClassName()} value={policyDraft.unit_name} onChange={(event) => setPolicyDraft((current) => ({ ...current, unit_name: event.target.value }))} />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Billing mode</span>
-                <select className={inputClassName()} value={policyDraft.billing_mode} onChange={(event) => setPolicyDraft((current) => ({ ...current, billing_mode: event.target.value }))}>
-                  <option value="fixed">Fixed</option>
-                  <option value="metered">Metered</option>
-                  <option value="wallet_only">Wallet only</option>
-                </select>
-              </label>
+              {(() => {
+                const kind = pricingKindFor(selectedPolicy.service_key);
+                if (kind === "generic") {
+                  return (
+                    <>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Unit rate</span>
+                        <input className={inputClassName()} inputMode="decimal" value={policyDraft.unit_cost} onChange={(event) => setPolicyDraft((current) => ({ ...current, unit_cost: event.target.value }))} />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Unit name</span>
+                        <input className={inputClassName()} value={policyDraft.unit_name} onChange={(event) => setPolicyDraft((current) => ({ ...current, unit_name: event.target.value }))} />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Billing mode</span>
+                        <select className={inputClassName()} value={policyDraft.billing_mode} onChange={(event) => setPolicyDraft((current) => ({ ...current, billing_mode: event.target.value }))}>
+                          <option value="fixed">Fixed</option>
+                          <option value="metered">Metered</option>
+                          <option value="wallet_only">Wallet only</option>
+                        </select>
+                      </label>
+                    </>
+                  );
+                }
+                if (kind === "electricity" || kind === "water" || kind === "gas") {
+                  const labels = PRICING_KIND_LABELS[kind];
+                  return (
+                    <>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">{labels.rateLabel}</span>
+                        <input className={inputClassName()} inputMode="decimal" placeholder="0.00" value={policyDraft.pricing_rate_amount} onChange={(event) => setPolicyDraft((current) => ({ ...current, pricing_rate_amount: event.target.value }))} />
+                      </label>
+                      {labels.unitEditable ? (
+                        <label className="space-y-2">
+                          <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Unit</span>
+                          <input className={inputClassName()} placeholder={labels.defaultUnit} value={policyDraft.pricing_unit_name} onChange={(event) => setPolicyDraft((current) => ({ ...current, pricing_unit_name: event.target.value }))} />
+                        </label>
+                      ) : null}
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Billing mode</span>
+                        <select className={inputClassName()} value={policyDraft.pricing_payment_timing} onChange={(event) => setPolicyDraft((current) => ({ ...current, pricing_payment_timing: event.target.value }))}>
+                          <option value="">Not specified</option>
+                          <option value="prepaid">Prepaid</option>
+                          <option value="postpaid">Postpaid</option>
+                        </select>
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Source / provider</span>
+                        <input className={inputClassName()} placeholder="e.g. EKEDC Distribution Tariff" value={policyDraft.pricing_provider} onChange={(event) => setPolicyDraft((current) => ({ ...current, pricing_provider: event.target.value }))} />
+                      </label>
+                    </>
+                  );
+                }
+                if (kind === "recurring") {
+                  return (
+                    <>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Amount</span>
+                        <input className={inputClassName()} inputMode="decimal" placeholder="0.00" value={policyDraft.pricing_rate_amount} onChange={(event) => setPolicyDraft((current) => ({ ...current, pricing_rate_amount: event.target.value }))} />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Frequency</span>
+                        <select className={inputClassName()} value={policyDraft.pricing_billing_frequency} onChange={(event) => setPolicyDraft((current) => ({ ...current, pricing_billing_frequency: event.target.value }))}>
+                          <option value="monthly">Monthly</option>
+                          <option value="quarterly">Quarterly</option>
+                          <option value="yearly">Yearly</option>
+                          <option value="once">One-off</option>
+                        </select>
+                      </label>
+                    </>
+                  );
+                }
+                if (kind === "subscription") {
+                  return (
+                    <div className="space-y-3 sm:col-span-2">
+                      <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Plans</span>
+                      {policyDraft.pricing_plans.map((plan, index) => (
+                        <div key={index} className="grid gap-2 rounded-[14px] border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-4">
+                          <input className={inputClassName()} placeholder="Plan (e.g. 100 Mbps)" value={plan.plan_name} onChange={(event) => setPolicyDraft((current) => ({ ...current, pricing_plans: current.pricing_plans.map((row, i) => i === index ? { ...row, plan_name: event.target.value } : row) }))} />
+                          <input className={inputClassName()} inputMode="decimal" placeholder="Price" value={plan.rate_amount} onChange={(event) => setPolicyDraft((current) => ({ ...current, pricing_plans: current.pricing_plans.map((row, i) => i === index ? { ...row, rate_amount: event.target.value } : row) }))} />
+                          <select className={inputClassName()} value={plan.billing_frequency} onChange={(event) => setPolicyDraft((current) => ({ ...current, pricing_plans: current.pricing_plans.map((row, i) => i === index ? { ...row, billing_frequency: event.target.value } : row) }))}>
+                            <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="yearly">Yearly</option>
+                          </select>
+                          <div className="flex items-center gap-2">
+                            <input className={inputClassName()} placeholder="Provider (optional)" value={plan.provider} onChange={(event) => setPolicyDraft((current) => ({ ...current, pricing_plans: current.pricing_plans.map((row, i) => i === index ? { ...row, provider: event.target.value } : row) }))} />
+                            {policyDraft.pricing_plans.length > 1 ? (
+                              <button type="button" className="shrink-0 text-xs text-rose-300 hover:text-rose-200" onClick={() => setPolicyDraft((current) => ({ ...current, pricing_plans: current.pricing_plans.filter((_, i) => i !== index) }))}>Remove</button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                      <button type="button" className="text-xs text-sky-300 hover:text-sky-200" onClick={() => setPolicyDraft((current) => ({ ...current, pricing_plans: [...current.pricing_plans, emptyPlanRow()] }))}>+ Add another plan</button>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               <label className="space-y-2">
                 <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">Policy version</span>
                 <input className={inputClassName()} value={policyDraft.policyVersion} onChange={(event) => setPolicyDraft((current) => ({ ...current, policyVersion: event.target.value }))} />

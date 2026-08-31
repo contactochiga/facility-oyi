@@ -1,5 +1,22 @@
 import API from "./api";
 
+export type PricingPlan = {
+  id?: string;
+  estate_id?: string | null;
+  service_key?: string;
+  pricing_type: "usage_based" | "fixed" | "recurring" | "subscription";
+  plan_name?: string | null;
+  unit_name?: string | null;
+  currency?: string | null;
+  rate_amount: number;
+  billing_frequency?: string | null;
+  payment_timing?: string | null;
+  provider?: string | null;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  active?: boolean;
+};
+
 export type ServiceConfig = {
   estate_id?: string | null;
   service_key: string;
@@ -18,9 +35,20 @@ export type ServiceConfig = {
   created_at?: string | null;
   updated_at?: string | null;
   metadata?: Record<string, any> | null;
+  // Typed pricing (Facility <-> Consumer Utilities acceptance): the
+  // canonical rate/plan data for this service. Empty/absent means
+  // genuinely not configured yet -- never fabricated by the frontend.
+  pricing_plans?: PricingPlan[];
 };
 
-export type ServiceConfigPatch = Partial<ServiceConfig> & { active?: boolean; enabled?: boolean };
+// pricing is a write-only input: a single rate (usage_based/fixed/
+// recurring) or a plan list (subscription) -- see servicesController.ts's
+// applyServicePricingUpdate for the exact accepted shape.
+export type ServiceConfigPricingInput =
+  | { pricing_type: "usage_based" | "fixed" | "recurring"; unit_name?: string | null; currency?: string | null; rate_amount: number; billing_frequency?: string | null; payment_timing?: string | null; provider?: string | null; effective_from?: string | null }
+  | { pricing_type: "subscription"; plans: Array<{ plan_name: string; unit_name?: string | null; currency?: string | null; rate_amount: number; billing_frequency?: string | null; provider?: string | null; effective_from?: string | null }> };
+
+export type ServiceConfigPatch = Partial<ServiceConfig> & { active?: boolean; enabled?: boolean; pricing?: ServiceConfigPricingInput };
 
 function listFrom(data: any): ServiceConfig[] {
   if (Array.isArray(data)) return data;
