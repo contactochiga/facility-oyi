@@ -13,6 +13,11 @@ import { readFile } from "node:fs/promises";
 
 const invitePage = await readFile(new URL("../app/(auth)/facility-invite/page.tsx", import.meta.url), "utf8");
 const firstRunPage = await readFile(new URL("../app/(protected)/first-run/page.tsx", import.meta.url), "utf8");
+assert.match(invitePage, /selectEstate\(estateId\)/, "accepted estate must pass through the canonical server context resolver");
+assert.match(invitePage, /FacilityConfirmStep estateId=\{preview\.estate\.id\}/, "wizard must confirm the invited estate");
+assert.doesNotMatch(invitePage, /session\.user\?\.estate_id \|\| preview\.estate\.id/, "old default estate must not override the invitation");
+assert.equal((invitePage.match(/await openAcceptedEstate\(preview!\.estate\.id\)/g) || []).length, 2, "both activation paths must select the invited estate");
+assert.match(invitePage, /await openAcceptedEstate\(acceptedEstateId\)/, "context failure retry must not replay invitation acceptance");
 
 // The wizard's added steps must exist as distinct stages, not just extra
 // copy bolted onto the existing credentials step.
