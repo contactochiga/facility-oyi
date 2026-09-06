@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import { authService } from "@/services/authService";
 import { facilityService, type MyEstatesResponse } from "@/services/facilityService";
 import { useSessionStore } from "@/store/useSessionStore";
+import { useContextStore } from "@/store/useContextStore";
 import { decodeToken, isExpired } from "@/lib/auth";
 import { AuthShell } from "@/components/auth/AuthShell";
 
@@ -280,6 +281,18 @@ function FacilityInviteInner() {
   const [useDifferentAccount, setUseDifferentAccount] = useState(false);
 
   const [wizardStep, setWizardStep] = useState<WizardStep | null>(null);
+  const [acceptedEstateId, setAcceptedEstateId] = useState<string | null>(null);
+
+  async function openAcceptedEstate(estateId: string) {
+    setAcceptedEstateId(estateId);
+    const result = await useContextStore.getState().selectEstate(estateId);
+    if (!result.ok) {
+      setFormError("Your invitation was accepted, but the Facility could not be opened. Retry opening it below.");
+      return;
+    }
+    setFormError(null);
+    setWizardStep("profile");
+  }
 
   useEffect(() => {
     setMounted(true);
@@ -328,7 +341,7 @@ function FacilityInviteInner() {
         return;
       }
       session.setToken(res.token);
-      setWizardStep("profile");
+      await openAcceptedEstate(preview!.estate.id);
     } catch (err: any) {
       setFormError(err?.message || "Unable to accept this invite.");
     } finally {
@@ -355,7 +368,7 @@ function FacilityInviteInner() {
         return;
       }
       session.setToken(res.token);
-      setWizardStep("profile");
+      await openAcceptedEstate(preview!.estate.id);
     } catch (err: any) {
       setFormError(err?.message || "Unable to activate this invite.");
     } finally {
@@ -388,6 +401,19 @@ function FacilityInviteInner() {
 
   const expiry = readableExpiry(preview.expires_at);
 
+  if (acceptedEstateId && !wizardStep) {
+    return (
+      <AuthShell title="Invitation accepted" subtitle={`Open ${preview.estate.name} to finish setup.`}>
+        {formError ? <p role="alert">{formError}</p> : null}
+        <Button disabled={submitting} onClick={async () => {
+          setSubmitting(true);
+          try { await openAcceptedEstate(acceptedEstateId); }
+          finally { setSubmitting(false); }
+        }}>Open invited Facility</Button>
+      </AuthShell>
+    );
+  }
+
   if (wizardStep) {
     const stepCopy: Record<WizardStep, { title: string; subtitle: string }> = {
       credentials: { title: "", subtitle: "" },
@@ -408,7 +434,7 @@ function FacilityInviteInner() {
           />
         ) : null}
         {wizardStep === "facility" ? (
-          <FacilityConfirmStep estateId={session.user?.estate_id || preview.estate.id} onContinue={() => setWizardStep("verify")} />
+          <FacilityConfirmStep estateId={preview.estate.id} onContinue={() => setWizardStep("verify")} />
         ) : null}
         {wizardStep === "verify" ? (
           <VerifyStep email={session.user?.email || preview.invited_email} onContinue={() => setWizardStep("complete")} />
