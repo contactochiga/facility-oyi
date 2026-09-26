@@ -1,5 +1,11 @@
 # Wave 9 dependency review — 2026-09-26
 
+## Explicit residual-risk disposition
+
+For the web-only Facility candidate, accept the **development-only** `@capacitor/cli@6.2.2 → tar@6.2.1` residual with restrictions, not a clean full-audit claim. Next production build/runtime does not invoke Capacitor; production-only npm audit is zero. The affected code is CLI `dist/util/template.js`, extracting bundled native archives. Full audit remains one high CLI and one critical tar node (multiple tar advisories, including traversal, symlink/hardlink overwrite and malformed/unbounded archive DoS).
+
+Required restrictions: CI runs web build/checks only; no Capacitor archive extraction or native-project generation on release agents holding deployment credentials. Developer template operations must use the locked package's bundled archives in an isolated unprivileged temporary workspace. Never feed downloaded/user-supplied archives to this tool, substitute assets, or expose it through a server. Native release certification is excluded until a maintained compatible Capacitor upgrade is tested on Android/iOS projects. Do not suppress audit findings. Revisit when an upstream release compatible with the native project is selected; npm currently proposes a major CLI upgrade, not a drop-in fix. The rejected tar override must not return without the extractor compatibility test passing.
+
 Final gate update: `npm update sharp --ignore-scripts` resolves Sharp 0.35.4 within Next 15.5.26's declared `^0.34.3 || ^0.35.4` range, without an override. Production build, lint, release/Core-only-loader checks and real JPEG/WebP/AVIF encode/decode pass. CI uses Node 20; deployment must use Node >=20.9.0. Audit now has two development-only findings (Capacitor CLI high, tar critical); `npm audit --omit=dev` reports zero. The native installer risk below is retained, not hidden by the production-only audit.
 
 Next's nested PostCSS 8.4.31 is replaced by a scoped override to 8.5.28. `npm install --package-lock-only --ignore-scripts`, `npm ci --ignore-scripts`, `npm ls postcss --all`, production build, lint, release checks and Core-loader smoke pass. All PostCSS paths resolve to 8.5.28. Audit findings fall from five to three (two high, one critical); this is not a security-clean release.
