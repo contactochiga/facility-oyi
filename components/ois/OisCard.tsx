@@ -25,6 +25,11 @@ export default function OisCard<T extends ElementType = "section">({
   children,
   ...props
 }: OisCardProps<T>) {
-  const Component = as || "section";
+  // Cast to `any` only for this dynamic-tag render: with a very large
+  // JSX.IntrinsicElements (react-three-fiber's tags merged in globally),
+  // TS's LibraryManagedAttributes resolution for a runtime-computed tag
+  // collapses `children` to `never`. OisCardProps<T> above still enforces
+  // full typing at every call site.
+  const Component = (as || "section") as any;
   return <Component className={`${variants[variant]} ${className}`.trim()} {...props}>{children}</Component>;
 }
