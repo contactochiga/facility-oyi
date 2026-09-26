@@ -9,3 +9,5 @@ Validation: `node scripts/wave9-core-authority-smoke.mjs` passes all five real l
 Dependency lock refresh separately applies compatible registry updates. Audit decreases from 18 to 5 advisories; Next and Capacitor installer-chain issues remain unresolved. No claim of dependency closure is made. Remote Twin dependency remains pinned to `fda2a27a31208541cb030c40ad26b01f1bc0fee0`; no local file dependency was introduced.
 
 No migrations, deployment, authoritative-branch merge, or Wave 10 implementation.
+
+Follow-up: Next and eslint-config-next are pinned together to 15.5.26 (patch-line update). Production build, lint, release checks and five-loader authority smoke pass. Audit still reports five findings: Capacitor/tar installer chain (critical), Next/PostCSS and sharp. The framework's critical finding is removed, but the overall security gate is not closed; do not apply suggested major upgrades blindly.

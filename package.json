@@ -60,7 +60,7 @@
     "hls.js": "^1.6.16",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.474.0",
-    "next": "15.5.19",
+    "next": "15.5.26",
     "oyi-twin-engine": "git+https://github.com/contactochiga/Oyi-Twin-Engine.git#fda2a27a31208541cb030c40ad26b01f1bc0fee0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -79,7 +79,7 @@
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.5.0",
     "eslint": "^9.7.0",
-    "eslint-config-next": "15.5.9",
+    "eslint-config-next": "15.5.26",
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.5"
