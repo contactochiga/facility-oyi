@@ -339,6 +339,31 @@ export default function DigitalTwinPage() {
         </div>
       </section>
 
+      <section className="grid gap-5 lg:grid-cols-2">
+        <div className="rounded-2xl border border-sky-500/20 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_45%)] p-5">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-sky-300">Live building command view</p>
+          <h3 className="mt-1 text-lg font-semibold text-white">Open Luna Residences in 3D</h3>
+          <p className="mt-1 text-sm text-zinc-400">Walk the building, inspect operational systems, run simulation scenarios, and ask Oyi directly inside the twin.</p>
+          <Link href="/digital-twin/luna" className="mt-4 inline-flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/15 px-3.5 py-2 text-sm text-sky-200 transition hover:bg-sky-500/20">
+            <Building2 className="h-4 w-4" />
+            Open Luna Digital Twin
+          </Link>
+        </div>
+
+        <div className="rounded-2xl border border-amber-500/20 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.12),transparent_45%)] p-5">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-amber-300">Simulated incident · demo</p>
+          <h3 className="mt-1 text-lg font-semibold text-white">Water Pressure Fault — Booster Pump 01</h3>
+          <p className="mt-1 text-sm text-zinc-400">A local, deterministic scenario. &quot;View in Twin&quot; opens Luna already focused on Water and the affected pump.</p>
+          <Link
+            href="/digital-twin/luna?asset=LUNA-B1-WATER-BP-01&system=water&trigger=water-pressure-fault"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/15 px-3.5 py-2 text-sm text-amber-200 transition hover:bg-amber-500/20"
+          >
+            <AlertTriangle className="h-4 w-4" />
+            View in Twin
+          </Link>
+        </div>
+      </section>
+
       <section className="grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)_340px]">
         <Panel title="Twin Layers" subtitle="Toggle real operational layers. Hidden layers are removed from search and detail lists.">
           <div className="space-y-2">
