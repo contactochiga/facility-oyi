@@ -30,20 +30,6 @@ export function deriveRealtimeAutomationPlans(input: RealtimeAutomationInput): A
 export async function loadAutomationPlans(): Promise<AutomationPlan[]> {
   const attention = await loadFacilityAttention();
   const signals = attention.map(signalFromFacilityAttention);
-  try {
-    const bundle = await evaluateOyiCoreRuntime(signals);
-    return bundle.automationPlans;
-  } catch {
-    // Temporary compatibility fallback while Facility completes the final
-    // cutover from local synthesis to backend-owned runtime outputs.
-    const [insights, recommendations] = await Promise.all([
-      loadOperationalInsights(),
-      loadOperationalRecommendations(),
-    ]);
-    return buildAutomationPlans({
-      signals,
-      insights,
-      recommendations,
-    });
-  }
+  const bundle = await evaluateOyiCoreRuntime(signals);
+  return bundle.automationPlans;
 }

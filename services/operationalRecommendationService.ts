@@ -27,16 +27,6 @@ export function deriveRealtimeOperationalRecommendations(input: RealtimeRecommen
 export async function loadOperationalRecommendations(): Promise<OperationalRecommendation[]> {
   const attention = await loadFacilityAttention();
   const signals = attention.map(signalFromFacilityAttention);
-  try {
-    const bundle = await evaluateOyiCoreRuntime(signals);
-    return bundle.recommendations;
-  } catch {
-    // Temporary compatibility fallback while legacy overview loaders still
-    // depend on local page stability if backend runtime is unavailable.
-    const insights = await loadOperationalInsights();
-    return buildOperationalRecommendations({
-      signals,
-      insights,
-    });
-  }
+  const bundle = await evaluateOyiCoreRuntime(signals);
+  return bundle.recommendations;
 }

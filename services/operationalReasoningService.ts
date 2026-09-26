@@ -27,12 +27,6 @@ export function deriveRealtimeOperationalInsights(input: RealtimeReasoningInput)
 export async function loadOperationalInsights(): Promise<OperationalInsight[]> {
   const attention = await loadFacilityAttention();
   const signals = attention.map(signalFromFacilityAttention);
-  try {
-    const bundle = await evaluateOyiCoreRuntime(signals);
-    return bundle.insights;
-  } catch {
-    // Temporary compatibility fallback until every Facility data source has
-    // backend runtime parity. Realtime paths should prefer backend evaluation.
-    return buildOperationalInsights({ signals });
-  }
+  const bundle = await evaluateOyiCoreRuntime(signals);
+  return bundle.insights;
 }
