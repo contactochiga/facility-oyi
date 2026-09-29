@@ -1,54 +1,15 @@
-import {
-  buildConversationResponse,
-  type ConversationRequest,
-  type ConversationResponse,
-} from "@/lib/conversationRuntime";
+import type { ConversationRequest, ConversationResponse } from "@/lib/conversationRuntime";
 import { ensureRuntimeSubscriptions } from "@/lib/runtimeSubscriptions";
-import { loadFacilityAttention, loadFacilityAwareness } from "@/services/facilityAttentionService";
+import { loadFacilityAttention } from "@/services/facilityAttentionService";
 import { runOyiCoreConversation } from "@/services/oyiCoreRuntimeService";
-import { loadOperationalInsights } from "@/services/operationalReasoningService";
-import { loadOperationalRecommendations } from "@/services/operationalRecommendationService";
-import { loadAutomationPlans } from "@/services/safeAutomationService";
 import { signalFromFacilityAttention } from "@/services/signalAwarenessService";
-
 export async function runConversationRuntime(request: ConversationRequest): Promise<ConversationResponse> {
-  const runtime = ensureRuntimeSubscriptions();
-  const [attention, awareness, insights, recommendations, automationPlans] = await Promise.all([
-    loadFacilityAttention(),
-    loadFacilityAwareness(),
-    loadOperationalInsights(),
-    loadOperationalRecommendations(),
-    loadAutomationPlans(),
-  ]);
-  const signals = attention.map(signalFromFacilityAttention);
-  let response: ConversationResponse;
-  try {
-    response = await runOyiCoreConversation(request, signals);
-  } catch {
-    // Temporary compatibility fallback for page stability if backend
-    // conversation runtime is unavailable.
-    const fallback = buildConversationResponse({
-      request,
-      signals,
-      awareness,
-      insights,
-      recommendations,
-      automationPlans,
-      permissions: request.actor?.permissions || [],
-      context: request.context,
-    });
-    response = {
-      ...fallback,
-      summary: `${fallback.summary} This is a local fallback and has not been confirmed by the backend Oyi runtime.`,
-      answer: `${fallback.answer} This answer was generated locally because the canonical backend runtime was unavailable.`,
-      source: "conversation_runtime",
-    };
-  }
-  runtime.publishConversation({
-    event: "conversation.runtime",
-    conversationRequest: request,
-    conversationResponse: response,
-    source: "conversation_runtime",
+  const signals = (await loadFacilityAttention()).map(signalFromFacilityAttention);
+  // Propagate Core unavailability; never synthesize an alternative answer.
+  const response = await runOyiCoreConversation(request, signals);
+  ensureRuntimeSubscriptions().publishConversation({
+    event: "conversation.runtime", conversationRequest: request,
+    conversationResponse: response, source: "conversation_runtime",
   });
   return response;
 }
