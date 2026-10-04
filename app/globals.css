@@ -159,3 +159,21 @@ textarea { field-sizing: content; }
 @media (prefers-reduced-motion: reduce) {
   .oyi-shell-layer *, .oyi-shell-orb { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* Shared Oyi interaction foundation (oyi-interaction) placement overrides.
+   Unlayered so they win over the package's base .oyi-orb rules; visuals
+   come from the package tokens, placement stays Facility's. */
+.oyi-orb.oyi-shell-orb {
+  position: fixed;
+  right: 1.25rem;
+  z-index: 80;
+  bottom: calc(6.25rem + env(safe-area-inset-bottom));
+  --oyi-orb-size: 56px;
+}
+@media (min-width: 768px) {
+  .oyi-orb.oyi-shell-orb { bottom: 1.25rem; }
+}
+.oyi-shell-header .oyi-orb.facility-oyi-status-orb {
+  --oyi-orb-size: 26px;
+  flex-shrink: 0;
+}

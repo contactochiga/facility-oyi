@@ -43,6 +43,9 @@ export type OyiInteractionShellProps = {
   onCancelVoice?: () => void;
   renderMessage?: (message: OyiShellMessage) => ReactNode;
   headerActions?: ReactNode;
+  // Shared OyiOrb rendering the current interaction state (replaces the
+  // static avatar when provided).
+  statusOrb?: ReactNode;
   viewportStyle?: CSSProperties;
   panelStyle?: CSSProperties;
   composerRef?: RefObject<HTMLFormElement | null>;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { History, Sparkles, X } from "lucide-react";
+import { useOyiFocusTrap } from "oyi-interaction";
 import OyiComposer from "./OyiComposer";
 import OyiProcessingRow from "./OyiProcessingRow";
 import type { OyiInteractionShellProps } from "./types";
@@ -9,34 +10,10 @@ import type { OyiInteractionShellProps } from "./types";
 export default function OyiInteractionShell(props: OyiInteractionShellProps) {
   const panelRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
-  const onCloseRef = useRef(props.onClose);
-
-  useEffect(() => { onCloseRef.current = props.onClose; }, [props.onClose]);
-
-  useEffect(() => {
-    if (!props.open) return;
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus({ preventScroll: true });
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onCloseRef.current();
-        return;
-      }
-      if (event.key !== "Tab" || !panelRef.current) return;
-      const focusable = [...panelRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')];
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      (props.returnFocusRef?.current || previouslyFocused)?.focus?.({ preventScroll: true });
-    };
-  }, [props.open, props.returnFocusRef]);
+  // Focus management (initial focus on close, Tab containment, Escape,
+  // focus return) is the shared foundation's dialog hook -- promoted from
+  // this component's original implementation, behaviour unchanged.
+  useOyiFocusTrap({ active: props.open, containerRef: panelRef, initialFocusRef: closeRef, returnFocusRef: props.returnFocusRef, onEscape: props.onClose });
 
   if (!props.open) return null;
   const visibleMessages = props.messages.filter((message) => !message.pending);
@@ -46,7 +23,7 @@ export default function OyiInteractionShell(props: OyiInteractionShellProps) {
       <button type="button" className="oyi-shell-dismiss" aria-label="Close Oyi" onClick={props.onClose} />
       <section ref={panelRef} id="facility-oyi-panel" className="oyi-shell-panel" style={props.panelStyle} role="dialog" aria-modal="true" aria-labelledby="facility-oyi-title">
         <header className="oyi-shell-header">
-          <span className="oyi-shell-avatar" aria-hidden="true"><Sparkles /></span>
+          {props.statusOrb ?? <span className="oyi-shell-avatar" aria-hidden="true"><Sparkles /></span>}
           <div className="min-w-0 flex-1">
             <h2 id="facility-oyi-title">{props.title}</h2>
             <p>{props.subtitle}{props.contextLabel ? ` · ${props.contextLabel}` : ""}</p>

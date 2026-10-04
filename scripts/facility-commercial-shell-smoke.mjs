@@ -45,7 +45,10 @@ assert.match(assistantStyles, /bg-\[#07101a\]/);
 assert.match(launcher, /OyiOrb/);
 assert.doesNotMatch(launcher, /Sparkles/);
 assert.match(orb, /oyi-shell-orb/);
-assert.match(orb, />Oyi</);
+// The launcher renders through the shared OyiOrb (oyi-interaction); the
+// "Oyi" wordmark now lives in that renderer.
+assert.match(orb, /from "oyi-interaction"/);
+assert.match(await readFile(new URL("../node_modules/oyi-interaction/dist/react/OyiOrb.js", import.meta.url), "utf8"), /children: "Oyi"/);
 assert.match(assistantStyles, /h-14 w-14/);
 assert.match(assistantStyles, /bg-\[#06101d\]/);
 assert.match(assistantStyles, /shadow-\[0_10px_40px_rgba\(56,189,248,0.35\)\]/);

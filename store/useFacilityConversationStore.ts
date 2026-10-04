@@ -3,7 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { oyiService, type OperationalObject, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
 import type { OisContext } from "@/store/useContextStore";
 import type { FacilityActiveIntelligenceContext } from "@/store/useFacilityAssistantStore";
-import { actionTruthView, OYI_EMPTY_RESPONSE_TEXT } from "@/lib/oyiActionTruth";
+import { emptyResponseText as sharedEmptyResponseText, OYI_WORKING_TEXT } from "oyi-interaction/core";
 
 export type FacilityChatMessage = {
   id: string;
@@ -69,25 +69,6 @@ function id() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function facilityProcessingLabel(module?: string | null) {
-  const labels: Record<string, string> = {
-    overview: "Scanning facility…",
-    "live-infrastructure": "Checking infrastructure…",
-    "estate-structure": "Reviewing buildings…",
-    "hardware-devices": "Reviewing assets…",
-    "security-access": "Checking security…",
-    utilities: "Checking utilities…",
-    services: "Checking utilities…",
-    "environment-sensors": "Checking environmental data…",
-    environment: "Checking environmental data…",
-    "traffic-mobility": "Reviewing access activity…",
-    traffic: "Reviewing access activity…",
-    maintenance: "Reviewing maintenance…",
-    community: "Reviewing community activity…",
-    wallets: "Checking finance…",
-  };
-  return labels[String(module || "")] || "Checking facility records…";
-}
 
 function initialAssistantMessage() {
   return {
@@ -97,12 +78,10 @@ function initialAssistantMessage() {
   };
 }
 
-// Honest fallback when a turn returned no text: state the canonical action
-// truth if there is one, otherwise say nothing was answered -- never imply
-// that a review or action completed.
+// Honest fallback when a turn returned no text (shared rule): the canonical
+// action truth if there is one, otherwise "no answer" -- never "completed".
 function emptyResponseText(response: OyiChatResponse) {
-  const view = actionTruthView(response);
-  return view ? `${view.label}. ${view.detail}` : OYI_EMPTY_RESPONSE_TEXT;
+  return sharedEmptyResponseText(response);
 }
 
 function restoredExecution(row: OyiThreadMessage): Record<string, any> | undefined {
@@ -218,7 +197,7 @@ export const useFacilityConversationStore = create<ConversationState>()(persist(
       messages: [
         ...state.messages,
         { id: id(), role: "user", content: message },
-        { id: pendingId, role: "assistant", content: facilityProcessingLabel(args.module), pending: true },
+        { id: pendingId, role: "assistant", content: OYI_WORKING_TEXT, pending: true },
       ],
     }));
     try {

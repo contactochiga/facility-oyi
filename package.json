@@ -28,7 +28,9 @@
     "build:native-shell": "node scripts/build-native-shell.mjs",
     "start": "next start",
     "lint": "node scripts/lint-source.mjs",
-    "smoke:oyi-action-truth-contract": "node scripts/oyi-action-truth-contract-smoke.mjs",
+    "smoke:oyi-action-truth-contract": "node scripts/oyi-interaction-contract-smoke.mjs",
+    "smoke:oyi-interaction-contract": "node scripts/oyi-interaction-contract-smoke.mjs",
+    "smoke:oyi-interaction-surface": "node scripts/oyi-action-truth-surface-smoke.mjs",
     "smoke:oyi-action-truth-surface": "node scripts/oyi-action-truth-surface-smoke.mjs",
     "lint:eslint": "eslint . --max-warnings=0",
     "cap:add:ios": "npx cap add ios",
@@ -63,6 +65,7 @@
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.474.0",
     "next": "15.5.26",
+    "oyi-interaction": "git+https://github.com/contactochiga/oyi-interaction.git#2973926f3ddeb6c1e7851fb67281815dadae85e7",
     "oyi-twin-engine": "git+https://github.com/contactochiga/Oyi-Twin-Engine.git#fda2a27a31208541cb030c40ad26b01f1bc0fee0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -73,7 +76,9 @@
     "zustand": "^4.5.5"
   },
   "overrides": {
-    "next": { "postcss": "8.5.28" }
+    "next": {
+      "postcss": "8.5.28"
+    }
   },
   "devDependencies": {
     "@capacitor/android": "^6.1.0",
