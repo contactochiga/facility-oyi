@@ -28,6 +28,8 @@
     "build:native-shell": "node scripts/build-native-shell.mjs",
     "start": "next start",
     "lint": "node scripts/lint-source.mjs",
+    "smoke:oyi-action-truth-contract": "node scripts/oyi-action-truth-contract-smoke.mjs",
+    "smoke:oyi-action-truth-surface": "node scripts/oyi-action-truth-surface-smoke.mjs",
     "lint:eslint": "eslint . --max-warnings=0",
     "cap:add:ios": "npx cap add ios",
     "cap:sync": "npm run build:native-shell && npx cap sync",

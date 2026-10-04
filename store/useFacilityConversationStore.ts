@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { oyiService, type OperationalObject, type OyiChatResponse, type OyiThreadMessage } from "@/services/oyiService";
 import type { OisContext } from "@/store/useContextStore";
 import type { FacilityActiveIntelligenceContext } from "@/store/useFacilityAssistantStore";
+import { actionTruthView, OYI_EMPTY_RESPONSE_TEXT } from "@/lib/oyiActionTruth";
 
 export type FacilityChatMessage = {
   id: string;
@@ -16,6 +17,7 @@ export type FacilityChatMessage = {
   understood?: string;
   execution?: Record<string, any>;
   display_mode?: "conversation" | "list" | "detail" | "audit" | "report" | "awareness";
+  presentation_policy?: Record<string, any>;
   // PHASE 3 (Milestone 1) -- oyiService.chat() already parses these from
   // the same canonical /oyi/runtime/conversation response used everywhere
   // else in this store; they were previously computed and discarded
@@ -95,6 +97,26 @@ function initialAssistantMessage() {
   };
 }
 
+// Honest fallback when a turn returned no text: state the canonical action
+// truth if there is one, otherwise say nothing was answered -- never imply
+// that a review or action completed.
+function emptyResponseText(response: OyiChatResponse) {
+  const view = actionTruthView(response);
+  return view ? `${view.label}. ${view.detail}` : OYI_EMPTY_RESPONSE_TEXT;
+}
+
+function restoredExecution(row: OyiThreadMessage): Record<string, any> | undefined {
+  const metadata = row.metadata || {};
+  if (metadata.execution && typeof metadata.execution === "object") return metadata.execution as Record<string, any>;
+  // Persistence stores the canonical action/workflow beside the message
+  // rather than as an execution object; rebuild the same shape the live
+  // response used so restored truth matches the live turn.
+  if (row.role !== "user" && metadata.action && typeof metadata.action === "object" && Object.keys(metadata.action).length) {
+    return { action: metadata.action, workflow: metadata.workflow && typeof metadata.workflow === "object" && Object.keys(metadata.workflow).length ? metadata.workflow : null };
+  }
+  return undefined;
+}
+
 function messageFromThread(row: OyiThreadMessage): FacilityChatMessage {
   const metadata = row.metadata || {};
   return {
@@ -106,8 +128,9 @@ function messageFromThread(row: OyiThreadMessage): FacilityChatMessage {
     suggested_actions: row.suggested_actions || [],
     intent: typeof metadata.intent === "string" ? metadata.intent : undefined,
     understood: typeof metadata.understood === "string" ? metadata.understood : undefined,
-    execution: metadata.execution && typeof metadata.execution === "object" ? metadata.execution as Record<string, any> : undefined,
+    execution: restoredExecution(row),
     display_mode: typeof metadata.display_mode === "string" ? metadata.display_mode as FacilityChatMessage["display_mode"] : "conversation",
+    presentation_policy: metadata.presentation_policy && typeof metadata.presentation_policy === "object" ? metadata.presentation_policy as Record<string, any> : undefined,
   };
 }
 
@@ -233,7 +256,7 @@ export const useFacilityConversationStore = create<ConversationState>()(persist(
             ? {
                 ...item,
                 pending: false,
-                content: response.reply || response.message || "Operational review completed.",
+                content: response.reply || response.message || emptyResponseText(response),
                 cards: Array.isArray(response.cards) ? response.cards : [],
                 sources: Array.isArray(response.sources) ? response.sources : [],
                 suggested_actions: Array.isArray(response.suggested_actions) ? response.suggested_actions : [],
@@ -241,6 +264,7 @@ export const useFacilityConversationStore = create<ConversationState>()(persist(
                 understood: response.understood,
                 execution: response.execution,
                 display_mode: response.display_mode || "conversation",
+                presentation_policy: response.presentation_policy,
                 confirmations: Array.isArray(response.confirmations) ? response.confirmations : [],
                 approvalRequired: Boolean(response.approvalRequired),
                 requiresConfirmation: Boolean(response.requiresConfirmation),

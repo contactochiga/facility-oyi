@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronRight, Copy, ThumbsUp, Volume2 } from "lucide-react";
+import { Ban, Check, ChevronRight, CircleDashed, Clock3, Copy, ThumbsUp, Volume2, X } from "lucide-react";
+import { actionTruthView, type OyiActionTruthView } from "@/lib/oyiActionTruth";
 import type { FacilityChatMessage } from "@/store/useFacilityConversationStore";
 
 type ConversationAction = Record<string, any>;
@@ -61,6 +62,8 @@ function CardStack({
 }
 
 function OperatingStatus({ execution }: { execution?: Record<string, any> }) {
+  // The canonical action truth card owns action status when it is present.
+  if (actionTruthView({ execution })) return null;
   const results = Array.isArray(execution?.results) ? execution.results : [];
   const first = results[0] || {};
   const rawStatus = String(first.status || "").replace(/_/g, " ");
@@ -73,7 +76,7 @@ function OperatingStatus({ execution }: { execution?: Record<string, any> }) {
       : /confirmation|pending/.test(rawStatus)
         ? "Confirmation needed"
         : /executed|success/.test(rawStatus)
-          ? "Action completed"
+          ? "Command sent · not verified"
           : "Action update";
 
   const tone =
@@ -87,6 +90,41 @@ function OperatingStatus({ execution }: { execution?: Record<string, any> }) {
     <div className={`mt-3 rounded-[20px] border p-3 ${tone}`}>
       <div className="text-[10px] font-medium uppercase tracking-[0.18em] opacity-75">{status}</div>
       {first.summary || first.error ? <p className="mt-1 text-xs leading-5 opacity-90">{String(first.summary || first.error)}</p> : null}
+    </div>
+  );
+}
+
+const ACTION_TRUTH_TONE: Record<OyiActionTruthView["tone"], string> = {
+  awaiting: "border-amber-300/16 bg-amber-400/[0.06] text-amber-50/82",
+  progress: "border-sky-300/14 bg-sky-400/[0.055] text-sky-50/82",
+  verified: "border-emerald-300/16 bg-emerald-400/[0.06] text-emerald-50/82",
+  unverified: "border-sky-300/14 bg-sky-400/[0.045] text-sky-50/80",
+  failed: "border-rose-300/15 bg-rose-400/[0.055] text-rose-50/80",
+  closed: "border-white/[0.08] bg-white/[0.035] text-zinc-300",
+};
+
+function ActionTruthIcon({ view }: { view: OyiActionTruthView }) {
+  if (view.tone === "verified") return <Check className="h-3.5 w-3.5" />;
+  if (view.tone === "failed") return <X className="h-3.5 w-3.5" />;
+  if (view.tone === "closed") return <Ban className="h-3.5 w-3.5" />;
+  if (view.tone === "unverified") return <CircleDashed className="h-3.5 w-3.5" />;
+  return <Clock3 className="h-3.5 w-3.5" />;
+}
+
+// Canonical action truth (execution.action, shared mapper): only a
+// "confirmed" action is presented as verified.
+function ActionTruthStatus({ message }: { message: FacilityChatMessage }) {
+  const view = actionTruthView({ execution: message.execution });
+  if (!view) return null;
+  // A pending approval is presented once, by the ConfirmationPrompt.
+  if (view.awaiting_user && (message.requiresConfirmation || message.approvalRequired || message.confirmations?.length)) return null;
+  return (
+    <div className={`mt-3 rounded-[20px] border p-3 ${ACTION_TRUTH_TONE[view.tone]}`} data-action-status={view.status} data-action-verified={view.verified ? "true" : "false"}>
+      <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.18em] opacity-80">
+        <ActionTruthIcon view={view} />
+        {view.label}
+      </div>
+      <p className="mt-1 text-xs leading-5 opacity-90">{view.target_label ? `${view.target_label}: ` : ""}{view.detail}</p>
     </div>
   );
 }
@@ -133,9 +171,10 @@ function ConfirmationPrompt({
   return (
     <div className="mt-3 rounded-[20px] border border-amber-300/16 bg-amber-400/[0.06] p-3">
       <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-amber-50/82">
-        {message.approvalRequired ? "Approval required" : "Confirmation needed"}
+        Confirm action?
       </div>
       {detail?.summary || detail?.label ? <p className="mt-1 text-xs leading-5 text-amber-50/90">{String(detail.summary || detail.label)}</p> : null}
+      <p className="mt-1 text-[11px] leading-5 text-amber-50/70">Nothing has been sent yet. Confirming approves the action; Oyi reports the verified result separately.</p>
       <div className="mt-2.5 flex gap-2">
         <button
           type="button"
@@ -217,9 +256,13 @@ export default function FacilityConversationFeed({
                 <>
                   <CardStack cards={message.cards} onAction={onAction} />
                   <OperatingStatus execution={message.execution} />
+                  <ActionTruthStatus message={message} />
                   <AccountabilityStrip execution={message.execution} />
                   <SuggestedActions actions={message.suggested_actions} onAction={onAction} />
                 </>
+              ) : !mine && !message.pending && message.presentation_policy?.primary === "execution" ? (
+                // An action outcome turn: the canonical action truth is its status.
+                <ActionTruthStatus message={message} />
               ) : null}
               {!mine && !message.pending ? <ConfirmationPrompt message={message} onAction={onAction} /> : null}
               {!mine && interactive && !message.pending ? (

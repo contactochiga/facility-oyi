@@ -62,6 +62,7 @@ export type OyiChatResponse = {
   understood?: string;
   execution?: Record<string, any>;
   display_mode?: "conversation" | "list" | "detail" | "audit" | "report" | "awareness";
+  presentation_policy?: Record<string, any>;
   cards?: Array<Record<string, any>>;
   sources?: Array<Record<string, any>>;
   suggested_actions?: Array<Record<string, any>>;
@@ -140,6 +141,7 @@ export const oyiService = {
       understood: runtime.understood,
       execution: runtime.execution,
       display_mode: runtime.display_mode,
+      presentation_policy: runtime.presentation_policy && typeof runtime.presentation_policy === "object" ? runtime.presentation_policy : undefined,
       cards: Array.isArray(runtime.cards) ? runtime.cards : [],
       sources: Array.isArray(runtime.sources) ? runtime.sources : [],
       suggested_actions: Array.isArray(runtime.suggested_actions) ? runtime.suggested_actions : [],
